@@ -1,0 +1,18 @@
+﻿@page "/podium"
+@page "/podium/{UserName}/{PinCode}"
+
+<PageTitle>Podium</PageTitle>
+
+<h1>@UserName</h1>
+
+<h2>@PinCode</h2>
+
+
+@code {
+
+    [Parameter]
+    public string UserName {get;set;}
+    [Parameter]
+    public string PinCode {get;set;}
+
+}   
