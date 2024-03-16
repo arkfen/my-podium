@@ -3,16 +3,31 @@
 
 <PageTitle>Podium</PageTitle>
 
-<h1>@UserName</h1>
 
-<h2>@PinCode</h2>
+
+<h1>You are @UserName</h1>
+
+<h2>Your pin code is @PinCode</h2>
+
+<h3>
+@if(UserName == "ark" && PinCode == "7589")
+{
+    <p>Access Granted</p>
+}
+else
+{
+    <p>Access restricted! Sorry, try again.</p>
+}
+</h3>
+
+
 
 
 @code {
 
     [Parameter]
-    public string UserName {get;set;}
+    public string? UserName {get;set;}
     [Parameter]
-    public string PinCode {get;set;}
+    public string? PinCode {get;set;}
 
 }   
