@@ -10,7 +10,7 @@
 <h2>Your pin code is @PinCode</h2>
 
 <h3>
-@userId = GetId(@UserName, @PinCode)
+
 @if(userId != 0)
 {
     <p>Access Granted</p>
@@ -28,20 +28,30 @@ else
 @code {
 
     [Parameter]
-    public string? UserName {get;set;}
+    public string UserName {get;set;}
     [Parameter]
-    public string? PinCode {get;set;}
+    public string PinCode {get;set;}
 
     private int userId = 0;
+    
+    
+    
+    protected override async Task OnInitializedAsync()
+    {
+        userId = await GetIdAsync(@UserName, @PinCode);
+        StateHasChanged();
+    }
+    
+     
 
 
 
-    private int GetId(string userName, string pinCode)
+    private async Task<int> GetIdAsync(string userName, string pinCode)
     {
         var id = 0;
-        if(userName == "Ark" && pinCode == "7589") id = 1;
-        if(userName == "Michael" && pinCode == "1295") id = 2;
-        if(userName == "Denis" && pinCode == "3462") id = 3;
+        if(userName == "ark" && pinCode == "7589") id = 1;
+        if(userName == "michael" && pinCode == "1295") id = 2;
+        if(userName == "denis" && pinCode == "3462") id = 3;
         return id;
     }
 
