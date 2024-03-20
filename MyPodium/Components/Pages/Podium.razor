@@ -1,5 +1,7 @@
 ﻿@page "/podium"
 @page "/podium/{UserName}/{PinCode}"
+@inject IConfiguration Configuration
+
 
 <PageTitle>Podium</PageTitle>
 
@@ -23,6 +25,9 @@ else
 </h3>
 
 
+<h4>
+    <p>test echo: @testEcho</p>
+</h4>
 
 
 @code {
@@ -33,13 +38,18 @@ else
     public string PinCode {get;set;}
 
     private int userId = 0;
-    
-    
+
+    private string testEcho;
+
     
     protected override async Task OnInitializedAsync()
     {
-        userId = await GetIdAsync(@UserName, @PinCode);
-        StateHasChanged();
+        //userId = await GetIdAsync(@UserName, @PinCode);
+        //StateHasChanged();
+
+        var connectionString = Configuration.GetConnectionString("DefaultConnection");
+
+        testEcho = connectionString;
     }
     
      
