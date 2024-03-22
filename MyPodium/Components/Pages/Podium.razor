@@ -24,11 +24,7 @@ else
 }
 </h3>
 
-
-<h4>
-    <p>test echo: @testEcho</p>
-</h4>
-
+<h4>@debugOutput</h4>
 
 @code {
 
@@ -37,22 +33,48 @@ else
     [Parameter]
     public string PinCode {get;set;}
 
+    private string debugOutput;
     private int userId = 0;
-
-    private string testEcho;
+   //private string connectionString = Configuration.GetConnectionString("DefaultConnection");
+    private static TableServiceClient serviceClient;
+    private static string tableName = "mypodium";
+    
 
     
     protected override async Task OnInitializedAsync()
     {
-        //userId = await GetIdAsync(@UserName, @PinCode);
-        //StateHasChanged();
+        var storageUri = Configuration.GetConnectionString("DefaultStorageUri");
+        var accountName = Configuration.GetConnectionString("DefaultAccountName");
+        var storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
 
-        var connectionString = Configuration.GetConnectionString("DefaultConnection");
+        //var connectionString = Configuration.GetConnectionString("DefaultCC");
 
-        testEcho = connectionString;
+        var tableClient = new TableClient(
+            new Uri(storageUri),
+            tableName,
+            new TableSharedKeyCredential(accountName, storageAccountKey));
+
+        @* var tableClient = new TableClient(
+            connectionString,
+            tableName); *@
+
+
+
+        tableClient.CreateIfNotExists();
+
+        Pageable<TableEntity> queryResultsFilter = tableClient.Query<TableEntity>(filter: $"PartitionKey eq '0'");
+
+        // Iterate the <see cref="Pageable"> to access all queried entities.
+        foreach (TableEntity qEntity in queryResultsFilter)
+        {
+            debugOutput += $"{qEntity.GetString("UserName")}: {qEntity.GetString("PinCode")}\n";
+        }
+
+        debugOutput += $"The query returned {queryResultsFilter.Count()} entities.";
+
+
     }
     
-     
 
 
 
