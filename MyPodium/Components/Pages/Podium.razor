@@ -29,36 +29,37 @@ else
 @code {
 
     [Parameter]
-    public string UserName {get;set;}
+    public string? UserName {get;set;}
     [Parameter]
-    public string PinCode {get;set;}
+    public string? PinCode {get;set;}
 
-    private string debugOutput;
+
+    private string? storageUri;
+    private string? accountName;
+    private string? storageAccountKey;
     private int userId = 0;
-   //private string connectionString = Configuration.GetConnectionString("DefaultConnection");
-    private static TableServiceClient serviceClient;
-    private static string tableName = "mypodium";
+    private string tableName = "mypodium";
+    private string? debugOutput;
     
 
     
     protected override async Task OnInitializedAsync()
     {
-        var storageUri = Configuration.GetConnectionString("DefaultStorageUri");
-        var accountName = Configuration.GetConnectionString("DefaultAccountName");
-        var storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
+        storageUri = Configuration.GetConnectionString("DefaultStorageUri");
+        accountName = Configuration.GetConnectionString("DefaultAccountName");
+        storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
+        await AuthenticateUser();
+    }
+    
 
-        //var connectionString = Configuration.GetConnectionString("DefaultCC");
+    private async Task AuthenticateUser()
+    {
+        if(storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
 
         var tableClient = new TableClient(
-            new Uri(storageUri),
-            tableName,
-            new TableSharedKeyCredential(accountName, storageAccountKey));
-
-        @* var tableClient = new TableClient(
-            connectionString,
-            tableName); *@
-
-
+        new Uri(storageUri),
+        tableName,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
 
         tableClient.CreateIfNotExists();
 
@@ -72,13 +73,15 @@ else
 
         debugOutput += $"The query returned {queryResultsFilter.Count()} entities.";
 
-
+        await Task.CompletedTask;
     }
-    
 
 
 
-    private async Task<int> GetIdAsync(string userName, string pinCode)
+
+
+    // obsolete
+    private int GetId(string userName, string pinCode)
     {
         var id = 0;
         if(userName == "ark" && pinCode == "7589") id = 1;
