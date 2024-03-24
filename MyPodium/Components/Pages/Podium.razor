@@ -13,15 +13,15 @@
 
 <h3>
 
-@if(userId != 0)
-{
-    <p>Access Granted</p>
-    <p>USER ID: @userId</p>
-}
-else
-{
-    <p>Access restricted! Sorry, try again.</p>
-}
+    @if (userId != 0)
+    {
+        <p>Access Granted</p>
+        <p>USER ID: @userId</p>
+    }
+    else
+    {
+        <p>Access restricted! Sorry, try again.</p>
+    }
 </h3>
 
 <h4>@debugOutput</h4>
@@ -29,9 +29,9 @@ else
 @code {
 
     [Parameter]
-    public string? UserName {get;set;}
+    public string? UserName { get; set; }
     [Parameter]
-    public string? PinCode {get;set;}
+    public string? PinCode { get; set; }
 
 
     private string? storageUri;
@@ -40,9 +40,9 @@ else
     private int userId = 0;
     private string tableName = "mypodium";
     private string? debugOutput;
-    
 
-    
+
+
     protected override async Task OnInitializedAsync()
     {
         storageUri = Configuration.GetConnectionString("DefaultStorageUri");
@@ -50,28 +50,32 @@ else
         storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
         await AuthenticateUser();
     }
-    
+
 
     private async Task AuthenticateUser()
     {
-        if(storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
+        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
 
         var tableClient = new TableClient(
         new Uri(storageUri),
         tableName,
         new TableSharedKeyCredential(accountName, storageAccountKey));
 
-        tableClient.CreateIfNotExists();
-
-        Pageable<TableEntity> queryResultsFilter = tableClient.Query<TableEntity>(filter: $"PartitionKey eq '0'");
-
-        // Iterate the <see cref="Pageable"> to access all queried entities.
-        foreach (TableEntity qEntity in queryResultsFilter)
+        //tableClient.CreateIfNotExists();
+        try
         {
-            debugOutput += $"{qEntity.GetString("UserName")}: {qEntity.GetString("PinCode")}\n";
+            Pageable<TableEntity> queryResultsFilter = tableClient.Query<TableEntity>(filter: $"PartitionKey eq '0'");
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                debugOutput += $"{qEntity.GetString("UserName")}: {qEntity.GetString("PinCode")}\n";
+            }
+            debugOutput += $"The query returned {queryResultsFilter.Count()} entities.";
+        }
+        catch
+        {
+            debugOutput += "Hm... some problems connecting to the Azure Storage Tables...";
         }
 
-        debugOutput += $"The query returned {queryResultsFilter.Count()} entities.";
 
         await Task.CompletedTask;
     }
@@ -84,10 +88,10 @@ else
     private int GetId(string userName, string pinCode)
     {
         var id = 0;
-        if(userName == "ark" && pinCode == "7589") id = 1;
-        if(userName == "michael" && pinCode == "1295") id = 2;
-        if(userName == "denis" && pinCode == "3462") id = 3;
+        if (userName == "ark" && pinCode == "7589") id = 1;
+        if (userName == "michael" && pinCode == "1295") id = 2;
+        if (userName == "denis" && pinCode == "3462") id = 3;
         return id;
     }
 
-}   
+}
