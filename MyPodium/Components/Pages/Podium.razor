@@ -7,13 +7,14 @@
 
 
 
-<h1>You are @UserName</h1>
+<h1>You are <li>@UserName</li>
+</h1>
 
-<h2>Your pin code is @PinCode</h2>
+<h2>Your pin code is <li>@PinCode</li>
+</h2>
 
 <h3>
-
-    @if (userId != 0)
+    @if (userId is not null)
     {
         <p>Access Granted</p>
         <p>USER ID: @userId</p>
@@ -37,7 +38,7 @@
     private string? storageUri;
     private string? accountName;
     private string? storageAccountKey;
-    private int userId = 0;
+    private string? userId;
     private string tableName = "mypodium";
     private string? debugOutput;
 
@@ -55,28 +56,36 @@
     private async Task AuthenticateUser()
     {
         if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
-
+        var authorized = false;
         var tableClient = new TableClient(
         new Uri(storageUri),
         tableName,
         new TableSharedKeyCredential(accountName, storageAccountKey));
 
-        //tableClient.CreateIfNotExists();
         try
         {
-            Pageable<TableEntity> queryResultsFilter = tableClient.Query<TableEntity>(filter: $"PartitionKey eq '0'");
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(filter: $"PartitionKey eq '0' and UserName eq '{UserName}'");
             foreach (TableEntity qEntity in queryResultsFilter)
             {
                 debugOutput += $"{qEntity.GetString("UserName")}: {qEntity.GetString("PinCode")}\n";
+                if (PinCode == qEntity.GetString("PinCode"))
+                {
+                    authorized = true;
+                    userId = qEntity.GetString("RowKey");
+                }
             }
-            debugOutput += $"The query returned {queryResultsFilter.Count()} entities.";
+            debugOutput += $"The query returned {queryResultsFilter.Count()} entities.\n";
         }
         catch
         {
-            debugOutput += "Hm... some problems connecting to the Azure Storage Tables...";
+            debugOutput += "Hm... some problems connecting to the Azure Storage Tables...\n";
         }
+        if (authorized)
+        {
 
-
+            debugOutput += "Welllcome! You are authorized... \n";
+        }
         await Task.CompletedTask;
     }
 
