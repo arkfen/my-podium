@@ -38,7 +38,7 @@
     private string? storageUri;
     private string? accountName;
     private string? storageAccountKey;
-    private string? userId;
+    private int? userId;
     private string tableName = "mypodium";
     private string debugOutput = string.Empty;
 
@@ -72,35 +72,24 @@
                 if (PinCode == qEntity.GetString("PinCode"))
                 {
                     authorized = true;
-                    userId = qEntity.GetString("RowKey");
+                    userId = qEntity.GetInt32("UserId");
                 }
             }
             debugOutput += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
         catch
         {
-            debugOutput += "Hm... some problems connecting to the Azure Storage Tables... <br>";
+            debugOutput += "Sorry, we have some DB problems... <br>";
         }
         if (authorized)
         {
-
             debugOutput += "Welllcome! You are authorized... <br>";
+            debugOutput += $"ID: {userId} <br>";
         }
         await Task.CompletedTask;
     }
 
 
 
-
-
-    // obsolete
-    private int GetId(string userName, string pinCode)
-    {
-        var id = 0;
-        if (userName == "ark" && pinCode == "7589") id = 1;
-        if (userName == "michael" && pinCode == "1295") id = 2;
-        if (userName == "denis" && pinCode == "3462") id = 3;
-        return id;
-    }
 
 }
