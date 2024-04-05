@@ -1,7 +1,63 @@
 ﻿@page "/"
 
+@inject IConfiguration Configuration
+
+
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
 
-Welcome to your new app.
+<div>
+    @((MarkupString)data)
+</div>
+
+
+@code {
+
+
+    private string? storageUri;
+    private string? accountName;
+    private string? storageAccountKey;
+    private string dreamsTable = "MyPodiumDreams";
+
+    private string data = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        storageUri = Configuration.GetConnectionString("DefaultStorageUri");
+        accountName = Configuration.GetConnectionString("DefaultAccountName");
+        storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
+        await ListData();
+    }
+
+    private async Task ListData()
+    {
+        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
+
+        var tableClient = new TableClient(
+        new Uri(storageUri),
+        dreamsTable,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
+
+        try
+        {
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(filter: $"PartitionKey eq 'F1' and Year eq 2024 and Race eq 1");
+
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                data += $"{qEntity.GetString("UserId")}: " +
+                $"1. {qEntity.GetString("P1")} 2. {qEntity.GetString("P2")} 3. {qEntity.GetString("P3")} <br>";
+
+            }
+            data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
+        }
+        catch
+        {
+            data += "Sorry, we have some DB problems... <br>";
+        }
+
+        await Task.CompletedTask;
+
+    }
+
+}
