@@ -3,7 +3,7 @@
 @inject IConfiguration Configuration
 
 
-<PageTitle>Home</PageTitle>
+<PageTitle>My Podium Dreams</PageTitle>
 
 
 <div>
@@ -13,11 +13,14 @@
 
 @code {
 
-
+    private static int _year = 2024;
+    private static string _raceType = "F1";
     private string? storageUri;
     private string? accountName;
     private string? storageAccountKey;
     private string dreamsTable = "MyPodiumDreams";
+    private string usersTable = "MyPodiumUsers";
+    private string racesTable = "MyPodiumRaces";
 
     private string data = string.Empty;
 
@@ -33,27 +36,90 @@
     {
         if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
 
-        var tableClient = new TableClient(
-        new Uri(storageUri),
-        dreamsTable,
-        new TableSharedKeyCredential(accountName, storageAccountKey));
+        Dictionary<string, string> users = [];
+        Dictionary<int, string> races = [];
+        var credentials = new TableSharedKeyCredential(accountName, storageAccountKey);
+        var storage = new Uri(storageUri);
 
+        var tableClient = new TableClient(storage, usersTable, credentials);
         try
         {
-            Pageable<TableEntity> queryResultsFilter =
-            tableClient.Query<TableEntity>(filter: $"PartitionKey eq 'F1' and Year eq 2024 and Race eq 1");
+            Pageable<TableEntity> queryResultsFilter = tableClient.Query<TableEntity>();
 
             foreach (TableEntity qEntity in queryResultsFilter)
             {
-                data += $"{qEntity.GetString("UserId")}: " +
-                $"1. {qEntity.GetString("P1")} 2. {qEntity.GetString("P2")} 3. {qEntity.GetString("P3")} <br>";
+                users.Add(qEntity.GetString("Id"), qEntity.GetString("Name"));
 
             }
-            data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
+            //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
         catch
         {
-            data += "Sorry, we have some DB problems... <br>";
+            data += "Sorry, we have some DB problems fetching users... <br>";
+        }
+
+
+
+        tableClient = new TableClient(storage, racesTable, credentials);
+        try
+        {
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(filter: $"PartitionKey eq '{_raceType}' and Year eq {_year}");
+
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                var n = qEntity.GetInt32("Number");
+                if (n is null) continue;
+                races.Add((int)n, qEntity.GetString("Name"));
+            }
+            //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
+        }
+        catch
+        {
+            data += "Sorry, we have some DB problems fetching races... <br>";
+        }
+
+
+        Dictionary<string, int> userTotals = [];
+        foreach (string user in users.Keys) userTotals.Add(user, 0);
+
+        tableClient = new TableClient(storage, dreamsTable, credentials);
+
+        foreach (int race in races.Keys)
+        {
+            data += $"<h1>{race}. {races[race]}</h1>";
+            try
+            {
+                Pageable<TableEntity> queryResultsFilter =
+                tableClient.Query<TableEntity>(
+                filter: $"PartitionKey eq '{_raceType}' and Year eq {_year} and Race eq {race}");
+
+                foreach (TableEntity qEntity in queryResultsFilter)
+                {
+                    var userId = qEntity.GetString("UserId");
+                    var points = qEntity.GetInt32("Points");
+                    string userPoints = "?";
+                    if (points is not null)
+                    {
+                        userPoints = ((int)points).ToString();
+                        userTotals[userId] += (int)points;
+                    }
+                    data += $"<p>{users[userId]} : <b>{userPoints}</b>" +
+                    $" === 1. {qEntity.GetString("P1")} 2. {qEntity.GetString("P2")} 3. {qEntity.GetString("P3")} </p>";
+                }
+                //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
+            }
+            catch
+            {
+                data += "Sorry, we have some DB problems fetching results... <br>";
+            }
+        }
+
+        data += "<br><br><br><br><h2>Totals so far...</h2>";
+
+        foreach (string user in userTotals.Keys)
+        {
+            data += $"<p>{users[user]} : <b>{userTotals[user]}</b></p>";
         }
 
         await Task.CompletedTask;
