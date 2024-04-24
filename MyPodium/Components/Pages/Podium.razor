@@ -18,6 +18,54 @@
     {
         <p>Access Granted</p>
         <p>USER ID: @userId</p>
+
+
+
+
+        <h1>Predict the Podium</h1>
+
+        <EditForm Model="@prediction" OnValidSubmit="@HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label for="P1" class="form-label">First Place</label>
+                <select id="P1" class="form-select" @bind="prediction.P1">
+                    <option value="">Select a driver...</option>
+                    @foreach (var driver in drivers)
+                    {
+                        <option value="@driver.Name">@driver.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="P2" class="form-label">Second Place</label>
+                <select id="P2" class="form-select" @bind="prediction.P2">
+                    <option value="">Select a driver...</option>
+                    @foreach (var driver in drivers)
+                    {
+                        <option value="@driver.Name">@driver.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="P3" class="form-label">Third Place</label>
+                <select id="P3" class="form-select" @bind="prediction.P3">
+                    <option value="">Select a driver...</option>
+                    @foreach (var driver in drivers)
+                    {
+                        <option value="@driver.Name">@driver.Name</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Prediction</button>
+        </EditForm>
+
+
+
     }
     else
     {
@@ -44,14 +92,72 @@
 
 
 
+
+    private PodiumPrediction prediction = new PodiumPrediction();
+    private List<Driver> drivers = new List<Driver>(); // Populate this list with drivers from MyPodiumDrivers table
+
     protected override async Task OnInitializedAsync()
     {
         storageUri = Configuration.GetConnectionString("DefaultStorageUri");
         accountName = Configuration.GetConnectionString("DefaultAccountName");
         storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
         await AuthenticateUser();
+        drivers = await GetDriversAsync();
+        await base.OnInitializedAsync();
     }
 
+    private async Task<List<Driver>> GetDriversAsync()
+    {
+        // Retrieve the list of drivers from the MyPodiumDrivers table
+        // Implement the logic to fetch drivers here
+        // ...
+        return new List<Driver>(); // Placeholder for actual driver list
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (prediction.P1 == prediction.P2 || prediction.P1 == prediction.P3 || prediction.P2 == prediction.P3)
+        {
+            // Show error message
+            return;
+        }
+
+        // Retrieve the current race number from MyPodiumRaces table
+        int currentRaceNumber = await GetCurrentRaceNumberAsync();
+
+        // Create the entity to be saved
+        var entity = new TableEntity("F1", $"2024-{currentRaceNumber}-{userId}")
+            {
+                ["UserId"] = userId,
+                ["P1"] = prediction.P1,
+                ["P2"] = prediction.P2,
+                ["P3"] = prediction.P3,
+                ["Year"] = 2024,
+                ["Race"] = currentRaceNumber
+            };
+
+        // Save the entity to the MyPodiumDreams table
+        var tableClient = CreateTableClient("MyPodiumDreams");
+        if (tableClient is null) return;
+        tableClient.AddEntity(entity);
+    }
+
+    private async Task<int> GetCurrentRaceNumberAsync()
+    {
+        // Implement the logic to retrieve the current race number from MyPodiumRaces table
+        // ...
+        return 0; // Placeholder for actual race number
+    }
+
+
+    private TableClient CreateTableClient(string tableName)
+    {
+        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return null;
+        return new TableClient(
+        new Uri(storageUri),
+        tableName,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
+    }
 
     private async Task AuthenticateUser()
     {
@@ -91,6 +197,21 @@
     }
 
 
+    public class PodiumPrediction
+    {
 
+        public string? P1 { get; set; }
+
+
+        public string? P2 { get; set; }
+
+
+        public string? P3 { get; set; }
+    }
+
+    public class Driver
+    {
+        public string? Name { get; set; }
+    }
 
 }
