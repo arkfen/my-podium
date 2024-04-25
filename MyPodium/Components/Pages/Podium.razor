@@ -1,7 +1,7 @@
 ﻿@page "/podium"
 @page "/podium/{UserName}/{PinCode:int?}"
 @inject IConfiguration Configuration
-
+@rendermode InteractiveServer
 
 <PageTitle>Podium</PageTitle>
 
@@ -24,46 +24,40 @@
 
         <h1>Predict the Podium</h1>
 
-        <EditForm Model="@prediction" OnValidSubmit="@HandleValidSubmit">
-            <DataAnnotationsValidator />
-            <ValidationSummary />
+        <div class="mb-3">
+        <label for="P1" class="form-label">First Place</label>
+        <select id="P1" class="form-select" @onchange="SelectFirstPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
 
-            <div class="mb-3">
-                <label for="P1" class="form-label">First Place</label>
-                <select id="P1" class="form-select" @bind="prediction.P1">
-                    <option value="">Select a driver...</option>
-                    @foreach (var driver in drivers)
-                    {
-                        <option value="@driver.Name">@driver.Name</option>
-                    }
-                </select>
-            </div>
+        <div class="mb-3">
+        <label for="P2" class="form-label">Second Place</label>
+        <select id="P2" class="form-select" @onchange="SelectSecondPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
 
-            <div class="mb-3">
-                <label for="P2" class="form-label">Second Place</label>
-                <select id="P2" class="form-select" @bind="prediction.P2">
-                    <option value="">Select a driver...</option>
-                    @foreach (var driver in drivers)
-                    {
-                        <option value="@driver.Name">@driver.Name</option>
-                    }
-                </select>
-            </div>
+        <div class="mb-3">
+        <label for="P3" class="form-label">Third Place</label>
+        <select id="P3" class="form-select" @onchange="SelectThirdPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
 
-            <div class="mb-3">
-                <label for="P3" class="form-label">Third Place</label>
-                <select id="P3" class="form-select" @bind="prediction.P3">
-                    <option value="">Select a driver...</option>
-                    @foreach (var driver in drivers)
-                    {
-                        <option value="@driver.Name">@driver.Name</option>
-                    }
-                </select>
-            </div>
-
-            <button type="submit" class="btn btn-primary">Save Prediction</button>
-        </EditForm>
-
+        <button type="button" class="btn btn-primary" @onclick="SubmitPrediction">Save Prediction</button>
 
 
     }
@@ -93,8 +87,26 @@
 
 
 
-    private PodiumPrediction prediction = new PodiumPrediction();
-    private List<Driver> drivers = new List<Driver>(); // Populate this list with drivers from MyPodiumDrivers table
+    private string selectedFirstPlace = "";
+    private string selectedSecondPlace = "";
+    private string selectedThirdPlace = "";
+    private List<Driver> drivers = new List<Driver>();
+
+
+    private void SelectFirstPlace(ChangeEventArgs e)
+    {
+        selectedFirstPlace = e.Value?.ToString() ?? string.Empty; ;
+    }
+
+    private void SelectSecondPlace(ChangeEventArgs e)
+    {
+        selectedSecondPlace = e.Value?.ToString() ?? string.Empty; ;
+    }
+
+    private void SelectThirdPlace(ChangeEventArgs e)
+    {
+        selectedThirdPlace = e.Value?.ToString() ?? string.Empty; ;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -108,30 +120,49 @@
 
     private async Task<List<Driver>> GetDriversAsync()
     {
-        // Retrieve the list of drivers from the MyPodiumDrivers table
-        // Implement the logic to fetch drivers here
-        // ...
-        return new List<Driver>(); // Placeholder for actual driver list
+        List<Driver> drivers = new List<Driver>();
+        var tableClient = CreateTableClient("MyPodiumDrivers");
+        if (tableClient is null) return drivers;
+        string partitionKey = "F1";
+        string filter = $"PartitionKey eq '{partitionKey}'";
+
+        AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
+        await foreach (var entity in queryResults)
+        {
+            drivers.Add(new Driver
+                {
+                    Name = entity.GetString("Name")
+                });
+        }
+
+        return drivers;
     }
 
-    private async Task HandleValidSubmit()
+    private async Task SubmitPrediction()
     {
-        if (prediction.P1 == prediction.P2 || prediction.P1 == prediction.P3 || prediction.P2 == prediction.P3)
+        if (selectedFirstPlace == selectedSecondPlace || selectedFirstPlace == selectedThirdPlace || selectedSecondPlace ==
+        selectedThirdPlace)
         {
             // Show error message
+            debugOutput = "<div style='color:red;'>Choose different drivers!</div>";
             return;
         }
 
         // Retrieve the current race number from MyPodiumRaces table
-        int currentRaceNumber = await GetCurrentRaceNumberAsync();
+        int? currentRaceNumber = await GetCurrentRaceNumberAsync();
+        if (currentRaceNumber is null)
+        {
+            debugOutput = "<div style='color:red;'>Sorry, the race was not found!</div>";
+            return;
+        }
 
         // Create the entity to be saved
         var entity = new TableEntity("F1", $"2024-{currentRaceNumber}-{userId}")
             {
                 ["UserId"] = userId,
-                ["P1"] = prediction.P1,
-                ["P2"] = prediction.P2,
-                ["P3"] = prediction.P3,
+                ["P1"] = selectedFirstPlace,
+                ["P2"] = selectedSecondPlace,
+                ["P3"] = selectedThirdPlace,
                 ["Year"] = 2024,
                 ["Race"] = currentRaceNumber
             };
@@ -142,15 +173,31 @@
         tableClient.AddEntity(entity);
     }
 
-    private async Task<int> GetCurrentRaceNumberAsync()
+    private async Task<int?> GetCurrentRaceNumberAsync()
     {
-        // Implement the logic to retrieve the current race number from MyPodiumRaces table
-        // ...
-        return 0; // Placeholder for actual race number
+        var tableClient = CreateTableClient("MyPodiumRaces");
+        if (tableClient is null) return null;
+        string partitionKey = "F1";
+        int year = 2024;
+        string filter = $"PartitionKey eq '{partitionKey}' and Year eq {year}";
+
+        AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
+
+        int? currentRaceNumber = 0;
+        await foreach (var entity in queryResults)
+        {
+            int? raceNumber = entity.GetInt32("Number");
+            if (raceNumber > currentRaceNumber)
+            {
+                currentRaceNumber = raceNumber;
+            }
+        }
+
+        return currentRaceNumber;
     }
 
 
-    private TableClient CreateTableClient(string tableName)
+    private TableClient? CreateTableClient(string tableName)
     {
         if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return null;
         return new TableClient(
@@ -197,17 +244,6 @@
     }
 
 
-    public class PodiumPrediction
-    {
-
-        public string? P1 { get; set; }
-
-
-        public string? P2 { get; set; }
-
-
-        public string? P3 { get; set; }
-    }
 
     public class Driver
     {
