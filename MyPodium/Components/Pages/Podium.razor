@@ -3,26 +3,30 @@
 @inject IConfiguration Configuration
 @rendermode InteractiveServer
 
-<PageTitle>Podium</PageTitle>
+<PageTitle>Podium Dream</PageTitle>
 
 
 
-<h1>You are <li>@UserName</li>
+@* <h1>You are <li>@UserName</li>
 </h1>
 
 <h2>Your pin code is <li>@PinCode</li>
-</h2>
+</h2> *@
 
 <h3>
     @if (userId is not null)
     {
-        <p>Access Granted</p>
-        <p>USER ID: @userId</p>
+        @* <p>Access Granted</p>
+    <p>USER ID: @userId</p> *@
 
 
+        <h1>Hello, @userName</h1>
 
+        <h2>Predict the Podium</h2>
 
-        <h1>Predict the Podium</h1>
+        <br>
+
+        <br>
 
         <div class="mb-3">
         <label for="P1" class="form-label">First Place</label>
@@ -81,6 +85,7 @@
     private string? accountName;
     private string? storageAccountKey;
     private string? userId;
+    private string? userName;
     private string userTable = "MyPodiumUsers";
     private string debugOutput = string.Empty;
 
@@ -134,7 +139,7 @@
                     Name = entity.GetString("Name")
                 });
         }
-
+        drivers.Sort((driver1, driver2) => string.Compare(driver1.Name, driver2.Name, StringComparison.OrdinalIgnoreCase));
         return drivers;
     }
 
@@ -170,7 +175,7 @@
         // Save the entity to the MyPodiumDreams table
         var tableClient = CreateTableClient("MyPodiumDreams");
         if (tableClient is null) return;
-        tableClient.AddEntity(entity);
+        await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
     }
 
     private async Task<int?> GetCurrentRaceNumberAsync()
@@ -208,13 +213,9 @@
 
     private async Task AuthenticateUser()
     {
-        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
+        var tableClient = CreateTableClient(userTable);
         var authorized = false;
-        var tableClient = new TableClient(
-        new Uri(storageUri),
-        userTable,
-        new TableSharedKeyCredential(accountName, storageAccountKey));
-
+        if (tableClient is null) return;
         try
         {
             Pageable<TableEntity> queryResultsFilter =
@@ -222,14 +223,15 @@
 
             foreach (TableEntity qEntity in queryResultsFilter)
             {
-                debugOutput += $"{qEntity.GetString("Name")}: {qEntity.GetString("UserName")} <br>";
+                //debugOutput += $"{qEntity.GetString("Name")}: {qEntity.GetString("UserName")} <br>";
                 if (PinCode == qEntity.GetInt32("Pin"))
                 {
                     authorized = true;
                     userId = qEntity.GetString("Id");
+                    userName = qEntity.GetString("Name");
                 }
             }
-            debugOutput += $"The query returned {queryResultsFilter.Count()} entities. <br>";
+            //debugOutput += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
         catch
         {
@@ -237,8 +239,8 @@
         }
         if (authorized)
         {
-            debugOutput += "Welllcome! You are authorized... <br>";
-            debugOutput += $"ID: {userId} <br>";
+            //debugOutput += "Welllcome! You are authorized... <br>";
+            //debugOutput += $"ID: {userId} <br>";
         }
         await Task.CompletedTask;
     }
