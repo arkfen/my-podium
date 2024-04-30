@@ -145,6 +145,7 @@
 
     private async Task SubmitPrediction()
     {
+        debugOutput = string.Empty;
         if (selectedFirstPlace == selectedSecondPlace || selectedFirstPlace == selectedThirdPlace || selectedSecondPlace ==
         selectedThirdPlace)
         {
@@ -175,7 +176,15 @@
         // Save the entity to the MyPodiumDreams table
         var tableClient = CreateTableClient("MyPodiumDreams");
         if (tableClient is null) return;
-        await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
+        try
+        {
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
+            debugOutput = "<div style='color:green;'>Your prediction was saved!</div>";
+        }
+        catch
+        {
+            debugOutput = "<div style='color:red;'>Sorry, an error occurred while saving your prediction!</div>";
+        }
     }
 
     private async Task<int?> GetCurrentRaceNumberAsync()
