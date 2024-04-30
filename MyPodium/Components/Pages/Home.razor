@@ -104,8 +104,8 @@
                         userPoints = ((int)points).ToString();
                         userTotals[userId] += (int)points;
                     }
-                    data += $"<p>{users[userId]} : <b>{userPoints}</b>" +
-                    $" === 1. {qEntity.GetString("P1")} 2. {qEntity.GetString("P2")} 3. {qEntity.GetString("P3")} </p>";
+                    data += $"<p><i>{users[userId]}</i>: <b>{userPoints}</b>" +
+                    $" points <br> 1. {qEntity.GetString("P1")} <br> 2. {qEntity.GetString("P2")} <br> 3. {qEntity.GetString("P3")} <br></p>";
                 }
                 //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
             }
