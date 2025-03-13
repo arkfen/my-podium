@@ -80,7 +80,7 @@
     [Parameter]
     public int? PinCode { get; set; }
 
-    private const string currentSeason = "2025";
+    private const int currentSeason = 2025;
     private string? storageUri;
     private string? accountName;
     private string? storageAccountKey;
@@ -192,7 +192,7 @@
         var tableClient = CreateTableClient("MyPodiumRaces");
         if (tableClient is null) return null;
         string partitionKey = "F1";
-        int year = 2025;
+        int year = currentSeason;
         string filter = $"PartitionKey eq '{partitionKey}' and Year eq {year}";
 
         AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
