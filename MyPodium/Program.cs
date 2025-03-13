@@ -1,4 +1,5 @@
 using MyPodium.Components;
+using Microsoft.Extensions.Azure;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,6 +7,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddAzureClients(clientBuilder =>
+{
+    clientBuilder.AddBlobServiceClient(builder.Configuration["StorageConnection:blobServiceUri"]!).WithName("StorageConnection");
+    clientBuilder.AddQueueServiceClient(builder.Configuration["StorageConnection:queueServiceUri"]!).WithName("StorageConnection");
+    clientBuilder.AddTableServiceClient(builder.Configuration["StorageConnection:tableServiceUri"]!).WithName("StorageConnection");
+});
 
 var app = builder.Build();
 

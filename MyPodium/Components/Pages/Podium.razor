@@ -129,7 +129,7 @@
         var tableClient = CreateTableClient("MyPodiumDrivers");
         if (tableClient is null) return drivers;
         string partitionKey = "F1";
-        string filter = $"PartitionKey eq '{partitionKey}'";
+        string filter = $"PartitionKey eq '{partitionKey}' and Active eq true";
 
         AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
         await foreach (var entity in queryResults)
