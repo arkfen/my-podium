@@ -80,7 +80,7 @@
     [Parameter]
     public int? PinCode { get; set; }
 
-
+    private const string currentSeason = "2025";
     private string? storageUri;
     private string? accountName;
     private string? storageAccountKey;
@@ -163,13 +163,13 @@
         }
 
         // Create the entity to be saved
-        var entity = new TableEntity("F1", $"2024-{currentRaceNumber}-{userId}")
+        var entity = new TableEntity("F1", $"{currentSeason}-{currentRaceNumber}-{userId}")
             {
                 ["UserId"] = userId,
                 ["P1"] = selectedFirstPlace,
                 ["P2"] = selectedSecondPlace,
                 ["P3"] = selectedThirdPlace,
-                ["Year"] = 2024,
+                ["Year"] = currentSeason,
                 ["Race"] = currentRaceNumber
             };
 
@@ -192,7 +192,7 @@
         var tableClient = CreateTableClient("MyPodiumRaces");
         if (tableClient is null) return null;
         string partitionKey = "F1";
-        int year = 2024;
+        int year = 2025;
         string filter = $"PartitionKey eq '{partitionKey}' and Year eq {year}";
 
         AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
