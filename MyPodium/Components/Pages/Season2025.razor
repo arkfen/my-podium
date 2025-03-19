@@ -69,13 +69,13 @@
 
             foreach (TableEntity qEntity in queryResultsFilter)
             {
-                var n = qEntity.GetInt32("Number");
+                var n = qEntity.GetInt32("NumberRace");
                 if (n is null) continue;
-                races.Add((int)n, qEntity.GetString("Name"));
+                races.Add((int)n, qEntity.GetDouble("NumberGP") + " => " + qEntity.GetString("Name"));
             }
             //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
-        catch
+        catch (Exception e)
         {
             dataPerRace += "Sorry, we have some DB problems fetching races... <br>";
         }
@@ -87,7 +87,7 @@
 
         foreach (int race in races.Keys.OrderByDescending(r => r))
         {
-            dataPerRace += $"<br><h2>{race}. {races[race]}</h2>";
+            dataPerRace += $"<br><h2>{races[race]}</h2>";
             try
             {
                 Pageable<TableEntity> queryResultsFilter =

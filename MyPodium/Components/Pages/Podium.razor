@@ -200,7 +200,7 @@
         int? currentRaceNumber = 0;
         await foreach (var entity in queryResults)
         {
-            int? raceNumber = entity.GetInt32("Number");
+            int? raceNumber = entity.GetInt32("NumberRace");
             if (raceNumber > currentRaceNumber)
             {
                 currentRaceNumber = raceNumber;
