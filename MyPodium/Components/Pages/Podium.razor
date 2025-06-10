@@ -1,25 +1,16 @@
 ﻿@page "/podium"
 @page "/podium/{UserName}/{PinCode:int?}"
 @inject IConfiguration Configuration
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+@inject ProtectedLocalStorage LocalStorage
 @rendermode InteractiveServer
 
 <PageTitle>Podium Dream</PageTitle>
 
-
-
-@* <h1>You are <li>@UserName</li>
-</h1>
-
-<h2>Your pin code is <li>@PinCode</li>
-</h2> *@
-
 <h3>
     @if (userId is not null)
     {
-        @* <p>Access Granted</p>
-    <p>USER ID: @userId</p> *@
-
-
         <h1>Hello, @userName</h1>
 
         <h2>Predict the Podium</h2>
@@ -62,19 +53,21 @@
         </div>
 
         <button type="button" class="btn btn-primary" @onclick="SubmitPrediction">Save Prediction</button>
-
-
     }
     else
     {
-        <p>Access restricted! Sorry, try again.</p>
+        <div class="text-center">
+            <p>Loading...</p>
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
     }
 </h3>
 
 <h4>@((MarkupString)debugOutput)</h4>
 
 @code {
-
     [Parameter]
     public string? UserName { get; set; }
     [Parameter]
@@ -89,28 +82,25 @@
     private string userTable = "MyPodiumUsers";
     private string debugOutput = string.Empty;
 
-
-
-
     private string selectedFirstPlace = "";
     private string selectedSecondPlace = "";
     private string selectedThirdPlace = "";
     private List<Driver> drivers = new List<Driver>();
-
+    private bool isLoadingAuth = true;
 
     private void SelectFirstPlace(ChangeEventArgs e)
     {
-        selectedFirstPlace = e.Value?.ToString() ?? string.Empty; ;
+        selectedFirstPlace = e.Value?.ToString() ?? string.Empty;
     }
 
     private void SelectSecondPlace(ChangeEventArgs e)
     {
-        selectedSecondPlace = e.Value?.ToString() ?? string.Empty; ;
+        selectedSecondPlace = e.Value?.ToString() ?? string.Empty;
     }
 
     private void SelectThirdPlace(ChangeEventArgs e)
     {
-        selectedThirdPlace = e.Value?.ToString() ?? string.Empty; ;
+        selectedThirdPlace = e.Value?.ToString() ?? string.Empty;
     }
 
     protected override async Task OnInitializedAsync()
@@ -118,8 +108,42 @@
         storageUri = Configuration.GetConnectionString("DefaultStorageUri");
         accountName = Configuration.GetConnectionString("DefaultAccountName");
         storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
-        await AuthenticateUser();
-        drivers = await GetDriversAsync();
+        
+        // First try to authenticate with OTP system
+        bool isAuthenticatedViaOTP = await AuthService.CheckAuthenticationAsync();
+        if (isAuthenticatedViaOTP)
+        {
+            var userInfo = await AuthService.GetUserInfoAsync();
+            userId = userInfo.UserId;
+            userName = userInfo.UserName;
+            drivers = await GetDriversAsync();
+            isLoadingAuth = false;
+            return;
+        }
+        
+        // If not authenticated via OTP, try the legacy system
+        if (!string.IsNullOrEmpty(UserName) && PinCode.HasValue)
+        {
+            await LegacyAuthenticateUser();
+            if (userId is not null)
+            {
+                // Successfully authenticated with legacy system
+                drivers = await GetDriversAsync();
+                isLoadingAuth = false;
+                return;
+            }
+        }
+        
+        // If not authenticated, redirect to sign in
+        try
+        {
+            NavigationManager.NavigateTo("/signin?returnUrl=/podium", true);
+        }
+        catch (NavigationException)
+        {
+            // This exception is expected when forcing navigation
+        }
+        
         await base.OnInitializedAsync();
     }
 
@@ -210,7 +234,6 @@
         return currentRaceNumber;
     }
 
-
     private TableClient? CreateTableClient(string tableName)
     {
         if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return null;
@@ -220,7 +243,8 @@
         new TableSharedKeyCredential(accountName, storageAccountKey));
     }
 
-    private async Task AuthenticateUser()
+    // Legacy authentication - kept for backward compatibility
+    private async Task LegacyAuthenticateUser()
     {
         var tableClient = CreateTableClient(userTable);
         var authorized = false;
@@ -232,7 +256,6 @@
 
             foreach (TableEntity qEntity in queryResultsFilter)
             {
-                //debugOutput += $"{qEntity.GetString("Name")}: {qEntity.GetString("UserName")} <br>";
                 if (PinCode == qEntity.GetInt32("Pin"))
                 {
                     authorized = true;
@@ -240,25 +263,17 @@
                     userName = qEntity.GetString("Name");
                 }
             }
-            //debugOutput += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
         catch
         {
             debugOutput += "Sorry, we have some DB problems... <br>";
         }
-        if (authorized)
-        {
-            //debugOutput += "Welllcome! You are authorized... <br>";
-            //debugOutput += $"ID: {userId} <br>";
-        }
+        
         await Task.CompletedTask;
     }
-
-
 
     public class Driver
     {
         public string? Name { get; set; }
     }
-
 }

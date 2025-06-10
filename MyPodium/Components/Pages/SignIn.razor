@@ -1,0 +1,219 @@
+@page "/signin"
+@inject AuthService AuthService
+@inject NavigationManager NavigationManager
+@inject ProtectedLocalStorage LocalStorage
+@rendermode InteractiveServer
+
+<PageTitle>Sign In - Podium Dream</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Sign In to Podium Dream</h3>
+                </div>
+                <div class="card-body">
+                    @if (_showEmailForm)
+                    {
+                        <div class="form-group mb-3">
+                            <label for="email">Email Address</label>
+                            <input type="email" class="form-control" id="email" placeholder="Enter your email" 
+                                   @bind="Email" @onkeypress="HandleEmailKeyPress" />
+                            @if (!string.IsNullOrEmpty(_emailErrorMessage))
+                            {
+                                <div class="text-danger mt-1">@_emailErrorMessage</div>
+                            }
+                        </div>
+                        <button class="btn btn-primary" @onclick="SendVerificationCode" disabled="@_isProcessing">
+                            @if (_isProcessing)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                <span> Sending...</span>
+                            }
+                            else
+                            {
+                                <span>Send Verification Code</span>
+                            }
+                        </button>
+                    }
+                    else
+                    {
+                        <div>
+                            <p class="mb-3">
+                                We've sent a verification code to <strong>@Email</strong>
+                                <button class="btn btn-link p-0 ms-2" @onclick="ResetToEmailForm">Change</button>
+                            </p>
+                            
+                            <div class="form-group mb-3">
+                                <label for="otp">Verification Code</label>
+                                <div class="otp-container">
+                                    <input type="text" class="form-control" id="otp" placeholder="..."
+                                           maxlength="4" @bind="Otp" @onkeypress="HandleOtpKeyPress" />
+                                </div>
+                                @if (!string.IsNullOrEmpty(_otpErrorMessage))
+                                {
+                                    <div class="text-danger mt-1">@_otpErrorMessage</div>
+                                }
+                            </div>
+
+                            <div class="d-grid">
+                                <button class="btn btn-primary" @onclick="VerifyCode" disabled="@_isProcessing">
+                                    @if (_isProcessing)
+                                    {
+                                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                        <span> Verifying...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Verify Code</span>
+                                    }
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string ReturnUrl { get; set; } = "/podium";
+
+    private string Email { get; set; } = string.Empty;
+    private string Otp { get; set; } = string.Empty;
+    private bool _showEmailForm = true;
+    private bool _isProcessing = false;
+    private string _emailErrorMessage = string.Empty;
+    private string _otpErrorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is already authenticated
+        var isAuthenticated = await AuthService.CheckAuthenticationAsync();
+        if (isAuthenticated)
+        {
+            NavigationManager.NavigateTo(ReturnUrl);
+        }
+    }
+
+    private async Task SendVerificationCode()
+    {
+        if (string.IsNullOrWhiteSpace(Email))
+        {
+            _emailErrorMessage = "Please enter your email address.";
+            return;
+        }
+
+        // Simple validation for email format
+        if (!Email.Contains('@') || !Email.Contains('.'))
+        {
+            _emailErrorMessage = "Please enter a valid email address.";
+            return;
+        }
+
+        _isProcessing = true;
+        _emailErrorMessage = string.Empty;
+
+        try
+        {
+            var result = await AuthService.SendVerificationCodeAsync(Email);
+            
+            if (result.Success)
+            {
+                _showEmailForm = false;
+            }
+            else
+            {
+                _emailErrorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            _emailErrorMessage = "An error occurred while sending the verification code. Please try again.";
+            Console.WriteLine($"Error sending verification code: {ex.Message}");
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task VerifyCode()
+    {
+        if (string.IsNullOrWhiteSpace(Otp) || Otp.Length != 4)
+        {
+            _otpErrorMessage = "Please enter a valid 4-digit verification code.";
+            return;
+        }
+
+        _isProcessing = true;
+        _otpErrorMessage = string.Empty;
+
+        try
+        {
+            var result = await AuthService.VerifyOTPAsync(Email, Otp);
+            
+            if (result.Success)
+            {
+                NavigationManager.NavigateTo(ReturnUrl);
+            }
+            else
+            {
+                _otpErrorMessage = result.ErrorMessage;
+            }
+        }
+        catch (Exception ex)
+        {
+            _otpErrorMessage = "An error occurred while verifying the code. Please try again.";
+            Console.WriteLine($"Error verifying code: {ex.Message}");
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetToEmailForm()
+    {
+        _showEmailForm = true;
+        _emailErrorMessage = string.Empty;
+        _otpErrorMessage = string.Empty;
+    }
+
+    private async Task HandleEmailKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendVerificationCode();
+        }
+    }
+
+    private async Task HandleOtpKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Otp.Length == 4)
+        {
+            await VerifyCode();
+        }
+    }
+}
+
+<style>
+    .otp-container {
+        display: flex;
+        justify-content: center;
+    }
+
+        .otp-container input {
+            text-align: center;
+            letter-spacing: 0.3em; /* Reduced from 0.5em */
+            font-size: 1.5em;
+            width: 150px; /* Fixed width to prevent stretching */
+            padding-left: 0.5em; /* Add some padding to maintain centering */
+        }
+</style>
