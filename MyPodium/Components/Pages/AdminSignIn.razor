@@ -76,6 +76,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Ensure ReturnUrl is never null or empty
+        if (string.IsNullOrEmpty(ReturnUrl))
+        {
+            ReturnUrl = "/admin";
+        }
+        
         // Check if admin is already authenticated
         var isAuthenticated = await AdminAuthService.CheckAdminAuthenticationAsync();
         if (isAuthenticated)
@@ -102,7 +108,9 @@
             
             if (result.Success)
             {
-                NavigationManager.NavigateTo(ReturnUrl);
+                // Ensure we have a valid return URL
+                var returnUrl = string.IsNullOrEmpty(ReturnUrl) ? "/admin" : ReturnUrl;
+                NavigationManager.NavigateTo(returnUrl);
             }
             else
             {
