@@ -135,8 +135,6 @@ public class AdminAuthService
             var sessionId = Guid.NewGuid().ToString();
             var sessionTableClient = CreateTableClient(ADMIN_SESSIONS_TABLE);
             
-            Console.WriteLine($"AdminAuthService.SignInAsync: Creating session with ID: '{sessionId}'");
-            
             var sessionEntity = new TableEntity("AdminSessions", sessionId)
             {
                 ["Username"] = username,
@@ -151,7 +149,6 @@ public class AdminAuthService
             // Store session in local storage
             await _localStorage.SetAsync(ADMIN_AUTH_STORAGE_KEY, sessionId);
             
-            Console.WriteLine($"AdminAuthService.SignInAsync: Session created and stored successfully");
             return (true, string.Empty);
         }
         catch (Exception ex)
