@@ -29,6 +29,44 @@
         </div>
 
         <div class="row">
+            <!-- Change Password Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-key me-2"></i>
+                            Change Password
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Update your admin account password for enhanced security.</p>
+                        <button class="btn btn-warning" @onclick="ShowChangePasswordModal">
+                            <i class="bi bi-key me-1"></i>
+                            Change Password
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create New Admin Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-person-plus me-2"></i>
+                            Create New Admin
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Add a new administrator account to the system.</p>
+                        <button class="btn btn-success" @onclick="ShowCreateAdminModal">
+                            <i class="bi bi-person-plus me-1"></i>
+                            Create Admin
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- User Management Card -->
             <div class="col-md-6 col-xl-4 mb-4">
                 <div class="card h-100 border-primary">
@@ -238,9 +276,158 @@ else
     </div>
 }
 
+<!-- Change Password Modal -->
+<div class="modal fade @(_showChangePasswordModal ? "show d-block" : "")" tabindex="-1" style="@(_showChangePasswordModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-key me-2"></i>
+                    Change Admin Password
+                </h5>
+                <button type="button" class="btn-close" @onclick="CloseChangePasswordModal"></button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="ChangePassword" @onsubmit:preventDefault="true">
+                    <div class="mb-3">
+                        <label for="currentPassword" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="currentPassword" 
+                               @bind="_currentPassword" disabled="@_isProcessing" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="newPassword" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="newPassword" 
+                               @bind="_newPassword" disabled="@_isProcessing" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmPassword" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirmPassword" 
+                               @bind="_confirmPassword" disabled="@_isProcessing" />
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(_passwordChangeError))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            @_passwordChangeError
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(_passwordChangeSuccess))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-2"></i>
+                            @_passwordChangeSuccess
+                        </div>
+                    }
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseChangePasswordModal" disabled="@_isProcessing">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-warning" @onclick="ChangePassword" disabled="@_isProcessing">
+                    @if (_isProcessing && _currentOperation == "changePassword")
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-key me-1"></i>
+                    Change Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create New Admin Modal -->
+<div class="modal fade @(_showCreateAdminModal ? "show d-block" : "")" tabindex="-1" style="@(_showCreateAdminModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-person-plus me-2"></i>
+                    Create New Admin
+                </h5>
+                <button type="button" class="btn-close" @onclick="CloseCreateAdminModal"></button>
+            </div>
+            <div class="modal-body">
+                <form @onsubmit="CreateNewAdmin" @onsubmit:preventDefault="true">
+                    <div class="mb-3">
+                        <label for="newAdminUsername" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="newAdminUsername" 
+                               @bind="_newAdminUsername" disabled="@_isProcessing" 
+                               placeholder="Enter username for new admin" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="newAdminPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="newAdminPassword" 
+                               @bind="_newAdminPassword" disabled="@_isProcessing" 
+                               placeholder="Enter password for new admin" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmAdminPassword" class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" id="confirmAdminPassword" 
+                               @bind="_confirmAdminPassword" disabled="@_isProcessing" 
+                               placeholder="Confirm password" />
+                    </div>
+                    
+                    @if (!string.IsNullOrEmpty(_createAdminError))
+                    {
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            @_createAdminError
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(_createAdminSuccess))
+                    {
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle me-2"></i>
+                            @_createAdminSuccess
+                        </div>
+                    }
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseCreateAdminModal" disabled="@_isProcessing">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success" @onclick="CreateNewAdmin" disabled="@_isProcessing">
+                    @if (_isProcessing && _currentOperation == "createAdmin")
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-person-plus me-1"></i>
+                    Create Admin
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @code {
     private bool _isAuthenticated = false;
     private string _adminUsername = string.Empty;
+    
+    // Change Password Modal
+    private bool _showChangePasswordModal = false;
+    private string _currentPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string _passwordChangeError = string.Empty;
+    private string _passwordChangeSuccess = string.Empty;
+    
+    // Create Admin Modal
+    private bool _showCreateAdminModal = false;
+    private string _newAdminUsername = string.Empty;
+    private string _newAdminPassword = string.Empty;
+    private string _confirmAdminPassword = string.Empty;
+    private string _createAdminError = string.Empty;
+    private string _createAdminSuccess = string.Empty;
+    
+    // General state
+    private bool _isProcessing = false;
+    private string _currentOperation = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -263,6 +450,174 @@ else
         await AdminAuthService.SignOutAsync();
         NavigationManager.NavigateTo("/admin/signin");
     }
+
+    // Change Password Modal Methods
+    private void ShowChangePasswordModal()
+    {
+        _showChangePasswordModal = true;
+        _currentPassword = string.Empty;
+        _newPassword = string.Empty;
+        _confirmPassword = string.Empty;
+        _passwordChangeError = string.Empty;
+        _passwordChangeSuccess = string.Empty;
+    }
+
+    private void CloseChangePasswordModal()
+    {
+        _showChangePasswordModal = false;
+        _currentPassword = string.Empty;
+        _newPassword = string.Empty;
+        _confirmPassword = string.Empty;
+        _passwordChangeError = string.Empty;
+        _passwordChangeSuccess = string.Empty;
+    }
+
+    private async Task ChangePassword()
+    {
+        if (string.IsNullOrWhiteSpace(_currentPassword) || 
+            string.IsNullOrWhiteSpace(_newPassword) || 
+            string.IsNullOrWhiteSpace(_confirmPassword))
+        {
+            _passwordChangeError = "All fields are required.";
+            return;
+        }
+
+        if (_newPassword != _confirmPassword)
+        {
+            _passwordChangeError = "New passwords do not match.";
+            return;
+        }
+
+        if (_newPassword.Length < 6)
+        {
+            _passwordChangeError = "New password must be at least 6 characters long.";
+            return;
+        }
+
+        _isProcessing = true;
+        _currentOperation = "changePassword";
+        _passwordChangeError = string.Empty;
+        _passwordChangeSuccess = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminAuthService.ChangePasswordAsync(_adminUsername, _currentPassword, _newPassword);
+            
+            if (result.Success)
+            {
+                _passwordChangeSuccess = "Password changed successfully!";
+                _currentPassword = string.Empty;
+                _newPassword = string.Empty;
+                _confirmPassword = string.Empty;
+                
+                // Auto-close modal after 2 seconds
+                await Task.Delay(2000);
+                CloseChangePasswordModal();
+            }
+            else
+            {
+                _passwordChangeError = result.ErrorMessage;
+            }
+        }
+        catch
+        {
+            _passwordChangeError = "An error occurred while changing the password. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+            _currentOperation = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    // Create Admin Modal Methods
+    private void ShowCreateAdminModal()
+    {
+        _showCreateAdminModal = true;
+        _newAdminUsername = string.Empty;
+        _newAdminPassword = string.Empty;
+        _confirmAdminPassword = string.Empty;
+        _createAdminError = string.Empty;
+        _createAdminSuccess = string.Empty;
+    }
+
+    private void CloseCreateAdminModal()
+    {
+        _showCreateAdminModal = false;
+        _newAdminUsername = string.Empty;
+        _newAdminPassword = string.Empty;
+        _confirmAdminPassword = string.Empty;
+        _createAdminError = string.Empty;
+        _createAdminSuccess = string.Empty;
+    }
+
+    private async Task CreateNewAdmin()
+    {
+        if (string.IsNullOrWhiteSpace(_newAdminUsername) || 
+            string.IsNullOrWhiteSpace(_newAdminPassword) || 
+            string.IsNullOrWhiteSpace(_confirmAdminPassword))
+        {
+            _createAdminError = "All fields are required.";
+            return;
+        }
+
+        if (_newAdminPassword != _confirmAdminPassword)
+        {
+            _createAdminError = "Passwords do not match.";
+            return;
+        }
+
+        if (_newAdminPassword.Length < 6)
+        {
+            _createAdminError = "Password must be at least 6 characters long.";
+            return;
+        }
+
+        if (_newAdminUsername.Length < 3)
+        {
+            _createAdminError = "Username must be at least 3 characters long.";
+            return;
+        }
+
+        _isProcessing = true;
+        _currentOperation = "createAdmin";
+        _createAdminError = string.Empty;
+        _createAdminSuccess = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminAuthService.CreateAdminAsync(_newAdminUsername, _newAdminPassword);
+            
+            if (result.Success)
+            {
+                _createAdminSuccess = $"Admin '{_newAdminUsername}' created successfully!";
+                _newAdminUsername = string.Empty;
+                _newAdminPassword = string.Empty;
+                _confirmAdminPassword = string.Empty;
+                
+                // Auto-close modal after 2 seconds
+                await Task.Delay(2000);
+                CloseCreateAdminModal();
+            }
+            else
+            {
+                _createAdminError = result.ErrorMessage;
+            }
+        }
+        catch
+        {
+            _createAdminError = "An error occurred while creating the admin. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+            _currentOperation = string.Empty;
+            StateHasChanged();
+        }
+    }
 }
 
 <style>
@@ -284,5 +639,18 @@ else
     
     .display-4 {
         font-size: 3.5rem;
+    }
+    
+    .modal.show {
+        display: block !important;
+    }
+    
+    .modal-backdrop {
+        background-color: rgba(0,0,0,0.5);
+    }
+    
+    .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     }
 </style>

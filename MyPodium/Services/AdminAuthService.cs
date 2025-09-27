@@ -240,6 +240,109 @@ public class AdminAuthService
         }
     }
 
+    public async Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(string username, string currentPassword, string newPassword)
+    {
+        try
+        {
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            
+            // Find the admin user (case-insensitive)
+            var adminQuery = adminTableClient.Query<TableEntity>();
+            
+            TableEntity? adminEntity = null;
+            foreach (var entity in adminQuery)
+            {
+                var entityUsername = entity.GetString("Username");
+                if (string.Equals(entityUsername, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    adminEntity = entity;
+                    break;
+                }
+            }
+
+            if (adminEntity == null)
+            {
+                return (false, "Admin user not found.");
+            }
+
+            // Verify current password
+            var storedPasswordHash = adminEntity.GetString("PasswordHash");
+            var storedSalt = adminEntity.GetString("Salt");
+            
+            if (string.IsNullOrEmpty(storedPasswordHash) || string.IsNullOrEmpty(storedSalt))
+            {
+                return (false, "Invalid account configuration.");
+            }
+
+            var currentPasswordHash = HashPassword(currentPassword, storedSalt);
+            
+            if (storedPasswordHash != currentPasswordHash)
+            {
+                return (false, "Current password is incorrect.");
+            }
+
+            // Generate new salt and hash for the new password
+            var newSalt = GenerateSalt();
+            var newPasswordHash = HashPassword(newPassword, newSalt);
+
+            // Update the admin entity
+            adminEntity["PasswordHash"] = newPasswordHash;
+            adminEntity["Salt"] = newSalt;
+            
+            await adminTableClient.UpdateEntityAsync(adminEntity, ETag.All, TableUpdateMode.Replace);
+            
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AdminAuthService.ChangePasswordAsync error: {ex}");
+            return (false, "An error occurred while changing the password.");
+        }
+    }
+
+    public async Task<(bool Success, string ErrorMessage)> CreateAdminAsync(string username, string password)
+    {
+        try
+        {
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            
+            // Check if username already exists (case-insensitive)
+            var existingAdminQuery = adminTableClient.Query<TableEntity>();
+            
+            foreach (var entity in existingAdminQuery)
+            {
+                var entityUsername = entity.GetString("Username");
+                if (string.Equals(entityUsername, username, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (false, "An admin with this username already exists.");
+                }
+            }
+
+            // Generate salt and hash for the new admin
+            var salt = GenerateSalt();
+            var passwordHash = HashPassword(password, salt);
+            
+            // Create new admin entity
+            var adminId = Guid.NewGuid().ToString();
+            var adminEntity = new TableEntity("Admin", adminId)
+            {
+                ["Username"] = username,
+                ["PasswordHash"] = passwordHash,
+                ["Salt"] = salt,
+                ["CreatedDate"] = DateTimeOffset.UtcNow
+            };
+            
+            await adminTableClient.AddEntityAsync(adminEntity);
+            
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AdminAuthService.CreateAdminAsync error: {ex}");
+            return (false, "An error occurred while creating the admin account.");
+        }
+    }
+
     private string HashPassword(string password, string salt)
     {
         using var pbkdf2 = new Rfc2898DeriveBytes(password, Convert.FromBase64String(salt), 10000, HashAlgorithmName.SHA256);
