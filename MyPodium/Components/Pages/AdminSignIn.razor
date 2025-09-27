@@ -98,20 +98,15 @@
 
         try
         {
-            Console.WriteLine($"AdminSignIn: Attempting sign in for username: '{Username}'");
             var result = await AdminAuthService.SignInAsync(Username, Password);
-            
-            Console.WriteLine($"AdminSignIn: Sign in result - Success: {result.Success}, Error: '{result.ErrorMessage}'");
             
             if (result.Success)
             {
-                Console.WriteLine($"AdminSignIn: Sign in successful, navigating to: '{ReturnUrl}'");
                 NavigationManager.NavigateTo(ReturnUrl);
             }
             else
             {
                 _errorMessage = result.ErrorMessage;
-                Console.WriteLine($"AdminSignIn: Sign in failed with error: '{_errorMessage}'");
             }
         }
         catch (Exception ex)
