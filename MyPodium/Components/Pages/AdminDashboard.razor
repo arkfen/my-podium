@@ -1,0 +1,288 @@
+@page "/admin"
+@inject AdminAuthService AdminAuthService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Admin Dashboard - Podium Dream</PageTitle>
+
+@if (_isAuthenticated)
+{
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="h2">
+                        <i class="bi bi-speedometer2 me-2"></i>
+                        Admin Dashboard
+                    </h1>
+                    <div class="d-flex align-items-center">
+                        <span class="text-muted me-3">
+                            Welcome, <strong>@_adminUsername</strong>
+                        </span>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="SignOut">
+                            <i class="bi bi-box-arrow-right me-1"></i>
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- User Management Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-people me-2"></i>
+                            User Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Manage user accounts, view user statistics, and handle user-related operations.</p>
+                        <button class="btn btn-primary" disabled>
+                            <i class="bi bi-gear me-1"></i>
+                            Manage Users
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+
+            <!-- Season Management Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar-event me-2"></i>
+                            Season Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Configure seasons, manage race schedules, and update season-specific settings.</p>
+                        <button class="btn btn-success" disabled>
+                            <i class="bi bi-calendar-plus me-1"></i>
+                            Manage Seasons
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+
+            <!-- Podium Management Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-trophy me-2"></i>
+                            Podium Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Update race results, manage podium positions, and handle scoring systems.</p>
+                        <button class="btn btn-warning" disabled>
+                            <i class="bi bi-trophy me-1"></i>
+                            Manage Podiums
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports & Analytics Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-graph-up me-2"></i>
+                            Reports & Analytics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">View detailed reports, analytics, and insights about user engagement and predictions.</p>
+                        <button class="btn btn-info" disabled>
+                            <i class="bi bi-bar-chart me-1"></i>
+                            View Reports
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Settings Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-secondary">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-gear me-2"></i>
+                            System Settings
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Configure application settings, manage system parameters, and update configurations.</p>
+                        <button class="btn btn-secondary" disabled>
+                            <i class="bi bi-sliders me-1"></i>
+                            System Config
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Management Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-dark">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-envelope me-2"></i>
+                            Email Management
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Send notifications, manage email templates, and view email logs.</p>
+                        <button class="btn btn-dark" disabled>
+                            <i class="bi bi-envelope-plus me-1"></i>
+                            Manage Emails
+                        </button>
+                    </div>
+                    <div class="card-footer text-muted small">
+                        <i class="bi bi-clock me-1"></i>
+                        Coming soon
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats Row -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Quick Statistics
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 text-center">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-primary mb-1">--</h4>
+                                    <small class="text-muted">Total Users</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-success mb-1">--</h4>
+                                    <small class="text-muted">Active Sessions</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-warning mb-1">--</h4>
+                                    <small class="text-muted">Total Predictions</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="border rounded p-3">
+                                    <h4 class="text-info mb-1">--</h4>
+                                    <small class="text-muted">System Health</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Statistics will be populated with future admin features
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-6 text-center">
+                <div class="card">
+                    <div class="card-body">
+                        <i class="bi bi-shield-exclamation display-4 text-warning mb-3"></i>
+                        <h3>Access Denied</h3>
+                        <p class="text-muted mb-4">You need to sign in with admin credentials to access this area.</p>
+                        <button class="btn btn-primary" @onclick="RedirectToSignIn">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>
+                            Admin Sign In
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isAuthenticated = false;
+    private string _adminUsername = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAuthenticated = await AdminAuthService.CheckAdminAuthenticationAsync();
+        
+        if (_isAuthenticated)
+        {
+            _adminUsername = await AdminAuthService.GetAdminUsernameAsync();
+        }
+    }
+
+    private void RedirectToSignIn()
+    {
+        var returnUrl = Uri.EscapeDataString("/admin");
+        NavigationManager.NavigateTo($"/admin/signin?returnUrl={returnUrl}");
+    }
+
+    private async Task SignOut()
+    {
+        await AdminAuthService.SignOutAsync();
+        NavigationManager.NavigateTo("/admin/signin");
+    }
+}
+
+<style>
+    .card {
+        transition: transform 0.2s ease-in-out;
+    }
+    
+    .card:hover {
+        transform: translateY(-2px);
+    }
+    
+    .card-header h5 {
+        font-weight: 600;
+    }
+    
+    .border-rounded {
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .display-4 {
+        font-size: 3.5rem;
+    }
+</style>

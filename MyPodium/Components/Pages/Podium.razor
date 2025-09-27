@@ -86,7 +86,6 @@
     private string selectedSecondPlace = "";
     private string selectedThirdPlace = "";
     private List<Driver> drivers = new List<Driver>();
-    private bool isLoadingAuth = true;
 
     private void SelectFirstPlace(ChangeEventArgs e)
     {
@@ -117,7 +116,6 @@
             userId = userInfo.UserId;
             userName = userInfo.UserName;
             drivers = await GetDriversAsync();
-            isLoadingAuth = false;
             return;
         }
         
@@ -129,7 +127,6 @@
             {
                 // Successfully authenticated with legacy system
                 drivers = await GetDriversAsync();
-                isLoadingAuth = false;
                 return;
             }
         }
@@ -247,7 +244,6 @@
     private async Task LegacyAuthenticateUser()
     {
         var tableClient = CreateTableClient(userTable);
-        var authorized = false;
         if (tableClient is null) return;
         try
         {
@@ -258,7 +254,6 @@
             {
                 if (PinCode == qEntity.GetInt32("Pin"))
                 {
-                    authorized = true;
                     userId = qEntity.GetString("Id");
                     userName = qEntity.GetString("Name");
                 }

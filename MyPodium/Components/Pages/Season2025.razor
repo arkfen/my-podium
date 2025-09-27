@@ -75,9 +75,10 @@
             }
             //data += $"The query returned {queryResultsFilter.Count()} entities. <br>";
         }
-        catch (Exception e)
+        catch (Exception ex)
         {
             dataPerRace += "Sorry, we have some DB problems fetching races... <br>";
+            Console.WriteLine($"Error fetching races: {ex.Message}");
         }
 
         Dictionary<string, int> userTotals = [];

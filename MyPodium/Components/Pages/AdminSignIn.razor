@@ -1,0 +1,152 @@
+@page "/admin/signin"
+@inject AdminAuthService AdminAuthService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Admin Sign In - Podium Dream</PageTitle>
+
+<div class="container">
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="mb-0 text-center">
+                        <i class="bi bi-shield-lock me-2"></i>
+                        Admin Sign In
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form @onsubmit="HandleSignIn" @onsubmit:preventDefault="true">
+                        <div class="form-group mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" 
+                                   placeholder="Enter username" @bind="Username" 
+                                   @onkeypress="HandleKeyPress" disabled="@_isProcessing" />
+                        </div>
+                        
+                        <div class="form-group mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" 
+                                   placeholder="Enter password" @bind="Password" 
+                                   @onkeypress="HandleKeyPress" disabled="@_isProcessing" />
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger" role="alert">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                @_errorMessage
+                            </div>
+                        }
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-dark" disabled="@_isProcessing">
+                                @if (_isProcessing)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    <span>Signing In...</span>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-box-arrow-in-right me-2"></i>
+                                    <span>Sign In</span>
+                                }
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center text-muted small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Admin access only
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string ReturnUrl { get; set; } = "/admin";
+
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private bool _isProcessing = false;
+    private string _errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if admin is already authenticated
+        var isAuthenticated = await AdminAuthService.CheckAdminAuthenticationAsync();
+        if (isAuthenticated)
+        {
+            NavigationManager.NavigateTo(ReturnUrl);
+        }
+    }
+
+    private async Task HandleSignIn()
+    {
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            _errorMessage = "Please enter both username and password.";
+            return;
+        }
+
+        _isProcessing = true;
+        _errorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            Console.WriteLine($"AdminSignIn: Attempting sign in for username: '{Username}'");
+            var result = await AdminAuthService.SignInAsync(Username, Password);
+            
+            Console.WriteLine($"AdminSignIn: Sign in result - Success: {result.Success}, Error: '{result.ErrorMessage}'");
+            
+            if (result.Success)
+            {
+                Console.WriteLine($"AdminSignIn: Sign in successful, navigating to: '{ReturnUrl}'");
+                NavigationManager.NavigateTo(ReturnUrl);
+            }
+            else
+            {
+                _errorMessage = result.ErrorMessage;
+                Console.WriteLine($"AdminSignIn: Sign in failed with error: '{_errorMessage}'");
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = "An unexpected error occurred. Please try again.";
+            Console.WriteLine($"Admin sign in error: {ex.Message}");
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleSignIn();
+        }
+    }
+}
+
+<style>
+    .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+    
+    .form-control:focus {
+        border-color: #495057;
+        box-shadow: 0 0 0 0.2rem rgba(73, 80, 87, 0.25);
+    }
+    
+    .btn-dark:focus {
+        box-shadow: 0 0 0 0.2rem rgba(73, 80, 87, 0.5);
+    }
+</style>
