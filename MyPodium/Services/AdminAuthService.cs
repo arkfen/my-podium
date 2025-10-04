@@ -6,6 +6,14 @@ using System.Text;
 
 namespace MyPodium.Services;
 
+public class AdminInfo
+{
+    public string AdminId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public DateTimeOffset CreatedDate { get; set; }
+    public string? CreatedByAdminId { get; set; }
+}
+
 public class AdminAuthService
 {
     private readonly IConfiguration _configuration;
@@ -300,7 +308,7 @@ public class AdminAuthService
         }
     }
 
-    public async Task<(bool Success, string ErrorMessage)> CreateAdminAsync(string username, string password)
+    public async Task<(bool Success, string ErrorMessage)> CreateAdminAsync(string username, string password, string? createdByAdminId = null)
     {
         try
         {
@@ -331,6 +339,12 @@ public class AdminAuthService
                 ["Salt"] = salt,
                 ["CreatedDate"] = DateTimeOffset.UtcNow
             };
+
+            // Add CreatedByAdminId if provided (null means super admin)
+            if (!string.IsNullOrEmpty(createdByAdminId))
+            {
+                adminEntity["CreatedByAdminId"] = createdByAdminId;
+            }
             
             await adminTableClient.AddEntityAsync(adminEntity);
             
@@ -340,6 +354,241 @@ public class AdminAuthService
         {
             Console.WriteLine($"AdminAuthService.CreateAdminAsync error: {ex}");
             return (false, "An error occurred while creating the admin account.");
+        }
+    }
+
+    public async Task<string?> GetCurrentAdminIdAsync()
+    {
+        try
+        {
+            var result = await _localStorage.GetAsync<string>(ADMIN_AUTH_STORAGE_KEY);
+            
+            if (result.Success && !string.IsNullOrEmpty(result.Value))
+            {
+                var sessionId = result.Value;
+                
+                var tableClient = CreateTableClient(ADMIN_SESSIONS_TABLE);
+                try
+                {
+                    var sessionEntityResponse = await tableClient.GetEntityAsync<TableEntity>("AdminSessions", sessionId);
+                    if (sessionEntityResponse != null && sessionEntityResponse.Value != null)
+                    {
+                        var sessionEntity = sessionEntityResponse.Value;
+                        var isActive = sessionEntity.GetBoolean("IsActive");
+                        var expiryDate = sessionEntity.GetDateTimeOffset("ExpiryDate");
+
+                        if (isActive == true && expiryDate > DateTimeOffset.UtcNow)
+                        {
+                            return sessionEntity.GetString("AdminId");
+                        }
+                    }
+                }
+                catch (RequestFailedException)
+                {
+                    // Session doesn't exist
+                    await _localStorage.DeleteAsync(ADMIN_AUTH_STORAGE_KEY);
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors
+        }
+        
+        return null;
+    }
+
+    public Task<List<AdminInfo>> GetDeletableAdminsAsync(string currentAdminId)
+    {
+        var deletableAdmins = new List<AdminInfo>();
+        
+        try
+        {
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            var adminQuery = adminTableClient.Query<TableEntity>();
+            
+            foreach (var entity in adminQuery)
+            {
+                // Check if this admin was created by the current admin
+                var createdByAdminId = entity.ContainsKey("CreatedByAdminId") 
+                    ? entity.GetString("CreatedByAdminId") 
+                    : null;
+                
+                if (!string.IsNullOrEmpty(createdByAdminId) && createdByAdminId == currentAdminId)
+                {
+                    deletableAdmins.Add(new AdminInfo
+                    {
+                        AdminId = entity.RowKey,
+                        Username = entity.GetString("Username") ?? string.Empty,
+                        CreatedDate = entity.GetDateTimeOffset("CreatedDate") ?? DateTimeOffset.UtcNow,
+                        CreatedByAdminId = createdByAdminId
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AdminAuthService.GetDeletableAdminsAsync error: {ex}");
+        }
+        
+        return Task.FromResult(deletableAdmins);
+    }
+
+    public async Task<(bool Success, string ErrorMessage)> DeleteAdminAsync(string adminIdToDelete, string currentAdminId)
+    {
+        try
+        {
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            
+            // Get the admin to delete
+            TableEntity? adminToDelete = null;
+            try
+            {
+                var response = await adminTableClient.GetEntityAsync<TableEntity>("Admin", adminIdToDelete);
+                adminToDelete = response.Value;
+            }
+            catch (RequestFailedException)
+            {
+                return (false, "Admin not found.");
+            }
+            
+            if (adminToDelete == null)
+            {
+                return (false, "Admin not found.");
+            }
+            
+            // Check if this admin was created by the current admin
+            var createdByAdminId = adminToDelete.ContainsKey("CreatedByAdminId") 
+                ? adminToDelete.GetString("CreatedByAdminId") 
+                : null;
+            
+            if (string.IsNullOrEmpty(createdByAdminId))
+            {
+                return (false, "Cannot delete super admin.");
+            }
+            
+            if (createdByAdminId != currentAdminId)
+            {
+                return (false, "You can only delete admins that you created.");
+            }
+            
+            // Delete the admin
+            await adminTableClient.DeleteEntityAsync("Admin", adminIdToDelete);
+            
+            // Also invalidate any active sessions for this admin
+            var sessionTableClient = CreateTableClient(ADMIN_SESSIONS_TABLE);
+            var sessionQuery = sessionTableClient.Query<TableEntity>($"AdminId eq '{adminIdToDelete}'");
+            
+            foreach (var session in sessionQuery)
+            {
+                try
+                {
+                    session["IsActive"] = false;
+                    await sessionTableClient.UpdateEntityAsync(session, ETag.All);
+                }
+                catch
+                {
+                    // Ignore session update errors
+                }
+            }
+            
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AdminAuthService.DeleteAdminAsync error: {ex}");
+            return (false, "An error occurred while deleting the admin.");
+        }
+    }
+
+    public async Task<(bool Success, string ErrorMessage)> DeleteSelfAsync()
+    {
+        try
+        {
+            var currentAdminId = await GetCurrentAdminIdAsync();
+            
+            if (string.IsNullOrEmpty(currentAdminId))
+            {
+                return (false, "Could not determine current admin.");
+            }
+            
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            
+            // Get the current admin
+            TableEntity? currentAdmin = null;
+            try
+            {
+                var response = await adminTableClient.GetEntityAsync<TableEntity>("Admin", currentAdminId);
+                currentAdmin = response.Value;
+            }
+            catch (RequestFailedException)
+            {
+                return (false, "Admin not found.");
+            }
+            
+            if (currentAdmin == null)
+            {
+                return (false, "Admin not found.");
+            }
+            
+            // Check if this is a super admin (cannot delete self if super admin)
+            var createdByAdminId = currentAdmin.ContainsKey("CreatedByAdminId") 
+                ? currentAdmin.GetString("CreatedByAdminId") 
+                : null;
+            
+            if (string.IsNullOrEmpty(createdByAdminId))
+            {
+                return (false, "Super admins cannot delete themselves.");
+            }
+            
+            // Delete the admin
+            await adminTableClient.DeleteEntityAsync("Admin", currentAdminId);
+            
+            // Sign out
+            await SignOutAsync();
+            
+            return (true, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"AdminAuthService.DeleteSelfAsync error: {ex}");
+            return (false, "An error occurred while deleting your account.");
+        }
+    }
+
+    public async Task<bool> IsCurrentAdminSuperAdminAsync()
+    {
+        try
+        {
+            var currentAdminId = await GetCurrentAdminIdAsync();
+            
+            if (string.IsNullOrEmpty(currentAdminId))
+            {
+                return false;
+            }
+            
+            var adminTableClient = CreateTableClient(ADMIN_USERS_TABLE);
+            
+            try
+            {
+                var response = await adminTableClient.GetEntityAsync<TableEntity>("Admin", currentAdminId);
+                var currentAdmin = response.Value;
+                
+                // Check if CreatedByAdminId is null or empty (super admin)
+                var createdByAdminId = currentAdmin.ContainsKey("CreatedByAdminId") 
+                    ? currentAdmin.GetString("CreatedByAdminId") 
+                    : null;
+                
+                return string.IsNullOrEmpty(createdByAdminId);
+            }
+            catch (RequestFailedException)
+            {
+                return false;
+            }
+        }
+        catch
+        {
+            return false;
         }
     }
 

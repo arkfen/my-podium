@@ -1,0 +1,460 @@
+@page "/admin/manage-admins"
+@inject AdminAuthService AdminAuthService
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+
+<PageTitle>Manage Admins - Podium Dream</PageTitle>
+
+@if (_isAuthenticated)
+{
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1 class="h2">
+                            <i class="bi bi-person-x me-2"></i>
+                            Manage Admin Accounts
+                        </h1>
+                        <p class="text-muted">Delete administrator accounts that you created</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline-secondary" @onclick="BackToDashboard">
+                            <i class="bi bi-arrow-left me-1"></i>
+                            Back to Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Self Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Delete Your Account
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-3">
+                            <strong>Warning:</strong> This action is permanent and cannot be undone. 
+                            You will be immediately signed out and will no longer have access to the admin dashboard.
+                        </p>
+                        @if (_isSuperAdmin)
+                        {
+                            <div class="alert alert-warning mb-3">
+                                <i class="bi bi-shield-lock me-2"></i>
+                                <strong>Super Admin Protection:</strong> You are a super admin and cannot delete your own account.
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="btn btn-danger" @onclick="ShowDeleteSelfModal" disabled="@_isProcessing">
+                                <i class="bi bi-person-x me-1"></i>
+                                Delete My Account
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admins Created By You Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-people me-2"></i>
+                            Admins Created By You
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        @if (_isLoading)
+                        {
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-3 text-muted">Loading admin accounts...</p>
+                            </div>
+                        }
+                        else if (_deletableAdmins.Count == 0)
+                        {
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                You haven't created any admin accounts yet. Create new admins from the dashboard.
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Created Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var admin in _deletableAdmins)
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <i class="bi bi-person-circle me-2"></i>
+                                                    <strong>@admin.Username</strong>
+                                                </td>
+                                                <td>
+                                                    <i class="bi bi-calendar me-2"></i>
+                                                    @admin.CreatedDate.ToString("MMM dd, yyyy")
+                                                    <small class="text-muted ms-1">@admin.CreatedDate.ToString("HH:mm")</small>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-danger" 
+                                                            @onclick="() => ShowDeleteAdminModal(admin)"
+                                                            disabled="@_isProcessing">
+                                                        <i class="bi bi-trash me-1"></i>
+                                                        Delete
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="container">
+        <div class="row justify-content-center mt-5">
+            <div class="col-md-6 text-center">
+                <div class="card">
+                    <div class="card-body">
+                        <i class="bi bi-shield-exclamation display-4 text-warning mb-3"></i>
+                        <h3>Access Denied</h3>
+                        <p class="text-muted mb-4">You need to sign in with admin credentials to access this area.</p>
+                        <button class="btn btn-primary" @onclick="RedirectToSignIn">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>
+                            Admin Sign In
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Self Confirmation Modal -->
+<div class="modal fade @(_showDeleteSelfModal ? "show d-block" : "")" tabindex="-1" style="@(_showDeleteSelfModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirm Account Deletion
+                </h5>
+                <button type="button" class="btn-close btn-close-white" @onclick="CloseDeleteSelfModal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6 class="alert-heading">
+                        <i class="bi bi-exclamation-octagon me-2"></i>
+                        <strong>Warning: This action is irreversible!</strong>
+                    </h6>
+                    <hr>
+                    <p class="mb-0">
+                        Are you absolutely sure you want to delete your admin account (<strong>@_adminUsername</strong>)? 
+                        You will be immediately signed out and lose all access to the admin dashboard.
+                    </p>
+                </div>
+                
+                <p class="mb-3">Type <strong>DELETE</strong> to confirm:</p>
+                <input type="text" class="form-control" @bind="_deleteSelfConfirmation" 
+                       placeholder="Type DELETE here" disabled="@_isProcessing" />
+                
+                @if (!string.IsNullOrEmpty(_deleteSelfError))
+                {
+                    <div class="alert alert-danger mt-3 mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @_deleteSelfError
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseDeleteSelfModal" disabled="@_isProcessing">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="DeleteSelf" 
+                        disabled="@(_isProcessing || _deleteSelfConfirmation != "DELETE")">
+                    @if (_isProcessing && _currentOperation == "deleteSelf")
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-person-x me-1"></i>
+                    Delete My Account
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Admin Confirmation Modal -->
+<div class="modal fade @(_showDeleteAdminModal ? "show d-block" : "")" tabindex="-1" style="@(_showDeleteAdminModal ? "background-color: rgba(0,0,0,0.5);" : "")">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Confirm Admin Deletion
+                </h5>
+                <button type="button" class="btn-close" @onclick="CloseDeleteAdminModal"></button>
+            </div>
+            <div class="modal-body">
+                @if (_adminToDelete != null)
+                {
+                    <div class="alert alert-warning">
+                        <p class="mb-0">
+                            Are you sure you want to delete the admin account 
+                            <strong>@_adminToDelete.Username</strong>? 
+                            This action cannot be undone.
+                        </p>
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(_deleteAdminError))
+                {
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        @_deleteAdminError
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(_deleteAdminSuccess))
+                {
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle me-2"></i>
+                        @_deleteAdminSuccess
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" @onclick="CloseDeleteAdminModal" disabled="@_isProcessing">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="DeleteAdmin" disabled="@_isProcessing">
+                    @if (_isProcessing && _currentOperation == "deleteAdmin")
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    <i class="bi bi-trash me-1"></i>
+                    Delete Admin
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool _isAuthenticated = false;
+    private string _adminUsername = string.Empty;
+    private string? _currentAdminId = null;
+    private bool _isSuperAdmin = false;
+    private bool _isLoading = true;
+    
+    private List<AdminInfo> _deletableAdmins = new();
+    
+    // Delete Self Modal
+    private bool _showDeleteSelfModal = false;
+    private string _deleteSelfConfirmation = string.Empty;
+    private string _deleteSelfError = string.Empty;
+    
+    // Delete Admin Modal
+    private bool _showDeleteAdminModal = false;
+    private AdminInfo? _adminToDelete = null;
+    private string _deleteAdminError = string.Empty;
+    private string _deleteAdminSuccess = string.Empty;
+    
+    // General state
+    private bool _isProcessing = false;
+    private string _currentOperation = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _isAuthenticated = await AdminAuthService.CheckAdminAuthenticationAsync();
+        
+        if (_isAuthenticated)
+        {
+            _adminUsername = await AdminAuthService.GetAdminUsernameAsync();
+            _currentAdminId = await AdminAuthService.GetCurrentAdminIdAsync();
+            
+            if (!string.IsNullOrEmpty(_currentAdminId))
+            {
+                await LoadDeletableAdmins();
+            }
+        }
+        
+        _isLoading = false;
+    }
+
+    private async Task LoadDeletableAdmins()
+    {
+        if (string.IsNullOrEmpty(_currentAdminId))
+            return;
+            
+        _deletableAdmins = await AdminAuthService.GetDeletableAdminsAsync(_currentAdminId);
+        
+        // Check if current admin is super admin (can't delete self)
+        _isSuperAdmin = await AdminAuthService.IsCurrentAdminSuperAdminAsync();
+    }
+
+    private void RedirectToSignIn()
+    {
+        var returnUrl = Uri.EscapeDataString("/admin/manage-admins");
+        NavigationManager.NavigateTo($"/admin/signin?returnUrl={returnUrl}");
+    }
+
+    private void BackToDashboard()
+    {
+        NavigationManager.NavigateTo("/admin");
+    }
+
+    // Delete Self Methods
+    private void ShowDeleteSelfModal()
+    {
+        _showDeleteSelfModal = true;
+        _deleteSelfConfirmation = string.Empty;
+        _deleteSelfError = string.Empty;
+    }
+
+    private void CloseDeleteSelfModal()
+    {
+        _showDeleteSelfModal = false;
+        _deleteSelfConfirmation = string.Empty;
+        _deleteSelfError = string.Empty;
+    }
+
+    private async Task DeleteSelf()
+    {
+        if (_deleteSelfConfirmation != "DELETE")
+        {
+            _deleteSelfError = "Please type DELETE to confirm.";
+            return;
+        }
+
+        _isProcessing = true;
+        _currentOperation = "deleteSelf";
+        _deleteSelfError = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminAuthService.DeleteSelfAsync();
+            
+            if (result.Success)
+            {
+                // Redirect to sign-in page after successful deletion
+                NavigationManager.NavigateTo("/admin/signin?deleted=true");
+            }
+            else
+            {
+                _deleteSelfError = result.ErrorMessage;
+            }
+        }
+        catch
+        {
+            _deleteSelfError = "An error occurred while deleting your account. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+            _currentOperation = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    // Delete Admin Methods
+    private void ShowDeleteAdminModal(AdminInfo admin)
+    {
+        _adminToDelete = admin;
+        _showDeleteAdminModal = true;
+        _deleteAdminError = string.Empty;
+        _deleteAdminSuccess = string.Empty;
+    }
+
+    private void CloseDeleteAdminModal()
+    {
+        _showDeleteAdminModal = false;
+        _adminToDelete = null;
+        _deleteAdminError = string.Empty;
+        _deleteAdminSuccess = string.Empty;
+    }
+
+    private async Task DeleteAdmin()
+    {
+        if (_adminToDelete == null || string.IsNullOrEmpty(_currentAdminId))
+            return;
+
+        _isProcessing = true;
+        _currentOperation = "deleteAdmin";
+        _deleteAdminError = string.Empty;
+        _deleteAdminSuccess = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var result = await AdminAuthService.DeleteAdminAsync(_adminToDelete.AdminId, _currentAdminId);
+            
+            if (result.Success)
+            {
+                _deleteAdminSuccess = $"Admin '{_adminToDelete.Username}' deleted successfully!";
+                
+                // Wait 1.5 seconds then close modal and refresh list
+                await Task.Delay(1500);
+                CloseDeleteAdminModal();
+                await LoadDeletableAdmins();
+            }
+            else
+            {
+                _deleteAdminError = result.ErrorMessage;
+            }
+        }
+        catch
+        {
+            _deleteAdminError = "An error occurred while deleting the admin. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+            _currentOperation = string.Empty;
+            StateHasChanged();
+        }
+    }
+}
+
+<style>
+    .card {
+        transition: transform 0.2s ease-in-out;
+    }
+    
+    .modal.show {
+        display: block !important;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: rgba(0,0,0,.075);
+    }
+    
+    .display-4 {
+        font-size: 3.5rem;
+    }
+</style>

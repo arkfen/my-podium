@@ -67,6 +67,25 @@
                 </div>
             </div>
 
+            <!-- Manage Admins Card -->
+            <div class="col-md-6 col-xl-4 mb-4">
+                <div class="card h-100 border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-person-x me-2"></i>
+                            Manage Admins
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">View and delete administrator accounts that you created.</p>
+                        <button class="btn btn-danger" @onclick="NavigateToManageAdmins">
+                            <i class="bi bi-people me-1"></i>
+                            Manage Admins
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <!-- User Management Card -->
             <div class="col-md-6 col-xl-4 mb-4">
                 <div class="card h-100 border-primary">
@@ -408,6 +427,7 @@ else
 @code {
     private bool _isAuthenticated = false;
     private string _adminUsername = string.Empty;
+    private string? _currentAdminId = null;
     
     // Change Password Modal
     private bool _showChangePasswordModal = false;
@@ -436,6 +456,7 @@ else
         if (_isAuthenticated)
         {
             _adminUsername = await AdminAuthService.GetAdminUsernameAsync();
+            _currentAdminId = await AdminAuthService.GetCurrentAdminIdAsync();
         }
     }
 
@@ -449,6 +470,11 @@ else
     {
         await AdminAuthService.SignOutAsync();
         NavigationManager.NavigateTo("/admin/signin");
+    }
+
+    private void NavigateToManageAdmins()
+    {
+        NavigationManager.NavigateTo("/admin/manage-admins");
     }
 
     // Change Password Modal Methods
@@ -589,7 +615,7 @@ else
 
         try
         {
-            var result = await AdminAuthService.CreateAdminAsync(_newAdminUsername, _newAdminPassword);
+            var result = await AdminAuthService.CreateAdminAsync(_newAdminUsername, _newAdminPassword, _currentAdminId);
             
             if (result.Success)
             {
