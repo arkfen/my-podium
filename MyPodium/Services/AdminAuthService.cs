@@ -477,9 +477,9 @@ public class AdminAuthService
             
             // Also invalidate any active sessions for this admin
             var sessionTableClient = CreateTableClient(ADMIN_SESSIONS_TABLE);
-            var sessionQuery = sessionTableClient.Query<TableEntity>($"AdminId eq '{adminIdToDelete}'");
+            var sessionQuery = sessionTableClient.QueryAsync<TableEntity>($"AdminId eq '{adminIdToDelete}'");
             
-            foreach (var session in sessionQuery)
+            await foreach (var session in sessionQuery)
             {
                 try
                 {
