@@ -1,5 +1,6 @@
 @page "/admin"
 @inject AdminAuthService AdminAuthService
+@inject StatisticsService StatisticsService
 @inject NavigationManager NavigationManager
 @rendermode InteractiveServer
 
@@ -229,45 +230,84 @@
         <div class="row">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-info-circle me-2"></i>
                             Quick Statistics
                         </h5>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="RefreshStatistics" disabled="@_isLoadingStats">
+                            @if (_isLoadingStats)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-arrow-clockwise me-1"></i>
+                            }
+                            Refresh
+                        </button>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3 text-center">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-primary mb-1">--</h4>
-                                    <small class="text-muted">Total Users</small>
+                        @if (_isLoadingStats)
+                        {
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading statistics...</span>
+                                </div>
+                                <p class="text-muted mt-2">Loading statistics...</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="row">
+                                <div class="col-md-3 text-center mb-3 mb-md-0">
+                                    <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                        <h4 class="text-primary mb-1">@_totalUsers</h4>
+                                        <small class="text-muted">Total Users</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 text-center mb-3 mb-md-0">
+                                    <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                        <h4 class="text-success mb-1">@_activeSessions</h4>
+                                        <small class="text-muted">Active Sessions</small>
+                                        <small class="text-muted" style="font-size: 0.7rem;">(last 2 hours)</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 text-center mb-3 mb-md-0">
+                                    <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                        <h4 class="text-warning mb-1">@_totalPredictions</h4>
+                                        <small class="text-muted">Pending Predictions</small>
+                                        <small class="text-muted" style="font-size: 0.7rem;">(not yet scored)</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 text-center mb-3 mb-md-0">
+                                    <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center">
+                                        <h4 class="@_systemHealth.StatusColor mb-1">
+                                            @if (_systemHealth.Status == "Healthy")
+                                            {
+                                                <i class="bi bi-check-circle-fill me-1"></i>
+                                            }
+                                            else if (_systemHealth.Status == "Degraded")
+                                            {
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-x-circle-fill me-1"></i>
+                                            }
+                                            @_systemHealth.StatusText
+                                        </h4>
+                                        <small class="text-muted">System Health</small>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-3 text-center">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-success mb-1">--</h4>
-                                    <small class="text-muted">Active Sessions</small>
-                                </div>
+                            <div class="text-center mt-3">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock me-1"></i>
+                                    Last updated: @_lastStatsUpdate.ToString("HH:mm:ss")
+                                </small>
                             </div>
-                            <div class="col-md-3 text-center">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-warning mb-1">--</h4>
-                                    <small class="text-muted">Total Predictions</small>
-                                </div>
-                            </div>
-                            <div class="col-md-3 text-center">
-                                <div class="border rounded p-3">
-                                    <h4 class="text-info mb-1">--</h4>
-                                    <small class="text-muted">System Health</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="text-center mt-3">
-                            <small class="text-muted">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Statistics will be populated with future admin features
-                            </small>
-                        </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -429,6 +469,14 @@ else
     private string _adminUsername = string.Empty;
     private string? _currentAdminId = null;
     
+    // Statistics
+    private bool _isLoadingStats = true;
+    private int _totalUsers = 0;
+    private int _activeSessions = 0;
+    private int _totalPredictions = 0;
+    private Services.HealthCheckStatus _systemHealth = new Services.HealthCheckStatus();
+    private DateTime _lastStatsUpdate = DateTime.Now;
+    
     // Change Password Modal
     private bool _showChangePasswordModal = false;
     private string _currentPassword = string.Empty;
@@ -457,7 +505,53 @@ else
         {
             _adminUsername = await AdminAuthService.GetAdminUsernameAsync();
             _currentAdminId = await AdminAuthService.GetCurrentAdminIdAsync();
+            
+            // Load statistics
+            await LoadStatisticsAsync();
         }
+    }
+
+    private async Task LoadStatisticsAsync()
+    {
+        _isLoadingStats = true;
+        StateHasChanged();
+
+        try
+        {
+            // Load all statistics in parallel
+            var totalUsersTask = StatisticsService.GetTotalUsersCountAsync();
+            var activeSessionsTask = StatisticsService.GetActiveSessionsCountAsync();
+            var totalPredictionsTask = StatisticsService.GetTotalPredictionsCountAsync();
+            var systemHealthTask = StatisticsService.GetSystemHealthAsync();
+
+            await Task.WhenAll(totalUsersTask, activeSessionsTask, totalPredictionsTask, systemHealthTask);
+
+            _totalUsers = await totalUsersTask;
+            _activeSessions = await activeSessionsTask;
+            _totalPredictions = await totalPredictionsTask;
+            _systemHealth = await systemHealthTask;
+            _lastStatsUpdate = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading statistics: {ex}");
+            _systemHealth = new Services.HealthCheckStatus
+            {
+                Status = "Unhealthy",
+                StatusText = "Load Error",
+                StatusColor = "text-danger"
+            };
+        }
+        finally
+        {
+            _isLoadingStats = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshStatistics()
+    {
+        await LoadStatisticsAsync();
     }
 
     private void RedirectToSignIn()
