@@ -156,7 +156,7 @@ public class StatisticsService
 
             // Determine overall health
             var failedChecks = checks.Count(c => !c.Success);
-            var avgResponseTime = checks.Where(c => c.Success).Average(c => c.ResponseTime);
+            var avgResponseTime = checks.Where(c => c.Success).Select(c => c.ResponseTime).DefaultIfEmpty(0).Average();
 
             if (failedChecks == 0)
             {
