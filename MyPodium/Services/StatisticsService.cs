@@ -120,7 +120,7 @@ public class StatisticsService
             await foreach (var entity in query)
             {
                 // Check if Points field doesn't exist or is null
-                if (!entity.ContainsKey("Points") || entity.GetInt32("Points") == null)
+                if (!entity.ContainsKey("Points") || !entity.GetInt32("Points").HasValue)
                 {
                     predictionCount++;
                 }
