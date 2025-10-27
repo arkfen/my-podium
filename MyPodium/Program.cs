@@ -37,6 +37,9 @@ builder.Services.AddScoped<AuthService>();
 // Add admin auth service
 builder.Services.AddScoped<AdminAuthService>();
 
+// Add statistics service
+builder.Services.AddScoped<StatisticsService>();
+
 // Add protected browser storage
 builder.Services.AddServerSideBlazor().AddHubOptions(options => {
     options.MaximumReceiveMessageSize = 64 * 1024; // 64 KB

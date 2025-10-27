@@ -3,6 +3,7 @@
 @inject IConfiguration Configuration
 @inject NavigationManager NavigationManager
 @inject AuthService AuthService
+@inject StatisticsService StatisticsService
 @inject ProtectedLocalStorage LocalStorage
 @rendermode InteractiveServer
 
@@ -115,6 +116,10 @@
             var userInfo = await AuthService.GetUserInfoAsync();
             userId = userInfo.UserId;
             userName = userInfo.UserName;
+            
+            // Track user session
+            await StatisticsService.TrackUserSessionAsync(userId, userName);
+            
             drivers = await GetDriversAsync();
             return;
         }
@@ -126,6 +131,9 @@
             if (userId is not null)
             {
                 // Successfully authenticated with legacy system
+                // Track user session
+                await StatisticsService.TrackUserSessionAsync(userId, userName ?? "User");
+                
                 drivers = await GetDriversAsync();
                 return;
             }
