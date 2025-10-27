@@ -50,12 +50,18 @@ public class StatisticsService
             var tableClient = CreateTableClient(USERS_TABLE);
             var userCount = 0;
 
-            // Count all non-admin users
-            var query = tableClient.QueryAsync<TableEntity>();
-            await foreach (var entity in query)
+            // Use a projection query to only retrieve PartitionKey and RowKey, and use continuation tokens
+            string[] selectColumns = new[] { "PartitionKey", "RowKey" };
+            string? continuationToken = null;
+            do
             {
-                userCount++;
-            }
+                var page = tableClient.QueryAsync<TableEntity>(select: selectColumns).AsPages(continuationToken, 1000);
+                await foreach (var pageResult in page)
+                {
+                    userCount += pageResult.Values.Count;
+                    continuationToken = pageResult.ContinuationToken;
+                }
+            } while (!string.IsNullOrEmpty(continuationToken));
 
             return userCount;
         }
