@@ -150,6 +150,26 @@
             }
         }
 
+        // Calculate and display best 20 results
+        dataTotal += "<br><h1>Best 20 Races Totals...</h1> ";
+        dataTotal += "<p><i>(Showing total points from up to 20 best race predictions per user)</i></p>";
+
+        foreach (string user in userRaceResults.Keys)
+        {
+            var userResults = userRaceResults[user];
+            if (userResults.Count == 0) continue;
+
+            // Sort in descending order and take top 20
+            var best20Results = userResults.OrderByDescending(points => points).Take(20).ToList();
+            var best20Total = best20Results.Sum();
+
+            if (best20Total > 0)
+            {
+                string raceCountText = best20Results.Count == 1 ? "race" : "races";
+                dataTotal += $"<p>{users[user]} : <b>{best20Total}</b> <span style='font-size: 0.8em; color: #666;'>(from {best20Results.Count} {raceCountText})</span></p>";
+            }
+        }
+
         await Task.CompletedTask;
     }
 
