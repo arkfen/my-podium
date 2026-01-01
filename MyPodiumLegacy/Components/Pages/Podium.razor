@@ -1,0 +1,282 @@
+﻿@page "/podium"
+@page "/podium/{UserName}/{PinCode:int?}"
+@inject IConfiguration Configuration
+@inject NavigationManager NavigationManager
+@inject AuthService AuthService
+@inject StatisticsService StatisticsService
+@inject ProtectedLocalStorage LocalStorage
+@rendermode InteractiveServer
+
+<PageTitle>Podium Dream</PageTitle>
+
+<h3>
+    @if (userId is not null)
+    {
+        <h1>Hello, @userName</h1>
+
+        <h2>Predict the Podium</h2>
+
+        <br>
+
+        <br>
+
+        <div class="mb-3">
+        <label for="P1" class="form-label">First Place</label>
+        <select id="P1" class="form-select" @onchange="SelectFirstPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+        <label for="P2" class="form-label">Second Place</label>
+        <select id="P2" class="form-select" @onchange="SelectSecondPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
+
+        <div class="mb-3">
+        <label for="P3" class="form-label">Third Place</label>
+        <select id="P3" class="form-select" @onchange="SelectThirdPlace">
+            <option value="">Select a driver...</option>
+            @foreach (var driver in drivers)
+                {
+                    <option value="@driver.Name">@driver.Name</option>
+                }
+            </select>
+        </div>
+
+        <button type="button" class="btn btn-primary" @onclick="SubmitPrediction">Save Prediction</button>
+    }
+    else
+    {
+        <div class="text-center">
+            <p>Loading...</p>
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+</h3>
+
+<h4>@((MarkupString)debugOutput)</h4>
+
+@code {
+    [Parameter]
+    public string? UserName { get; set; }
+    [Parameter]
+    public int? PinCode { get; set; }
+
+    private const int currentSeason = 2025;
+    private string? storageUri;
+    private string? accountName;
+    private string? storageAccountKey;
+    private string? userId;
+    private string? userName;
+    private string userTable = "MyPodiumUsers";
+    private string debugOutput = string.Empty;
+
+    private string selectedFirstPlace = "";
+    private string selectedSecondPlace = "";
+    private string selectedThirdPlace = "";
+    private List<Driver> drivers = new List<Driver>();
+
+    private void SelectFirstPlace(ChangeEventArgs e)
+    {
+        selectedFirstPlace = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void SelectSecondPlace(ChangeEventArgs e)
+    {
+        selectedSecondPlace = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private void SelectThirdPlace(ChangeEventArgs e)
+    {
+        selectedThirdPlace = e.Value?.ToString() ?? string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        storageUri = Configuration.GetConnectionString("DefaultStorageUri");
+        accountName = Configuration.GetConnectionString("DefaultAccountName");
+        storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
+        
+        // First try to authenticate with OTP system
+        bool isAuthenticatedViaOTP = await AuthService.CheckAuthenticationAsync();
+        if (isAuthenticatedViaOTP)
+        {
+            var userInfo = await AuthService.GetUserInfoAsync();
+            userId = userInfo.UserId;
+            userName = userInfo.UserName;
+            
+            // Track user session
+            await StatisticsService.TrackUserSessionAsync(userId, userName);
+            
+            drivers = await GetDriversAsync();
+            return;
+        }
+        
+        // If not authenticated via OTP, try the legacy system
+        if (!string.IsNullOrEmpty(UserName) && PinCode.HasValue)
+        {
+            await LegacyAuthenticateUser();
+            if (userId is not null)
+            {
+                // Successfully authenticated with legacy system
+                // Track user session
+                await StatisticsService.TrackUserSessionAsync(userId, userName ?? "User");
+                
+                drivers = await GetDriversAsync();
+                return;
+            }
+        }
+        
+        // If not authenticated, redirect to sign in
+        try
+        {
+            NavigationManager.NavigateTo("/signin?returnUrl=/podium", true);
+        }
+        catch (NavigationException)
+        {
+            // This exception is expected when forcing navigation
+        }
+        
+        await base.OnInitializedAsync();
+    }
+
+    private async Task<List<Driver>> GetDriversAsync()
+    {
+        List<Driver> drivers = new List<Driver>();
+        var tableClient = CreateTableClient("MyPodiumDrivers");
+        if (tableClient is null) return drivers;
+        string partitionKey = "F1";
+        string filter = $"PartitionKey eq '{partitionKey}' and Active eq true";
+
+        AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
+        await foreach (var entity in queryResults)
+        {
+            drivers.Add(new Driver
+                {
+                    Name = entity.GetString("Name")
+                });
+        }
+        drivers.Sort((driver1, driver2) => string.Compare(driver1.Name, driver2.Name, StringComparison.OrdinalIgnoreCase));
+        return drivers;
+    }
+
+    private async Task SubmitPrediction()
+    {
+        debugOutput = string.Empty;
+        if (selectedFirstPlace == selectedSecondPlace || selectedFirstPlace == selectedThirdPlace || selectedSecondPlace ==
+        selectedThirdPlace)
+        {
+            // Show error message
+            debugOutput = "<div style='color:red;'>Choose different drivers!</div>";
+            return;
+        }
+
+        // Retrieve the current race number from MyPodiumRaces table
+        int? currentRaceNumber = await GetCurrentRaceNumberAsync();
+        if (currentRaceNumber is null)
+        {
+            debugOutput = "<div style='color:red;'>Sorry, the race was not found!</div>";
+            return;
+        }
+
+        // Create the entity to be saved
+        var entity = new TableEntity("F1", $"{currentSeason}-{currentRaceNumber}-{userId}")
+            {
+                ["UserId"] = userId,
+                ["P1"] = selectedFirstPlace,
+                ["P2"] = selectedSecondPlace,
+                ["P3"] = selectedThirdPlace,
+                ["Year"] = currentSeason,
+                ["Race"] = currentRaceNumber
+            };
+
+        // Save the entity to the MyPodiumDreams table
+        var tableClient = CreateTableClient("MyPodiumDreams");
+        if (tableClient is null) return;
+        try
+        {
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
+            debugOutput = "<div style='color:green;'>Your prediction was saved!</div>";
+        }
+        catch
+        {
+            debugOutput = "<div style='color:red;'>Sorry, an error occurred while saving your prediction!</div>";
+        }
+    }
+
+    private async Task<int?> GetCurrentRaceNumberAsync()
+    {
+        var tableClient = CreateTableClient("MyPodiumRaces");
+        if (tableClient is null) return null;
+        string partitionKey = "F1";
+        int year = currentSeason;
+        string filter = $"PartitionKey eq '{partitionKey}' and Year eq {year}";
+
+        AsyncPageable<TableEntity> queryResults = tableClient.QueryAsync<TableEntity>(filter);
+
+        int? currentRaceNumber = 0;
+        await foreach (var entity in queryResults)
+        {
+            int? raceNumber = entity.GetInt32("NumberRace");
+            if (raceNumber > currentRaceNumber)
+            {
+                currentRaceNumber = raceNumber;
+            }
+        }
+
+        return currentRaceNumber;
+    }
+
+    private TableClient? CreateTableClient(string tableName)
+    {
+        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return null;
+        return new TableClient(
+        new Uri(storageUri),
+        tableName,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
+    }
+
+    // Legacy authentication - kept for backward compatibility
+    private async Task LegacyAuthenticateUser()
+    {
+        var tableClient = CreateTableClient(userTable);
+        if (tableClient is null) return;
+        try
+        {
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(filter: $"UserName eq '{UserName}'");
+
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                if (PinCode == qEntity.GetInt32("Pin"))
+                {
+                    userId = qEntity.GetString("Id");
+                    userName = qEntity.GetString("Name");
+                }
+            }
+        }
+        catch
+        {
+            debugOutput += "Sorry, we have some DB problems... <br>";
+        }
+        
+        await Task.CompletedTask;
+    }
+
+    public class Driver
+    {
+        public string? Name { get; set; }
+    }
+}

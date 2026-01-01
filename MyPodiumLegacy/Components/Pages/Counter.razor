@@ -1,0 +1,120 @@
+﻿@page "/counter/{RaceType}/{Year:int}/{Race:int}"
+@inject IConfiguration Configuration
+
+<PageTitle>Counting...</PageTitle>
+
+
+
+@code {
+
+
+    [Parameter]
+    public string? RaceType { get; set; }
+
+    [Parameter]
+    public int Year { get; set; }
+
+    [Parameter]
+    public int Race { get; set; }
+
+    private string? storageUri;
+    private string? accountName;
+    private string? storageAccountKey;
+    private string dreamsTable = "MyPodiumDreams";
+    private string resultsTable = "MyPodiumResults";
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        storageUri = Configuration.GetConnectionString("DefaultStorageUri");
+        accountName = Configuration.GetConnectionString("DefaultAccountName");
+        storageAccountKey = Configuration.GetConnectionString("DefaultStorageAccountKey");
+
+        if (storageUri is null or "" || accountName is null or "" || storageAccountKey is null or "") return;
+        if (RaceType is null) RaceType = string.Empty;
+
+        var tableClient = new TableClient(
+        new Uri(storageUri),
+        resultsTable,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
+
+        string? p1, p2, p3;
+        p1 = p2 = p3 = null;
+        try
+        {
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(
+            filter: $"PartitionKey eq '{RaceType}' and Year eq {Year} and Race eq {Race}");
+
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                p1 = qEntity.GetString("P1");
+                p2 = qEntity.GetString("P2");
+                p3 = qEntity.GetString("P3");
+            }
+        }
+        catch
+        {
+            return;
+        }
+        if (p1 is null || p2 is null || p3 is null) return;
+
+        tableClient = new TableClient(
+        new Uri(storageUri),
+        dreamsTable,
+        new TableSharedKeyCredential(accountName, storageAccountKey));
+
+        Dictionary<string, int> points = [];
+
+        try
+        {
+            Pageable<TableEntity> queryResultsFilter =
+            tableClient.Query<TableEntity>(
+            filter: $"PartitionKey eq '{RaceType}' and Year eq {Year} and Race eq {Race}");
+
+            foreach (TableEntity qEntity in queryResultsFilter)
+            {
+                var up1 = qEntity.GetString("P1");
+                var up2 = qEntity.GetString("P2");
+                var up3 = qEntity.GetString("P3");
+                var id = qEntity.GetString("RowKey");
+                points.Add(id, GetPoints([p1, p2, p3], [up1, up2, up3]));
+            }
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (string id in points.Keys)
+        {
+            var tableEntity = new TableEntity(RaceType, id)
+{
+{ "Points", points[id] }
+};
+            tableClient.UpdateEntity<TableEntity>(tableEntity, ETag.All);
+        }
+
+        await Task.CompletedTask;
+    }
+
+
+    private int GetPoints(string[] results, string[] dreams)
+    {
+        var p = 0;
+        for (int i = 0; i < dreams.Length; i++)
+        {
+            for (int j = 0; j < results.Length; j++)
+            {
+                if (dreams[i] == results[j])
+                {
+                    if (i == j) p += 25;
+                    else if (i + 1 == j || i - 1 == j || i == j + 1 || i == j - 1) p += 18;
+                    else if (i + 2 == j || i - 2 == j || i == j + 2 || i == j - 2) p += 15;
+                }
+            }
+        }
+        return p;
+    }
+}
