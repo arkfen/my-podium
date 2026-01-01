@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 
-namespace Podium
+namespace Podium.Native
 {
     public static class MauiProgram
     {

@@ -1,4 +1,4 @@
-﻿namespace Podium
+﻿namespace Podium.Native
 {
     public partial class App : Application
     {

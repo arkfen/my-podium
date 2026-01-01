@@ -1,7 +1,7 @@
 ﻿using ObjCRuntime;
 using UIKit;
 
-namespace Podium
+namespace Podium.Native
 {
     public class Program
     {

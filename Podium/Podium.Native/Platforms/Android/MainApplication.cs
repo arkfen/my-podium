@@ -1,7 +1,7 @@
 ﻿using Android.App;
 using Android.Runtime;
 
-namespace Podium
+namespace Podium.Native
 {
     [Application]
     public class MainApplication : MauiApplication
