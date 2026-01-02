@@ -1,29 +1,32 @@
 # Podium - Multi-Sport Prediction Platform
 
-A modern, flexible prediction platform for sports competitions built with .NET 10, Blazor, and Azure Table Storage.
+A modern, flexible prediction platform for sports competitions built with .NET 10, Blazor, .NET MAUI, and Azure Table Storage.
 
 ## ??? Architecture
 
 ### Projects
 
 1. **Podium.Shared** - Shared Razor components, models, and services
+   - Used by both Web and MAUI apps
    - Pages (Razor components for UI)
    - Models (Entity models)
-   - Services (Business logic, API client, state management)
-   - Styles (CSS)
+   - Services (Business logic, API client, state management, configuration)
+   - Styles (CSS in wwwroot)
 
 2. **Podium.Web** - Blazor WebAssembly app for web browsers
    - Runs entirely in the browser
    - Consumes the API
+   - Shares all UI with MAUI via Podium.Shared
 
 3. **Podium.Native** - .NET MAUI app for iOS, Android, Windows, macOS
    - Cross-platform mobile and desktop
    - Shares UI with Podium.Web via Podium.Shared
+   - Uses BlazorWebView for hybrid apps
 
 4. **Podium.Api** - ASP.NET Core Minimal API
    - Secure backend for data access
    - Protects Azure Storage credentials
-   - RESTful endpoints with Swagger documentation
+   - RESTful endpoints
 
 5. **Tools/Podium.DbInit** - Database initialization tool
    - Creates Azure Table Storage schema
@@ -34,24 +37,24 @@ A modern, flexible prediction platform for sports competitions built with .NET 1
 **Client apps NEVER directly access Azure Storage**. All data flows through the secure API:
 
 ```
-[Client Apps] ? HTTPS ? [Podium.Api] ? [Azure Table Storage]
- (Web/Mobile)                (Secure)         (Hidden credentials)
+[Web/MAUI Apps] ? HTTPS ? [Podium.Api] ? [Azure Table Storage]
+                            (Secure)         (Hidden credentials)
 ```
 
-### Why This Matters
-- Azure Storage credentials stay server-side only
-- API enforces business rules and validation
-- Easier to add authentication/authorization later
+## ?? Environment Configuration
 
-## ??? Database Structure
+Both Web and MAUI apps use the shared `IAppConfiguration` service for environment-aware settings.
 
-13 Azure Tables:
-- **Sports & Competitions**: Sports, Tiers, Seasons, Competitors, SeasonCompetitors
-- **Events**: Events, EventResults
-- **Users & Auth**: Users, AuthSessions, OTPCodes
-- **Predictions**: Predictions, ScoringRules, UserStatistics
+### Web App (Blazor WASM)
+- Development: Reads from `wwwroot/appsettings.json`
+- Production: Reads from `wwwroot/appsettings.Production.json`
+- Auto-detects environment via `IWebAssemblyHostEnvironment.IsDevelopment()`
 
-See `Docs/DatabaseStructure.md` for complete schema.
+### MAUI App
+- Development: `#if DEBUG` - hardcoded in `MauiProgram.cs`
+- Production: `#else` - hardcoded in `MauiProgram.cs`
+- Android emulator: Use `http://10.0.2.2:50242` (not localhost)
+- iOS simulator: Use `https://localhost:50242`
 
 ## ?? Getting Started
 
@@ -74,9 +77,9 @@ dotnet user-secrets set "AzureStorage:AccountKey" "your-account-key"
 dotnet run
 ```
 
-This creates all tables and adds sample data (F1 2025 season, drivers, races, test users).
+Creates all tables and adds sample data (F1 2025 season with drivers, races, test users).
 
-### 2. Configure the API
+### 2. Configure & Run the API
 
 ```bash
 cd ../../Podium/Podium.Api
@@ -85,165 +88,348 @@ cd ../../Podium/Podium.Api
 dotnet user-secrets set "AzureStorage:StorageUri" "https://youraccount.table.core.windows.net/"
 dotnet user-secrets set "AzureStorage:AccountName" "youraccount"
 dotnet user-secrets set "AzureStorage:AccountKey" "your-account-key"
-```
 
-Or edit `appsettings.Development.json` with your credentials.
-
-### 3. Run the API
-
-```bash
+# Run the API
 dotnet run
 ```
 
-API will start at `https://localhost:7002` (or similar). Check console output.
+API starts at `https://localhost:50242` (check console output for actual port).
 
-### 4. Run the Web App
+### 3. Run the Web App
 
 ```bash
 cd ../Podium.Web
+
+# Edit wwwroot/appsettings.json if API runs on different port
+# {
+#   "ApiBaseUrl": "https://localhost:50242"
+# }
+
 dotnet run
 ```
 
 Or run from Visual Studio - set Podium.Web as startup project.
 
-###5. Test with Sample Accounts
+### 4. Run the MAUI App
 
-After running DbInit, you can sign in with:
+**From Visual Studio:**
+1. Set Podium.Native as startup project
+2. Select target platform (Windows, Android, iOS)
+3. Update `MauiProgram.cs` if needed:
+   - Android emulator: `http://10.0.2.2:50242`
+   - iOS simulator: `https://localhost:50242`
+   - Physical device: Your computer's IP address
+4. Run (F5)
+
+### 5. Test with Sample Accounts
+
+After running DbInit:
 - Email: `john@example.com` | Password: `John's password`
 - Email: `jane@example.com` | Password: `Jane's password`
 - Email: `alex@example.com` | Password: `Alex's password`
 
-## ?? Project Status
+## ? Completed Features
 
-### ? Completed
-- Database schema & initialization tool
-- Core entity models
-- Data access layer (repositories)
-- Authentication services (password & OTP)
-- API project with RESTful endpoints
-- API client for Blazor apps
-- State management
-- Basic UI pages:
-  - Home/Landing page
-  - Sign In (password & email OTP)
-  - Sign Up
-  - Sport selection
-  - Tier/Competition selection
+### Core Infrastructure
+- ? Database schema (13 Azure Tables)
+- ? Database initialization tool with sample data
+- ? Complete entity models
+- ? Repository pattern data access layer
+- ? RESTful API with authentication
+- ? Environment-aware configuration (Dev/Prod)
+- ? Shared service architecture (Web + MAUI)
 
-### ?? In Progress / TODO
+### Authentication
+- ? User registration
+- ? Sign in with password
+- ? Sign in with email OTP (code logs to console for now)
+- ? Session management
+- ? Auth state service
 
-**High Priority**:
-- Event selection page
-- Prediction submission page with competitor selection
-- My Predictions page (view user's predictions)
-- Leaderboard page
-- Navigation menu/layout improvements
-- Email service integration (OTP currently logs to console)
+### User Features
+- ? Home/Landing page
+- ? Sign In page (dual auth)
+- ? Sign Up page
+- ? Sport selection
+- ? Tier/Competition selection
+- ? Event selection with dates
+- ? Prediction submission (select 3 competitors)
+- ? My Predictions view
+- ? Leaderboard
 
-**Medium Priority**:
-- Results viewing
-- User profile page
-- Session persistence (browser storage)
-- Better error handling
-- Loading states and spinners
+### UI/UX
+- ? Responsive design (mobile & desktop)
+- ? Modern, clean CSS styling
+- ? Navigation header with auth state
+- ? Footer
+- ? Loading states
+- ? Error handling
+- ? Success messages
 
-**Future Enhancements**:
-- Admin panel (manage sports, events, results)
+## ?? Future Enhancements
+
+### High Priority
+- Email service integration (real OTP sending)
+- Session persistence (browser/device storage)
 - Points calculation engine
-- Real-time leaderboard updates
+- Admin panel (manage sports, events, results)
+- Results display after events
+
+### Nice to Have
+- User profile page
+- Multiple seasons support
 - Push notifications for events
 - Social features (comments, sharing)
-- Multiple scoring systems
-- Season archives
+- Export predictions
+- Historical data/archives
+- More sports and competitions
 
 ## ?? Tech Stack
 
 - **.NET 10** - Latest framework
-- **Blazor WebAssembly** - Web UI
+- **Blazor WebAssembly** - Web UI (runs in browser)
 - **.NET MAUI** - Cross-platform mobile/desktop
 - **Azure Table Storage** - NoSQL database
-- **ASP.NET Core Minimal API** - Backend
-- **CSS** - Responsive styling (no framework dependencies)
+- **ASP.NET Core Minimal API** - Secure backend
+- **Shared Razor Components** - Write once, run everywhere
 
-## ?? API Documentation
+## ?? API Endpoints
 
-When the API is running, visit:
-- Swagger UI: `https://localhost:7002/swagger`
-
-### Key Endpoints
-
-**Authentication:**
+### Authentication
 - `POST /api/auth/register` - Create account
 - `POST /api/auth/signin` - Sign in with password
 - `POST /api/auth/send-otp` - Send email verification code
 - `POST /api/auth/verify-otp` - Verify OTP and sign in
+- `POST /api/auth/validate-session` - Validate session
+- `POST /api/auth/signout` - Sign out
 
-**Sports & Competitions:**
-- `GET /api/sports` - List all sports
+### Sports & Competitions
+- `GET /api/sports` - List all active sports
 - `GET /api/sports/{sportId}/tiers` - Get competitions for a sport
-- `GET /api/tiers/{tierId}/seasons` - Get seasons for a competition
-- `GET /api/seasons/{seasonId}/events` - Get events in a season
+- `GET /api/tiers/{tierId}/seasons` - Get seasons
+- `GET /api/tiers/{tierId}/seasons/active` - Get active season
+- `GET /api/seasons/{seasonId}/events` - Get all events
+- `GET /api/seasons/{seasonId}/events/upcoming` - Get upcoming events
 - `GET /api/seasons/{seasonId}/competitors` - Get competitors
+- `GET /api/events/{eventId}` - Get event details
+- `GET /api/events/{eventId}/result` - Get event result
 
-**Predictions:**
-- `POST /api/predictions` - Submit a prediction
+### Predictions
+- `POST /api/predictions` - Submit prediction
 - `GET /api/predictions/{eventId}/user/{userId}` - Get user's prediction
-- `GET /api/predictions/user/{userId}/season/{seasonId}` - Get all user predictions for season
+- `GET /api/predictions/{eventId}` - Get all predictions for event
+- `GET /api/predictions/user/{userId}/season/{seasonId}` - Get user's season predictions
 
-**Leaderboard:**
+### Leaderboard
 - `GET /api/leaderboard/season/{seasonId}` - Get season leaderboard
 - `GET /api/leaderboard/season/{seasonId}/user/{userId}` - Get user stats
 
-## ?? Development Notes
+### Health
+- `GET /api/health` - Health check
+
+## ?? Development
 
 ### Running Multiple Projects
-For full development, run both API and Web projects:
 
-**Terminal 1:**
+**Terminal 1 (API):**
 ```bash
 cd Podium/Podium.Api
 dotnet watch run
 ```
 
-**Terminal 2:**
+**Terminal 2 (Web):**
 ```bash
 cd Podium/Podium.Web
 dotnet watch run
 ```
 
 ### CORS Configuration
-API is configured to allow requests from `https://localhost:7001` and `http://localhost:5000`.
-Update `Program.cs` in Podium.Api if your Web app runs on different ports.
 
-### Mobile Development
-To run the MAUI app:
-1. Open solution in Visual Studio 2022+
-2. Set Podium.Native as startup project
-3. Select target platform (Android, iOS, Windows)
-4. Run
+API allows requests from:
+- `https://localhost:7001`
+- `https://localhost:5001`
+- `http://localhost:5000`
+- `https://localhost:7002`
+- `http://localhost:5002`
 
-## ?? Contributing
+Update `Podium.Api/Program.cs` if your app runs on different ports.
 
-This is a learning/portfolio project. Feel free to:
-- Add features
-- Improve UI/UX
-- Fix bugs
-- Suggest enhancements
+### Android Emulator Setup
+
+The Android emulator can't access `localhost` from the host machine. Use:
+- `http://10.0.2.2:50242` - Maps to host's localhost
+
+Update in `Podium.Native/MauiProgram.cs`:
+```csharp
+ApiBaseUrl = "http://10.0.2.2:50242"
+```
+
+### iOS Simulator Setup
+
+iOS simulator can access localhost directly:
+```csharp
+ApiBaseUrl = "https://localhost:50242"
+```
+
+### Build & Deploy
+
+**Build all projects:**
+```bash
+dotnet build Podium.sln
+```
+
+**Publish Web app:**
+```bash
+cd Podium/Podium.Web
+dotnet publish -c Release
+```
+
+**Publish MAUI app:**
+```bash
+cd Podium/Podium.Native
+# For Android
+dotnet publish -f net10.0-android -c Release
+# For iOS
+dotnet publish -f net10.0-ios -c Release
+# For Windows
+dotnet publish -f net10.0-windows10.0.19041.0 -c Release
+```
+
+## ?? Project Structure
+
+```
+MyDreamPodium/
+??? Docs/
+?   ??? DatabaseStructure.md        # Complete DB schema
+??? Tools/
+?   ??? Podium.DbInit/              # Database initialization
+??? Podium/
+?   ??? Podium.Shared/              # Shared UI & logic ?
+?   ?   ??? Models/                 # Entity classes
+?   ?   ??? Services/
+?   ?   ?   ??? Configuration/     # Environment config
+?   ?   ?   ??? Data/              # Repositories
+?   ?   ?   ??? Auth/              # Authentication
+?   ?   ?   ??? Api/               # API client
+?   ?   ?   ??? State/             # State management
+?   ?   ??? Pages/                  # Razor pages (shared!)
+?   ?   ??? Layout/                 # App layout
+?   ?   ??? wwwroot/                # CSS & static files
+?   ??? Podium.Web/                 # Blazor WebAssembly
+?   ?   ??? wwwroot/
+?   ?   ?   ??? appsettings.json   # API URL config
+?   ?   ??? Program.cs              # App setup
+?   ??? Podium.Native/              # .NET MAUI
+?   ?   ??? MauiProgram.cs          # App setup + config
+?   ??? Podium.Api/                 # Secure backend
+?       ??? Endpoints/              # API routes
+?       ??? Program.cs              # API setup
+??? MyPodiumLegacy/                 # Old app (reference)
+??? README.md
+```
+
+## ?? Key Design Decisions
+
+### Why Shared Project?
+- **Write once, run everywhere** - Same UI for Web and Mobile
+- **Consistent UX** - Users get identical experience
+- **Less maintenance** - Fix bugs once, deploy everywhere
+- **Faster development** - No need to sync features
+
+### Why Minimal API?
+- **Lightweight** - No unnecessary overhead
+- **Modern** - Uses latest .NET features
+- **Fast** - Optimized for performance
+- **Simple** - Easy to understand and extend
+
+### Why Azure Table Storage?
+- **Cost-effective** - Pay for what you use
+- **Scalable** - Handles millions of records
+- **No SQL required** - NoSQL flexibility
+- **Fast** - Low latency queries
+- **Serverless** - No server management
+
+### Why Environment-Aware Config?
+- **Security** - Different credentials for dev/prod
+- **Flexibility** - Easy to test locally
+- **Best practice** - Industry standard approach
+- **Safe deployment** - Production credentials never in code
+
+## ?? Troubleshooting
+
+### API won't start
+- Check Azure Storage credentials are set
+- Verify port 50242 is available
+- Check console for specific error
+- Ensure `dotnet run` is from Podium.Api folder
+
+### Web app can't reach API
+- Ensure API is running first
+- Check `wwwroot/appsettings.json` has correct API URL
+- Verify CORS settings in API `Program.cs`
+- Check browser console for errors
+
+### MAUI app can't connect
+- Android emulator: Use `http://10.0.2.2:50242`
+- iOS simulator: Use `https://localhost:50242`
+- Physical device: Use your computer's IP address
+- Ensure API allows CORS from all origins (dev only)
+
+### Database empty
+- Run `Tools/Podium.DbInit` first
+- Check sample data was created
+- Verify Azure Storage credentials
+
+### CSS not loading
+- CSS is in `Podium.Shared/wwwroot/app.css`
+- Blazor serves it as `_content/Podium.Shared/app.css`
+- Check browser dev tools Network tab
+- Clear browser cache
+
+### OTP not received
+- OTP currently logs to API console (development mode)
+- Check API terminal output for the code
+- Real email service not yet implemented
 
 ## ?? License
 
 [Your license here]
 
-## ?? Next Steps
+## ?? Contributing
 
-To continue development, focus on:
-1. **Event selection page** - Show upcoming events with dates
-2. **Prediction form** - Let users pick 3 competitors
-3. **My Predictions view** - Show submitted predictions
-4. **Leaderboard** - Display rankings
-
-See the TODO comments in code for specific implementation notes.
+This is a learning/portfolio project. Contributions welcome!
 
 ---
 
-**Built with ?? using .NET 10 and Blazor**
+**Built with ?? using .NET 10, Blazor, and MAUI**
+
+**Status: ? MVP Complete - Ready for testing!**
+
+
+## 🔒 CORS Configuration
+
+The API uses environment-aware CORS policies:
+
+### Development (Automatic)
+- **Allows ALL origins** - Perfect for testing
+- Mobile apps on any network ✅
+- Local dev on any port ✅
+- Android emulator ✅
+- iOS simulator ✅
+- Physical devices ✅
+- No configuration needed!
+
+### Production (Secure)
+- **Allows ONLY specified domains**
+- Edit `Podium.Api/Program.cs` to add your production domains
+- Example: `https://yourdomain.com`
+- Mobile apps: Always allowed (no origin header)
+- Web apps: Must be whitelisted
+
+**Why this works:**
+- CORS is a browser security feature
+- Mobile apps don't send Origin headers
+- WebAssembly apps run in browser and need CORS
+- Development: Open for testing
+- Production: Locked down for security
+

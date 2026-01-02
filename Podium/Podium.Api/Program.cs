@@ -10,19 +10,31 @@ builder.Services.AddEndpointsApiExplorer();
 // Configure CORS for web and mobile apps
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowPodiumClients", policy =>
+    if (builder.Environment.IsDevelopment())
     {
-        policy.WithOrigins(
-            "https://localhost:7001",  // Web app in dev (common port)
-            "https://localhost:5001",  // Web app in dev (alternative)
-            "http://localhost:5000",   // Web app in dev (HTTP)
-            "https://localhost:7002",  // Web app in dev (alternative)
-            "http://localhost:5002"    // Web app in dev (HTTP alternative)
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials();
-    });
+        // Development: Allow all origins for testing with mobile devices and local dev
+        options.AddPolicy("AllowPodiumClients", policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+    }
+    else
+    {
+        // Production: Allow specific domains
+        options.AddPolicy("AllowPodiumClients", policy =>
+        {
+            policy.WithOrigins(
+                "https://yourdomain.com",           // Your production web app domain
+                "https://www.yourdomain.com"        // www variant
+                // Add more production domains as needed
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+        });
+    }
 });
 
 // Register Azure Storage factory
@@ -57,7 +69,7 @@ app.UseHttpsRedirection();
 app.UseCors("AllowPodiumClients");
 
 // Add a simple health check endpoint
-app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
+app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow, environment = app.Environment.EnvironmentName }))
     .WithName("HealthCheck");
 
 // Map API endpoints

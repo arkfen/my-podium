@@ -1,6 +1,53 @@
 ﻿@inherits LayoutComponentBase
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
 
-@Body
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <a href="/" class="logo">🏆 Podium</a>
+            
+            <nav class="main-nav">
+                @if (AuthState.IsAuthenticated)
+                {
+                    <a href="/sports">Make Predictions</a>
+                    <a href="/my-predictions">My Predictions</a>
+                    <a href="/leaderboard">Leaderboard</a>
+                    <button class="btn-link" @onclick="SignOut">Sign Out</button>
+                }
+                else
+                {
+                    <a href="/signin">Sign In</a>
+                    <a href="/signup">Sign Up</a>
+                }
+            </nav>
+        </div>
+    </header>
 
-<p>shared test</p>
+    <main class="app-main">
+        @Body
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; @DateTime.Now.Year Podium. Predict & Win.</p>
+    </footer>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        AuthState.OnAuthStateChanged += StateHasChanged;
+    }
+
+    private void SignOut()
+    {
+        AuthState.ClearAuthState();
+        Navigation.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        AuthState.OnAuthStateChanged -= StateHasChanged;
+    }
+}
 
