@@ -1,16 +1,75 @@
 ﻿@page "/"
+@using Podium.Shared.Services.State
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Podium - Predict & Win</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="home-container">
+    @if (AuthState.IsAuthenticated)
+    {
+        <div class="welcome-section">
+            <h1>Welcome back, @AuthState.Username! 👋</h1>
+            <p>Ready to make your predictions?</p>
+        </div>
 
-Welcome to your new app.
+        <div class="quick-actions">
+            <a href="/sports" class="action-card">
+                <h3>🏆 Make Predictions</h3>
+                <p>Choose a sport and predict the podium</p>
+            </a>
 
+            <a href="/my-predictions" class="action-card">
+                <h3>📊 My Predictions</h3>
+                <p>View your predictions and results</p>
+            </a>
 
+            <a href="/leaderboard" class="action-card">
+                <h3>🏅 Leaderboard</h3>
+                <p>See how you rank against others</p>
+            </a>
+        </div>
+    }
+    else
+    {
+        <div class="hero-section">
+            <h1>Predict the Podium</h1>
+            <p class="lead">Compete with friends. Predict race winners. Climb the leaderboard.</p>
+            
+            <div class="cta-buttons">
+                <a href="/signup" class="btn btn-primary btn-lg">Get Started</a>
+                <a href="/signin" class="btn btn-outline btn-lg">Sign In</a>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <h3>🏁 Multiple Sports</h3>
+                <p>From Formula 1 to other motorsports and beyond</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>🎯 Simple Predictions</h3>
+                <p>Just pick your top 3 for each event</p>
+            </div>
+
+            <div class="feature-card">
+                <h3>🏆 Compete & Win</h3>
+                <p>Earn points and climb the leaderboard</p>
+            </div>
+        </div>
+    }
+</div>
 
 @code {
+    protected override void OnInitialized()
+    {
+        AuthState.OnAuthStateChanged += StateHasChanged;
+    }
 
-
-
+    public void Dispose()
+    {
+        AuthState.OnAuthStateChanged -= StateHasChanged;
+    }
 }
 

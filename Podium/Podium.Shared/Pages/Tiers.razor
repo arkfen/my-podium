@@ -1,0 +1,90 @@
+@page "/sports/{SportId}/tiers"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@inject IPodiumApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Select Competition - Podium</PageTitle>
+
+<div class="page-container">
+    <nav class="breadcrumb">
+        <a href="/sports">Sports</a> / Competitions
+    </nav>
+
+    <h1>Choose a Competition</h1>
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading competitions...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (tiers.Count == 0)
+    {
+        <div class="alert alert-info">
+            No competitions available for this sport yet.
+        </div>
+    }
+    else
+    {
+        <div class="tier-grid">
+            @foreach (var tier in tiers)
+            {
+                <div class="tier-card" @onclick="() => SelectTier(tier.Id)">
+                    <h3>@tier.DisplayName</h3>
+                    <p>View events ?</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string SportId { get; set; } = "";
+
+    private List<Tier> tiers = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTiers();
+    }
+
+    private async Task LoadTiers()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await ApiClient.GetTiersAsync(SportId);
+            if (response.Success && response.Data != null)
+            {
+                tiers = response.Data;
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to load competitions.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectTier(string tierId)
+    {
+        Navigation.NavigateTo($"/tiers/{tierId}/events");
+    }
+}
