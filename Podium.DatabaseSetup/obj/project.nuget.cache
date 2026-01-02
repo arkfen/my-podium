@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "dgSpecHash": "8diVb87z2O0=",
+  "success": true,
+  "projectFilePath": "/home/runner/work/my-podium/my-podium/Podium.DatabaseSetup/Podium.DatabaseSetup.csproj",
+  "expectedPackageFiles": [
+    "/home/runner/.nuget/packages/azure.core/1.43.0/azure.core.1.43.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/azure.data.tables/12.9.1/azure.data.tables.12.9.1.nupkg.sha512",
+    "/home/runner/.nuget/packages/bcrypt.net-next/4.0.3/bcrypt.net-next.4.0.3.nupkg.sha512",
+    "/home/runner/.nuget/packages/microsoft.bcl.asyncinterfaces/6.0.0/microsoft.bcl.asyncinterfaces.6.0.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/system.clientmodel/1.0.0/system.clientmodel.1.0.0.nupkg.sha512",
+    "/home/runner/.nuget/packages/system.memory.data/1.0.2/system.memory.data.1.0.2.nupkg.sha512"
+  ],
+  "logs": []
+}
