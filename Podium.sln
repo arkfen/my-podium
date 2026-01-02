@@ -11,8 +11,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.Shared", "Podium\Pod
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.Web", "Podium\Podium.Web\Podium.Web.csproj", "{6FCD66BE-5632-4230-8D95-B9C3EE29B4A0}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Podium", "Podium", "{58314129-FAEF-3842-FB80-191CEF909A87}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.Api", "Podium\Podium.Api\Podium.Api.csproj", "{2B7CC2CA-39A5-41D2-800B-48210FC3E7CC}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{07C2787E-EAC7-C090-1BA3-A61EC2A24D84}"
@@ -107,7 +105,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{2B7CC2CA-39A5-41D2-800B-48210FC3E7CC} = {58314129-FAEF-3842-FB80-191CEF909A87}
 		{F3D3396A-FC52-49D4-9CA0-054021118E24} = {07C2787E-EAC7-C090-1BA3-A61EC2A24D84}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
