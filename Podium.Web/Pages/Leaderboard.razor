@@ -1,0 +1,191 @@
+@page "/leaderboard"
+@using Podium.Shared.Models
+@using Podium.Shared.Services
+@using Podium.Shared.Components.Leaderboard
+@inject ISportService SportService
+@inject ILeaderboardService LeaderboardService
+
+<PageTitle>Leaderboards - Podium</PageTitle>
+
+<div class="container mt-4">
+    <h2>Leaderboards</h2>
+
+    @if (selectedSeason == null)
+    {
+        <div class="row g-3 mt-3">
+            <!-- Sport/Tier/Season Selection -->
+            @if (selectedSport == null)
+            {
+                <div class="col-12">
+                    <h4>Select a Sport</h4>
+                    <div class="row g-3">
+                        @foreach (var sport in sports)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectSport(sport)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@sport.Name</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (selectedTier == null)
+            {
+                <div class="col-12">
+                    <button class="btn btn-outline-secondary mb-3" @onclick="BackToSports">
+                        ← Back to Sports
+                    </button>
+                    <h4>Select a Competition</h4>
+                    <div class="row g-3">
+                        @foreach (var tier in tiers)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectTier(tier)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@tier.Name</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="col-12">
+                    <button class="btn btn-outline-secondary mb-3" @onclick="BackToTiers">
+                        ← Back to Competitions
+                    </button>
+                    <h4>Select a Season</h4>
+                    <div class="row g-3">
+                        @foreach (var season in seasons)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectSeason(season)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@season.Name</h5>
+                                        <p class="card-text text-muted">
+                                            @season.StartDate.ToString("MMM yyyy") - @season.EndDate.ToString("MMM yyyy")
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <button class="btn btn-outline-secondary mb-3 mt-3" @onclick="BackToSeasons">
+            ← Back to Seasons
+        </button>
+
+        <div class="row">
+            <div class="col-12">
+                <LeaderboardComponent 
+                    Leaderboard="@leaderboard"
+                    CurrentUserId="@userId"
+                    IsSeasonLeaderboard="true"
+                    IsLoading="@isLoading" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string userId = "990e8400-e29b-41d4-a716-446655440001"; // TODO: Get from auth state
+    private bool isLoading = false;
+
+    private List<Sport> sports = new();
+    private List<Tier> tiers = new();
+    private List<Season> seasons = new();
+    private List<LeaderboardEntry> leaderboard = new();
+
+    private Sport? selectedSport = null;
+    private Tier? selectedTier = null;
+    private Season? selectedSeason = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSports();
+    }
+
+    private async Task LoadSports()
+    {
+        isLoading = true;
+        sports = await SportService.GetAllSportsAsync();
+        isLoading = false;
+    }
+
+    private async Task SelectSport(Sport sport)
+    {
+        selectedSport = sport;
+        isLoading = true;
+        tiers = await SportService.GetTiersBySportIdAsync(sport.Id);
+        isLoading = false;
+    }
+
+    private async Task SelectTier(Tier tier)
+    {
+        selectedTier = tier;
+        isLoading = true;
+        seasons = await SportService.GetSeasonsByTierIdAsync(tier.Id);
+        isLoading = false;
+    }
+
+    private async Task SelectSeason(Season season)
+    {
+        selectedSeason = season;
+        await LoadLeaderboard();
+    }
+
+    private async Task LoadLeaderboard()
+    {
+        if (selectedTier == null || selectedSeason == null) return;
+
+        isLoading = true;
+        leaderboard = await LeaderboardService.GetSeasonLeaderboardAsync(selectedTier.Id, selectedSeason.Year);
+        isLoading = false;
+    }
+
+    private void BackToSports()
+    {
+        selectedSport = null;
+        selectedTier = null;
+        selectedSeason = null;
+        tiers.Clear();
+        seasons.Clear();
+        leaderboard.Clear();
+    }
+
+    private void BackToTiers()
+    {
+        selectedTier = null;
+        selectedSeason = null;
+        seasons.Clear();
+        leaderboard.Clear();
+    }
+
+    private void BackToSeasons()
+    {
+        selectedSeason = null;
+        leaderboard.Clear();
+    }
+}
+
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .cursor-pointer:hover {
+        transform: translateY(-2px);
+        transition: transform 0.2s;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>

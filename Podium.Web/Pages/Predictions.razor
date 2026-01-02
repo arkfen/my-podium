@@ -1,0 +1,267 @@
+@page "/predictions"
+@using Podium.Shared.Models
+@using Podium.Shared.Services
+@using Podium.Shared.Components.Predictions
+@inject ISportService SportService
+@inject IEventService EventService
+@inject NavigationManager NavManager
+
+<PageTitle>Make Predictions - Podium</PageTitle>
+
+<div class="container mt-4">
+    <h2>Make Predictions</h2>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted mt-2">Loading events...</p>
+        </div>
+    }
+    else if (selectedEvent == null)
+    {
+        <div class="row g-3">
+            <!-- Sport Selection -->
+            @if (selectedSport == null)
+            {
+                <div class="col-12">
+                    <h4>Select a Sport</h4>
+                    <div class="row g-3">
+                        @foreach (var sport in sports)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectSport(sport)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@sport.Name</h5>
+                                        <p class="card-text text-muted">@sport.Description</p>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <!-- Tier Selection -->
+            else if (selectedTier == null)
+            {
+                <div class="col-12">
+                    <button class="btn btn-outline-secondary mb-3" @onclick="BackToSports">
+                        ← Back to Sports
+                    </button>
+                    <h4>Select a Competition</h4>
+                    <div class="row g-3">
+                        @foreach (var tier in tiers)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectTier(tier)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@tier.Name</h5>
+                                        <p class="card-text text-muted">@tier.Description</p>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <!-- Season Selection -->
+            else if (selectedSeason == null)
+            {
+                <div class="col-12">
+                    <button class="btn btn-outline-secondary mb-3" @onclick="BackToTiers">
+                        ← Back to Competitions
+                    </button>
+                    <h4>Select a Season</h4>
+                    <div class="row g-3">
+                        @foreach (var season in seasons)
+                        {
+                            <div class="col-md-4">
+                                <div class="card h-100 cursor-pointer" @onclick="() => SelectSeason(season)">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">@season.Name</h5>
+                                        <p class="card-text text-muted">
+                                            @season.StartDate.ToString("MMM yyyy") - @season.EndDate.ToString("MMM yyyy")
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            <!-- Event Selection -->
+            else
+            {
+                <div class="col-12">
+                    <button class="btn btn-outline-secondary mb-3" @onclick="BackToSeasons">
+                        ← Back to Seasons
+                    </button>
+                    <h4>Select an Event</h4>
+                    
+                    @if (!events.Any())
+                    {
+                        <div class="alert alert-info">
+                            No events available for this season yet.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="list-group">
+                            @foreach (var evt in events.OrderBy(e => e.Round))
+                            {
+                                <a href="#" class="list-group-item list-group-item-action @(evt.IsPredictionOpen ? "" : "disabled")" 
+                                   @onclick="() => SelectEvent(evt)" @onclick:preventDefault>
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h5 class="mb-1">Round @evt.Round: @evt.Name</h5>
+                                        @if (!evt.IsPredictionOpen)
+                                        {
+                                            <span class="badge bg-secondary">Closed</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">Open</span>
+                                        }
+                                    </div>
+                                    <p class="mb-1">@evt.Location</p>
+                                    <small>@evt.EventDate.ToString("ddd, MMM dd, yyyy HH:mm") UTC</small>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- Prediction Form -->
+        <button class="btn btn-outline-secondary mb-3" @onclick="BackToEvents">
+            ← Back to Events
+        </button>
+
+        <PredictionForm
+            UserId="@userId"
+            EventId="@selectedEvent.Id"
+            EventName="@selectedEvent.Name"
+            EventLocation="@selectedEvent.Location"
+            EventDate="@selectedEvent.EventDate"
+            PredictionCutoffDate="@selectedEvent.PredictionCutoffDate"
+            Participants="@participants"
+            OnPredictionSaved="HandlePredictionSaved" />
+    }
+</div>
+
+@code {
+    private string userId = "990e8400-e29b-41d4-a716-446655440001"; // TODO: Get from auth state
+    private bool isLoading = false;
+
+    private List<Sport> sports = new();
+    private List<Tier> tiers = new();
+    private List<Season> seasons = new();
+    private List<Event> events = new();
+    private List<SeasonParticipant> participants = new();
+
+    private Sport? selectedSport = null;
+    private Tier? selectedTier = null;
+    private Season? selectedSeason = null;
+    private Event? selectedEvent = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSports();
+    }
+
+    private async Task LoadSports()
+    {
+        isLoading = true;
+        sports = await SportService.GetAllSportsAsync();
+        isLoading = false;
+    }
+
+    private async Task SelectSport(Sport sport)
+    {
+        selectedSport = sport;
+        isLoading = true;
+        tiers = await SportService.GetTiersBySportIdAsync(sport.Id);
+        isLoading = false;
+    }
+
+    private async Task SelectTier(Tier tier)
+    {
+        selectedTier = tier;
+        isLoading = true;
+        seasons = await SportService.GetSeasonsByTierIdAsync(tier.Id);
+        isLoading = false;
+    }
+
+    private async Task SelectSeason(Season season)
+    {
+        selectedSeason = season;
+        isLoading = true;
+        events = await EventService.GetEventsBySeasonAsync(selectedTier!.Id, season.Year);
+        isLoading = false;
+    }
+
+    private async Task SelectEvent(Event evt)
+    {
+        if (!evt.IsPredictionOpen) return;
+
+        selectedEvent = evt;
+        isLoading = true;
+        participants = await EventService.GetSeasonParticipantsAsync(selectedTier!.Id, selectedSeason!.Year);
+        isLoading = false;
+    }
+
+    private void BackToSports()
+    {
+        selectedSport = null;
+        selectedTier = null;
+        selectedSeason = null;
+        selectedEvent = null;
+        tiers.Clear();
+        seasons.Clear();
+        events.Clear();
+    }
+
+    private void BackToTiers()
+    {
+        selectedTier = null;
+        selectedSeason = null;
+        selectedEvent = null;
+        seasons.Clear();
+        events.Clear();
+    }
+
+    private void BackToSeasons()
+    {
+        selectedSeason = null;
+        selectedEvent = null;
+        events.Clear();
+    }
+
+    private void BackToEvents()
+    {
+        selectedEvent = null;
+        participants.Clear();
+    }
+
+    private void HandlePredictionSaved()
+    {
+        // Navigate back to events or show success message
+        BackToEvents();
+    }
+}
+
+<style>
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .cursor-pointer:hover {
+        transform: translateY(-2px);
+        transition: transform 0.2s;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>
