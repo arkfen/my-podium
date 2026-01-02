@@ -9,8 +9,16 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configure API client
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:7002";
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseUrl) });
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:50242";
+Console.WriteLine($"Configuring API client with base URL: {apiBaseUrl}");
+
+builder.Services.AddScoped(sp => 
+{
+    var httpClient = new HttpClient { BaseAddress = new Uri(apiBaseUrl) };
+    Console.WriteLine($"HttpClient created with BaseAddress: {httpClient.BaseAddress}");
+    return httpClient;
+});
+
 builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
 
 // Add state management

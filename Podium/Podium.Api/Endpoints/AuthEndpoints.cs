@@ -28,8 +28,7 @@ public static class AuthEndpoints
 
             return Results.Ok(new { userId, message = "Registration successful" });
         })
-        .WithName("Register")
-        .WithOpenApi();
+        .WithName("Register");
 
         // Send OTP to email
         group.MapPost("/send-otp", async (
@@ -45,8 +44,7 @@ public static class AuthEndpoints
 
             return Results.Ok(new { message = "OTP sent to email" });
         })
-        .WithName("SendOTP")
-        .WithOpenApi();
+        .WithName("SendOTP");
 
         // Verify OTP
         group.MapPost("/verify-otp", async (
@@ -64,8 +62,7 @@ public static class AuthEndpoints
 
             return Results.Ok(new { userId, username, message = "Authentication successful" });
         })
-        .WithName("VerifyOTP")
-        .WithOpenApi();
+        .WithName("VerifyOTP");
 
         // Sign in with password
         group.MapPost("/signin", async (
@@ -83,8 +80,7 @@ public static class AuthEndpoints
 
             return Results.Ok(new { userId, username, message = "Sign in successful" });
         })
-        .WithName("SignIn")
-        .WithOpenApi();
+        .WithName("SignIn");
 
         // Validate session
         group.MapPost("/validate-session", async (
@@ -101,8 +97,7 @@ public static class AuthEndpoints
 
             return Results.Ok(new { userId, username, sessionId });
         })
-        .WithName("ValidateSession")
-        .WithOpenApi();
+        .WithName("ValidateSession");
 
         // Sign out
         group.MapPost("/signout", async (
@@ -112,8 +107,7 @@ public static class AuthEndpoints
             await authService.SignOutAsync(request.SessionId);
             return Results.Ok(new { message = "Signed out successfully" });
         })
-        .WithName("SignOut")
-        .WithOpenApi();
+        .WithName("SignOut");
     }
 }
 

@@ -15,8 +15,7 @@ public static class SportEndpoints
             var sports = await sportRepo.GetActiveSportsAsync();
             return Results.Ok(sports);
         })
-        .WithName("GetSports")
-        .WithOpenApi();
+        .WithName("GetSports");
 
         // Get tiers for a sport
         group.MapGet("/sports/{sportId}/tiers", async (
@@ -26,8 +25,7 @@ public static class SportEndpoints
             var tiers = await tierRepo.GetActiveTiersBySportAsync(sportId);
             return Results.Ok(tiers);
         })
-        .WithName("GetTiers")
-        .WithOpenApi();
+        .WithName("GetTiers");
 
         // Get seasons for a tier
         group.MapGet("/tiers/{tierId}/seasons", async (
@@ -37,8 +35,7 @@ public static class SportEndpoints
             var seasons = await seasonRepo.GetSeasonsByTierAsync(tierId);
             return Results.Ok(seasons);
         })
-        .WithName("GetSeasons")
-        .WithOpenApi();
+        .WithName("GetSeasons");
 
         // Get active season for a tier
         group.MapGet("/tiers/{tierId}/seasons/active", async (
@@ -51,8 +48,7 @@ public static class SportEndpoints
             
             return Results.Ok(season);
         })
-        .WithName("GetActiveSeason")
-        .WithOpenApi();
+        .WithName("GetActiveSeason");
 
         // Get events for a season
         group.MapGet("/seasons/{seasonId}/events", async (
@@ -62,8 +58,7 @@ public static class SportEndpoints
             var events = await eventRepo.GetEventsBySeasonAsync(seasonId);
             return Results.Ok(events);
         })
-        .WithName("GetEvents")
-        .WithOpenApi();
+        .WithName("GetEvents");
 
         // Get upcoming events for a season
         group.MapGet("/seasons/{seasonId}/events/upcoming", async (
@@ -73,8 +68,7 @@ public static class SportEndpoints
             var events = await eventRepo.GetUpcomingEventsBySeasonAsync(seasonId);
             return Results.Ok(events);
         })
-        .WithName("GetUpcomingEvents")
-        .WithOpenApi();
+        .WithName("GetUpcomingEvents");
 
         // Get competitors for a season
         group.MapGet("/seasons/{seasonId}/competitors", async (
@@ -84,8 +78,7 @@ public static class SportEndpoints
             var competitors = await competitorRepo.GetCompetitorsBySeasonAsync(seasonId);
             return Results.Ok(competitors);
         })
-        .WithName("GetCompetitors")
-        .WithOpenApi();
+        .WithName("GetCompetitors");
 
         // Get event details
         group.MapGet("/events/{eventId}", async (
@@ -99,8 +92,7 @@ public static class SportEndpoints
             
             return Results.Ok(eventDetails);
         })
-        .WithName("GetEventDetails")
-        .WithOpenApi();
+        .WithName("GetEventDetails");
 
         // Get event result
         group.MapGet("/events/{eventId}/result", async (
@@ -113,7 +105,6 @@ public static class SportEndpoints
             
             return Results.Ok(result);
         })
-        .WithName("GetEventResult")
-        .WithOpenApi();
+        .WithName("GetEventResult");
     }
 }

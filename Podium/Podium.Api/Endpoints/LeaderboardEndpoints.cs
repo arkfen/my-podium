@@ -17,8 +17,7 @@ public static class LeaderboardEndpoints
             var leaderboard = await leaderboardRepo.GetLeaderboardBySeasonAsync(seasonId);
             return Results.Ok(leaderboard);
         })
-        .WithName("GetLeaderboard")
-        .WithOpenApi();
+        .WithName("GetLeaderboard");
 
         // Get user statistics for a season
         group.MapGet("/season/{seasonId}/user/{userId}", async (
@@ -45,7 +44,6 @@ public static class LeaderboardEndpoints
             
             return Results.Ok(stats);
         })
-        .WithName("GetUserStatistics")
-        .WithOpenApi();
+        .WithName("GetUserStatistics");
     }
 }

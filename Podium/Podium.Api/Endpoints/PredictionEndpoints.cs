@@ -22,8 +22,7 @@ public static class PredictionEndpoints
             
             return Results.Ok(prediction);
         })
-        .WithName("GetPrediction")
-        .WithOpenApi();
+        .WithName("GetPrediction");
 
         // Get all predictions for an event
         group.MapGet("/{eventId}", async (
@@ -33,8 +32,7 @@ public static class PredictionEndpoints
             var predictions = await predictionRepo.GetPredictionsByEventAsync(eventId);
             return Results.Ok(predictions);
         })
-        .WithName("GetEventPredictions")
-        .WithOpenApi();
+        .WithName("GetEventPredictions");
 
         // Get user's predictions for a season
         group.MapGet("/user/{userId}/season/{seasonId}", async (
@@ -51,8 +49,7 @@ public static class PredictionEndpoints
             var predictions = await predictionRepo.GetPredictionsByUserAndSeasonAsync(userId, seasonId, eventIds);
             return Results.Ok(predictions);
         })
-        .WithName("GetUserSeasonPredictions")
-        .WithOpenApi();
+        .WithName("GetUserSeasonPredictions");
 
         // Submit/update a prediction
         group.MapPost("/", async (
@@ -97,8 +94,7 @@ public static class PredictionEndpoints
 
             return Results.Ok(new { message = "Prediction saved successfully", prediction });
         })
-        .WithName("SubmitPrediction")
-        .WithOpenApi();
+        .WithName("SubmitPrediction");
     }
 }
 
