@@ -1,0 +1,229 @@
+@using Podium.Shared.Models
+@using Podium.Shared.Services
+@inject IPredictionService PredictionService
+
+<div class="prediction-container">
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">@EventName</h4>
+            <p class="text-muted">@EventLocation | @EventDate.ToString("MMM dd, yyyy HH:mm") UTC</p>
+
+            @if (!IsPredictionOpen)
+            {
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-lock"></i> Predictions are closed for this event.
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @errorMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success" role="alert">
+                    @successMessage
+                </div>
+            }
+
+            <div class="mb-3">
+                <label for="p1" class="form-label"><strong>1st Place</strong></label>
+                <select class="form-select" id="p1" @bind="selectedP1" disabled="@(!IsPredictionOpen || isSaving)">
+                    <option value="">Select a competitor...</option>
+                    @foreach (var participant in Participants)
+                    {
+                        <option value="@participant.CompetitorId">
+                            @participant.Number - @participant.CompetitorName (@participant.Team)
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="p2" class="form-label"><strong>2nd Place</strong></label>
+                <select class="form-select" id="p2" @bind="selectedP2" disabled="@(!IsPredictionOpen || isSaving)">
+                    <option value="">Select a competitor...</option>
+                    @foreach (var participant in Participants)
+                    {
+                        <option value="@participant.CompetitorId">
+                            @participant.Number - @participant.CompetitorName (@participant.Team)
+                        </option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="p3" class="form-label"><strong>3rd Place</strong></label>
+                <select class="form-select" id="p3" @bind="selectedP3" disabled="@(!IsPredictionOpen || isSaving)">
+                    <option value="">Select a competitor...</option>
+                    @foreach (var participant in Participants)
+                    {
+                        <option value="@participant.CompetitorId">
+                            @participant.Number - @participant.CompetitorName (@participant.Team)
+                        </option>
+                    }
+                </select>
+            </div>
+
+            @if (IsPredictionOpen)
+            {
+                <div class="d-grid">
+                    <button class="btn btn-primary" @onclick="SubmitPrediction" disabled="@isSaving">
+                        @if (isSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        @(HasExistingPrediction ? "Update Prediction" : "Submit Prediction")
+                    </button>
+                </div>
+
+                <div class="text-center mt-2">
+                    <small class="text-muted">
+                        Predictions close at @PredictionCutoffDate.ToString("MMM dd, HH:mm") UTC
+                    </small>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string UserId { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string EventId { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string EventName { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string EventLocation { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset EventDate { get; set; }
+
+    [Parameter, EditorRequired]
+    public DateTimeOffset PredictionCutoffDate { get; set; }
+
+    [Parameter, EditorRequired]
+    public List<SeasonParticipant> Participants { get; set; } = new();
+
+    [Parameter]
+    public EventCallback OnPredictionSaved { get; set; }
+
+    private string selectedP1 = string.Empty;
+    private string selectedP2 = string.Empty;
+    private string selectedP3 = string.Empty;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isSaving = false;
+
+    private bool IsPredictionOpen => DateTimeOffset.UtcNow < PredictionCutoffDate;
+    private bool HasExistingPrediction => false; // Will be set on load
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExistingPredictions();
+    }
+
+    private async Task LoadExistingPredictions()
+    {
+        try
+        {
+            var predictions = await PredictionService.GetUserPredictionsForEventAsync(UserId, EventId);
+            
+            if (predictions.Any())
+            {
+                selectedP1 = predictions.FirstOrDefault(p => p.Position == 1)?.CompetitorId ?? string.Empty;
+                selectedP2 = predictions.FirstOrDefault(p => p.Position == 2)?.CompetitorId ?? string.Empty;
+                selectedP3 = predictions.FirstOrDefault(p => p.Position == 3)?.CompetitorId ?? string.Empty;
+            }
+        }
+        catch
+        {
+            // Ignore errors loading existing predictions
+        }
+    }
+
+    private async Task SubmitPrediction()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        // Validation
+        if (string.IsNullOrEmpty(selectedP1) || string.IsNullOrEmpty(selectedP2) || string.IsNullOrEmpty(selectedP3))
+        {
+            errorMessage = "Please select all three podium positions.";
+            return;
+        }
+
+        if (selectedP1 == selectedP2 || selectedP1 == selectedP3 || selectedP2 == selectedP3)
+        {
+            errorMessage = "You cannot select the same competitor for multiple positions.";
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var predictions = new List<UserPrediction>
+            {
+                new UserPrediction
+                {
+                    UserId = UserId,
+                    EventId = EventId,
+                    Position = 1,
+                    CompetitorId = selectedP1,
+                    CompetitorName = Participants.First(p => p.CompetitorId == selectedP1).CompetitorName,
+                    PredictedDate = DateTimeOffset.UtcNow,
+                    PointsAwarded = 0
+                },
+                new UserPrediction
+                {
+                    UserId = UserId,
+                    EventId = EventId,
+                    Position = 2,
+                    CompetitorId = selectedP2,
+                    CompetitorName = Participants.First(p => p.CompetitorId == selectedP2).CompetitorName,
+                    PredictedDate = DateTimeOffset.UtcNow,
+                    PointsAwarded = 0
+                },
+                new UserPrediction
+                {
+                    UserId = UserId,
+                    EventId = EventId,
+                    Position = 3,
+                    CompetitorId = selectedP3,
+                    CompetitorName = Participants.First(p => p.CompetitorId == selectedP3).CompetitorName,
+                    PredictedDate = DateTimeOffset.UtcNow,
+                    PointsAwarded = 0
+                }
+            };
+
+            var success = await PredictionService.SavePredictionAsync(UserId, EventId, predictions);
+
+            if (success)
+            {
+                successMessage = "Prediction saved successfully!";
+                await OnPredictionSaved.InvokeAsync();
+            }
+            else
+            {
+                errorMessage = "Failed to save prediction. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

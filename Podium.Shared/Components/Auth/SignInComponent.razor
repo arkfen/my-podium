@@ -1,0 +1,284 @@
+@using Podium.Shared.Services
+@inject IAuthenticationService AuthService
+
+<div class="auth-container">
+    <div class="card">
+        <div class="card-body">
+            <h3 class="card-title text-center mb-4">Sign In to Podium</h3>
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" role="alert">
+                    @errorMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success" role="alert">
+                    @successMessage
+                </div>
+            }
+
+            @if (authMode == AuthMode.EmailEntry)
+            {
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" @bind="email" placeholder="Enter your email" />
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="SendOTP" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Sign In with Email Code
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="SwitchToPassword">
+                        Sign In with Password
+                    </button>
+                </div>
+
+                <div class="text-center mt-3">
+                    <small>Don't have an account? <a href="#" @onclick="ShowRegister" @onclick:preventDefault>Sign Up</a></small>
+                </div>
+            }
+            else if (authMode == AuthMode.OTPEntry)
+            {
+                <div class="mb-3">
+                    <label for="otp" class="form-label">Verification Code</label>
+                    <input type="text" class="form-control" id="otp" @bind="otpCode" placeholder="Enter 4-digit code" maxlength="4" />
+                    <small class="form-text text-muted">Check your email for the verification code</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="VerifyOTP" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Verify Code
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="BackToEmail">
+                        Back
+                    </button>
+                </div>
+            }
+            else if (authMode == AuthMode.PasswordEntry)
+            {
+                <div class="mb-3">
+                    <label for="emailPass" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="emailPass" @bind="email" placeholder="Enter your email" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" @bind="password" placeholder="Enter your password" />
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="SignInWithPassword" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Sign In
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="BackToEmail">
+                        Back
+                    </button>
+                </div>
+
+                <div class="text-center mt-3">
+                    <small>Don't have an account? <a href="#" @onclick="ShowRegister" @onclick:preventDefault>Sign Up</a></small>
+                </div>
+            }
+            else if (authMode == AuthMode.Register)
+            {
+                <div class="mb-3">
+                    <label for="regName" class="form-label">Full Name</label>
+                    <input type="text" class="form-control" id="regName" @bind="name" placeholder="Enter your name" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="regEmail" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="regEmail" @bind="email" placeholder="Enter your email" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="regPassword" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="regPassword" @bind="password" placeholder="Choose a password" />
+                    <small class="form-text text-muted">Minimum 8 characters</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" @onclick="Register" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        }
+                        Create Account
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="BackToEmail">
+                        Back to Sign In
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public EventCallback<(string UserId, string UserName)> OnSignedIn { get; set; }
+
+    private enum AuthMode
+    {
+        EmailEntry,
+        OTPEntry,
+        PasswordEntry,
+        Register
+    }
+
+    private AuthMode authMode = AuthMode.EmailEntry;
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string name = string.Empty;
+    private string otpCode = string.Empty;
+    private string errorMessage = string.Empty;
+    private string successMessage = string.Empty;
+    private bool isProcessing = false;
+
+    private async Task SendOTP()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            errorMessage = "Please enter your email address.";
+            return;
+        }
+
+        isProcessing = true;
+        var (success, error) = await AuthService.SendOTPAsync(email);
+        isProcessing = false;
+
+        if (success)
+        {
+            successMessage = "Verification code sent! Check your email.";
+            authMode = AuthMode.OTPEntry;
+        }
+        else
+        {
+            errorMessage = error;
+        }
+    }
+
+    private async Task VerifyOTP()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(otpCode) || otpCode.Length != 4)
+        {
+            errorMessage = "Please enter a valid 4-digit code.";
+            return;
+        }
+
+        isProcessing = true;
+        var (success, userId, userName, error) = await AuthService.VerifyOTPAsync(email, otpCode);
+        isProcessing = false;
+
+        if (success)
+        {
+            await OnSignedIn.InvokeAsync((userId, userName));
+        }
+        else
+        {
+            errorMessage = error;
+        }
+    }
+
+    private async Task SignInWithPassword()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Please enter both email and password.";
+            return;
+        }
+
+        isProcessing = true;
+        var (success, userId, userName, error) = await AuthService.SignInWithPasswordAsync(email, password);
+        isProcessing = false;
+
+        if (success)
+        {
+            await OnSignedIn.InvokeAsync((userId, userName));
+        }
+        else
+        {
+            errorMessage = error;
+        }
+    }
+
+    private async Task Register()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Please fill in all fields.";
+            return;
+        }
+
+        if (password.Length < 8)
+        {
+            errorMessage = "Password must be at least 8 characters long.";
+            return;
+        }
+
+        isProcessing = true;
+        var (success, error) = await AuthService.RegisterUserAsync(email, name, password);
+        isProcessing = false;
+
+        if (success)
+        {
+            successMessage = "Account created! You can now sign in.";
+            authMode = AuthMode.EmailEntry;
+            password = string.Empty;
+        }
+        else
+        {
+            errorMessage = error;
+        }
+    }
+
+    private void SwitchToPassword()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        authMode = AuthMode.PasswordEntry;
+    }
+
+    private void BackToEmail()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        otpCode = string.Empty;
+        password = string.Empty;
+        authMode = AuthMode.EmailEntry;
+    }
+
+    private void ShowRegister()
+    {
+        errorMessage = string.Empty;
+        successMessage = string.Empty;
+        authMode = AuthMode.Register;
+    }
+}

@@ -1,0 +1,119 @@
+@using Podium.Shared.Services
+
+<div class="leaderboard-container">
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title">
+                @if (IsSeasonLeaderboard)
+                {
+                    <text>Season Leaderboard</text>
+                }
+                else
+                {
+                    <text>Event Leaderboard</text>
+                }
+            </h4>
+
+            @if (isLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2">Loading leaderboard...</p>
+                </div>
+            }
+            else if (leaderboard == null || !leaderboard.Any())
+            {
+                <div class="alert alert-info" role="alert">
+                    No leaderboard data available yet.
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="width: 60px;">Rank</th>
+                                <th scope="col">User</th>
+                                <th scope="col" class="text-center">Points</th>
+                                @if (IsSeasonLeaderboard)
+                                {
+                                    <th scope="col" class="text-center">Events</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in leaderboard)
+                            {
+                                <tr class="@(entry.UserId == CurrentUserId ? "table-primary" : "")">
+                                    <td>
+                                        @if (entry.Rank == 1)
+                                        {
+                                            <span class="badge bg-warning text-dark">🏆 @entry.Rank</span>
+                                        }
+                                        else if (entry.Rank == 2)
+                                        {
+                                            <span class="badge bg-secondary">🥈 @entry.Rank</span>
+                                        }
+                                        else if (entry.Rank == 3)
+                                        {
+                                            <span class="badge bg-info">🥉 @entry.Rank</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-dark">@entry.Rank</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <strong>@entry.UserName</strong>
+                                        @if (entry.UserId == CurrentUserId)
+                                        {
+                                            <span class="badge bg-primary ms-2">You</span>
+                                        }
+                                    </td>
+                                    <td class="text-center">
+                                        <strong>@entry.TotalPoints</strong>
+                                    </td>
+                                    @if (IsSeasonLeaderboard)
+                                    {
+                                        <td class="text-center">
+                                            @entry.EventsPredicted
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (IsSeasonLeaderboard && leaderboard.Any())
+                {
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            Based on @leaderboard.Max(e => e.EventsPredicted) completed events
+                        </small>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<LeaderboardEntry> Leaderboard { get; set; } = new();
+
+    [Parameter]
+    public string CurrentUserId { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsSeasonLeaderboard { get; set; } = true;
+
+    [Parameter]
+    public bool IsLoading { get; set; } = false;
+
+    private List<LeaderboardEntry> leaderboard => Leaderboard;
+    private bool isLoading => IsLoading;
+}
