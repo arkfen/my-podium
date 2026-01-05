@@ -17,6 +17,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{07C2787E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.DbInit", "Tools\Podium.DbInit\Podium.DbInit.csproj", "{F3D3396A-FC52-49D4-9CA0-054021118E24}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{3726A50E-B73D-4B0B-ABCE-ADFFB97159E6}"
+	ProjectSection(SolutionItems) = preProject
+		Docs\DatabaseStructure.md = Docs\DatabaseStructure.md
+		Docs\EmailConfiguration.md = Docs\EmailConfiguration.md
+		Docs\QUICKSTART.md = Docs\QUICKSTART.md
+		Docs\README.md = Docs\README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

@@ -17,9 +17,19 @@ cd ../../Podium/Podium.Api
 dotnet user-secrets set "AzureStorage:StorageUri" "https://youraccount.table.core.windows.net/"
 dotnet user-secrets set "AzureStorage:AccountName" "youraccount"
 dotnet user-secrets set "AzureStorage:AccountKey" "your-key"
+
+# Optional: Configure email for OTP (or codes will log to console)
+dotnet user-secrets set "EmailSettings:SmtpServer" "smtp.gmail.com"
+dotnet user-secrets set "EmailSettings:SmtpPort" "587"
+dotnet user-secrets set "EmailSettings:Username" "your-email@gmail.com"
+dotnet user-secrets set "EmailSettings:Password" "your-gmail-app-password"
+dotnet user-secrets set "EmailSettings:SenderEmail" "your-email@gmail.com"
+dotnet user-secrets set "EmailSettings:SenderName" "Podium"
+
 dotnet run
 ```
 ? Note the port (e.g., https://localhost:50242)
+? Look for "? Email service configured" or "? Email service not configured"
 
 ### Step 3: Update Web Config (30 sec)
 Edit `Podium/Podium.Web/wwwroot/appsettings.json`:
@@ -84,9 +94,24 @@ dotnet run
 - Try creating a new account (Sign Up)
 
 ### OTP code not working?
-- OTP is logged to API console (not email yet)
-- Check API terminal for the 6-digit code
+- **With Email:** Check your inbox (and spam folder)
+- **Without Email:** OTP is logged to API console
+  - Look for: `OTP Code for john@example.com: 123456`
+  - API shows: `? Email service not configured`
 - Code expires in 10 minutes
+- Request a new code if expired
+
+### Want to enable email sending?
+See `Docs/EmailConfiguration.md` for complete setup guide.
+
+**Quick Gmail setup:**
+```bash
+cd Podium/Podium.Api
+dotnet user-secrets set "EmailSettings:SmtpServer" "smtp.gmail.com"
+dotnet user-secrets set "EmailSettings:Username" "your@gmail.com"
+dotnet user-secrets set "EmailSettings:Password" "your-app-password"
+```
+Get Gmail app password: Google Account ? Security ? 2-Step Verification ? App passwords
 
 ## ?? Need more help?
 
@@ -109,3 +134,32 @@ Now that it's running:
 ---
 
 **Need immediate help?** Check the API console and browser console for error messages!
+
+
+
+
+
+== Monitoring & Logging ==
+
+Visit the API health check: https://localhost:50242/api/health
+You will see:
+
+{
+  "status": "healthy",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "environment": "Development"
+}
+
+
+
+
+
+======== FOR PRODUCTION DEPLOYMENT ========
+When deploying to production:
+1. **Use a real database** - Update connection strings in `appsettings.json`
+2. **Configure HTTPS** - Obtain and configure SSL certificates
+3. **Set environment variables** - Use Azure Key Vault or similar for secrets
+4. **Enable CORS** - Allow your web app's domain in API CORS settings (Startup.cs of the API project)
+
+
+

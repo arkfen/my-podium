@@ -18,13 +18,15 @@ public interface IAuthenticationService
 public class AuthenticationService : IAuthenticationService
 {
     private readonly ITableClientFactory _tableClientFactory;
+    private readonly Action<string, string>? _sendEmailCallback;
     private const string UsersTable = "PodiumUsers";
     private const string SessionsTable = "PodiumAuthSessions";
     private const string OTPTable = "PodiumOTPCodes";
 
-    public AuthenticationService(ITableClientFactory tableClientFactory)
+    public AuthenticationService(ITableClientFactory tableClientFactory, Action<string, string>? sendEmailCallback = null)
     {
         _tableClientFactory = tableClientFactory;
+        _sendEmailCallback = sendEmailCallback;
     }
 
     public async Task<(bool Success, string ErrorMessage)> SendOTPAsync(string email)
@@ -76,9 +78,24 @@ public class AuthenticationService : IAuthenticationService
             return (false, $"Failed to generate code: {ex.Message}");
         }
 
-        // TODO: Send email with OTP code
-        // For now, just log it (in production, integrate with email service)
-        Console.WriteLine($"OTP Code for {email}: {otpCode}");
+        // Send email via callback (API will provide this)
+        if (_sendEmailCallback != null)
+        {
+            try
+            {
+                _sendEmailCallback(email, otpCode);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send email: {ex.Message}");
+                // Don't fail the request - OTP is still valid
+            }
+        }
+        else
+        {
+            // Fallback: Log to console (development)
+            Console.WriteLine($"OTP Code for {email}: {otpCode}");
+        }
 
         return (true, string.Empty);
     }

@@ -1,6 +1,7 @@
 using Podium.Shared.Services.Data;
 using Podium.Shared.Services.Auth;
 using Podium.Api.Endpoints;
+using Podium.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +49,25 @@ var accountKey = builder.Configuration["AzureStorage:AccountKey"]
 builder.Services.AddSingleton<ITableClientFactory>(
     new TableClientFactory(storageUri, accountName, accountKey));
 
+// Register Email Service
+var smtpServer = builder.Configuration["EmailSettings:SmtpServer"];
+var smtpPort = builder.Configuration.GetValue<int>("EmailSettings:SmtpPort", 587);
+var smtpUsername = builder.Configuration["EmailSettings:Username"];
+var smtpPassword = builder.Configuration["EmailSettings:Password"];
+var senderEmail = builder.Configuration["EmailSettings:SenderEmail"];
+var senderName = builder.Configuration["EmailSettings:SenderName"] ?? "Podium";
+
+if (!string.IsNullOrEmpty(smtpServer) && !string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
+{
+    builder.Services.AddScoped<IEmailService>(sp => 
+        new EmailService(smtpServer, smtpPort, smtpUsername, smtpPassword, senderEmail ?? smtpUsername, senderName));
+    Console.WriteLine("? Email service configured");
+}
+else
+{
+    Console.WriteLine("? Email service not configured - OTP codes will be logged to console only");
+}
+
 // Register repositories
 builder.Services.AddScoped<ISportRepository, SportRepository>();
 builder.Services.AddScoped<ITierRepository, TierRepository>();
@@ -58,8 +78,24 @@ builder.Services.AddScoped<IPredictionRepository, PredictionRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ILeaderboardRepository, LeaderboardRepository>();
 
-// Register authentication services
-builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+// Register authentication services with email callback
+builder.Services.AddScoped<IAuthenticationService>(sp =>
+{
+    var tableClientFactory = sp.GetRequiredService<ITableClientFactory>();
+    var emailService = sp.GetService<IEmailService>();
+    
+    Action<string, string>? emailCallback = null;
+    if (emailService != null)
+    {
+        emailCallback = (email, code) => 
+        {
+            _ = emailService.SendVerificationEmailAsync(email, code);
+        };
+    }
+    
+    return new AuthenticationService(tableClientFactory, emailCallback);
+});
+
 builder.Services.AddScoped<IRegistrationService, RegistrationService>();
 
 var app = builder.Build();
