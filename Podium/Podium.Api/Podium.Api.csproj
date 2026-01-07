@@ -7,6 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Remove="appsettings.Development(template).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="appsettings.Development%28template%29.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Data.Tables" Version="12.9.1" />
   </ItemGroup>
 

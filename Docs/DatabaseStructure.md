@@ -1,12 +1,13 @@
 # to start Azurite on my local PC
 
-# cd C:\Users\arkfe\AppData\Roaming\npm
-# azurite --silent --location c:\azurite --debug c:\azurite\debug.log
+cd C:\Users\arkfe\AppData\Roaming\npm
+azurite --silent --location c:\azurite --debug c:\azurite\debug.log
 
 
+# to start additional Azurite instances on different ports use:
+azurite --silent   --location c:\azurite2   --debug c:\azurite2\debug.log   --blobPort 11000   --queuePort 11001   --tablePort 11002
 
-# azurite --silent   --location c:\azurite2   --debug c:\azurite2\debug.log   --blobPort 11000   --queuePort 11001   --tablePort 11002
-
+---
 
 
 

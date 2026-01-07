@@ -158,7 +158,7 @@ You will see:
 When deploying to production:
 1. **Use a real database** - Update connection strings in `appsettings.json`
 2. **Configure HTTPS** - Obtain and configure SSL certificates
-3. **Set environment variables** - Use Azure Key Vault or similar for secrets
+3. **Set environment variables in API** - Use Azure Key Vault or similar for secrets
 4. **Enable CORS** - Allow your web app's domain in API CORS settings (Startup.cs of the API project)
 
 
