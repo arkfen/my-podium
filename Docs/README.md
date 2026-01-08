@@ -124,9 +124,9 @@ Or run from Visual Studio - set Podium.Web as startup project.
 ### 5. Test with Sample Accounts
 
 After running DbInit:
-- Email: `john@example.com` | Password: `John's password`
-- Email: `jane@example.com` | Password: `Jane's password`
-- Email: `alex@example.com` | Password: `Alex's password`
+- Email: `john@example.com` | Password: `Password123`
+- Email: `jane@example.com` | Password: `Password123`
+- Email: `alex@example.com` | Password: `Password123`
 
 ## ? Completed Features
 
