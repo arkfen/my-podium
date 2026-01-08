@@ -56,6 +56,34 @@ Both Web and MAUI apps use the shared `IAppConfiguration` service for environmen
 - Android emulator: Use `http://10.0.2.2:50242` (not localhost)
 - iOS simulator: Use `https://localhost:50242`
 
+## ?? Session Persistence
+
+The app now includes automatic session persistence:
+
+### How It Works
+- **Sign In Once**: Your session is saved to browser localStorage (Web) or device storage (MAUI)
+- **Stay Signed In**: Sessions persist for 14 days automatically
+- **Survives Refreshes**: Page refreshes don't sign you out
+- **Cross-Tab Support**: Sign in once, stay signed in across all tabs
+- **Secure**: Session data stored locally, never sent to other sites
+
+### What Gets Stored
+- User ID
+- Username
+- Session ID
+- Expiry date (14 days)
+
+### Manual Sign Out
+- Use the "Sign Out" button to clear your session
+- Session is removed from storage immediately
+- All tabs/windows will update
+
+### Privacy & Security
+- Data stored locally in your browser/device only
+- Not accessible by other websites
+- Automatically expires after 14 days
+- No sensitive data (passwords) stored
+
 ## ?? Getting Started
 
 ### 1. Initialize the Database
@@ -124,9 +152,9 @@ Or run from Visual Studio - set Podium.Web as startup project.
 ### 5. Test with Sample Accounts
 
 After running DbInit:
-- Email: `john@example.com` | Password: `Password123`
-- Email: `jane@example.com` | Password: `Password123`
-- Email: `alex@example.com` | Password: `Password123`
+- Email: `john@example.com` | Password: `password123`
+- Email: `jane@example.com` | Password: `password123`
+- Email: `alex@example.com` | Password: `password123`
 
 ## ? Completed Features
 
@@ -145,6 +173,7 @@ After running DbInit:
 - ? Sign in with email OTP (code logs to console for now)
 - ? Session management
 - ? Auth state service
+- ? **Session persistence** (survives page refreshes and app restarts)
 
 ### User Features
 - ? Home/Landing page
@@ -204,10 +233,10 @@ After running DbInit:
 - `POST /api/auth/signout` - Sign out
 
 ### Sports & Competitions
-- `GET /api/sports` - List all active sports
-- `GET /api/sports/{sportId}/tiers` - Get competitions for a sport
-- `GET /api/tiers/{tierId}/seasons` - Get seasons
-- `GET /api/tiers/{tierId}/seasons/active` - Get active season
+- `GET /api/disciplines` - List all active disciplines
+- `GET /api/disciplines/{disciplineId}/series` - Get series for a discipline
+- `GET /api/series/{seriesId}/seasons` - Get seasons
+- `GET /api/series/{seriesId}/seasons/active` - Get active season
 - `GET /api/seasons/{seasonId}/events` - Get all events
 - `GET /api/seasons/{seasonId}/events/upcoming` - Get upcoming events
 - `GET /api/seasons/{seasonId}/competitors` - Get competitors

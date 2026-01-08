@@ -10,7 +10,7 @@
             <nav class="main-nav">
                 @if (AuthState.IsAuthenticated)
                 {
-                    <a href="/sports">Make Predictions</a>
+                    <a href="/disciplines">Make Predictions</a>
                     <a href="/my-predictions">My Predictions</a>
                     <a href="/leaderboard">Leaderboard</a>
                     <button class="btn-link" @onclick="SignOut">Sign Out</button>
@@ -39,9 +39,9 @@
         AuthState.OnAuthStateChanged += StateHasChanged;
     }
 
-    private void SignOut()
+    private async Task SignOut()
     {
-        AuthState.ClearAuthState();
+        await AuthState.ClearAuthStateAsync();
         Navigation.NavigateTo("/");
     }
 

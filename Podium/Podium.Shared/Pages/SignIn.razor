@@ -137,7 +137,7 @@
             if (response.Success && response.Data != null)
             {
                 // For now, we'll use userId as sessionId (should be improved with actual session management)
-                AuthState.SetAuthState(response.Data.UserId, response.Data.Username, response.Data.UserId);
+                await AuthState.SetAuthStateAsync(response.Data.UserId, response.Data.Username, response.Data.UserId);
                 Navigation.NavigateTo("/");
             }
             else
@@ -207,7 +207,7 @@
             var response = await ApiClient.VerifyOtpAsync(email, otpCode);
             if (response.Success && response.Data != null)
             {
-                AuthState.SetAuthState(response.Data.UserId, response.Data.Username, response.Data.UserId);
+                await AuthState.SetAuthStateAsync(response.Data.UserId, response.Data.Username, response.Data.UserId);
                 Navigation.NavigateTo("/");
             }
             else

@@ -30,7 +30,20 @@ builder.Services.AddScoped(sp =>
 
 builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
 
-// Add state management
-builder.Services.AddSingleton<AuthStateService>();
+// Add storage service for session persistence
+builder.Services.AddScoped<IStorageService, BrowserStorageService>();
 
-await builder.Build().RunAsync();
+// Add state management with storage
+builder.Services.AddScoped<AuthStateService>(sp =>
+{
+    var storageService = sp.GetRequiredService<IStorageService>();
+    return new AuthStateService(storageService);
+});
+
+var host = builder.Build();
+
+// Initialize auth state (restore session from storage)
+var authState = host.Services.GetRequiredService<AuthStateService>();
+await authState.InitializeAsync();
+
+await host.RunAsync();

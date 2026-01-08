@@ -49,8 +49,15 @@ namespace Podium.Native
 
             builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
 
-            // Add state management
-            builder.Services.AddSingleton<AuthStateService>();
+            // Add storage service for session persistence
+            builder.Services.AddScoped<IStorageService, BrowserStorageService>();
+
+            // Add state management with storage
+            builder.Services.AddScoped<AuthStateService>(sp =>
+            {
+                var storageService = sp.GetRequiredService<IStorageService>();
+                return new AuthStateService(storageService);
+            });
 
             return builder.Build();
         }
