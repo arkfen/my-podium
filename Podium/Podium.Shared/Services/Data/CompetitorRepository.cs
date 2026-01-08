@@ -6,9 +6,9 @@ namespace Podium.Shared.Services.Data;
 
 public interface ICompetitorRepository
 {
-    Task<List<Competitor>> GetCompetitorsBySportAsync(string sportId);
+    Task<List<Competitor>> GetCompetitorsByDisciplineAsync(string disciplineId);
     Task<List<SeasonCompetitor>> GetCompetitorsBySeasonAsync(string seasonId);
-    Task<Competitor?> GetCompetitorByIdAsync(string sportId, string competitorId);
+    Task<Competitor?> GetCompetitorByIdAsync(string disciplineId, string competitorId);
 }
 
 public class CompetitorRepository : ICompetitorRepository
@@ -22,14 +22,14 @@ public class CompetitorRepository : ICompetitorRepository
         _tableClientFactory = tableClientFactory;
     }
 
-    public async Task<List<Competitor>> GetCompetitorsBySportAsync(string sportId)
+    public async Task<List<Competitor>> GetCompetitorsByDisciplineAsync(string disciplineId)
     {
         var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
         var competitors = new List<Competitor>();
 
         try
         {
-            var filter = $"PartitionKey eq '{sportId}' and IsActive eq true";
+            var filter = $"PartitionKey eq '{disciplineId}' and IsActive eq true";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 competitors.Add(MapToCompetitor(entity));
@@ -64,13 +64,13 @@ public class CompetitorRepository : ICompetitorRepository
         return seasonCompetitors.OrderBy(sc => sc.CompetitorName).ToList();
     }
 
-    public async Task<Competitor?> GetCompetitorByIdAsync(string sportId, string competitorId)
+    public async Task<Competitor?> GetCompetitorByIdAsync(string disciplineId, string competitorId)
     {
         var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<TableEntity>(sportId, competitorId);
+            var response = await tableClient.GetEntityAsync<TableEntity>(disciplineId, competitorId);
             return MapToCompetitor(response.Value);
         }
         catch (RequestFailedException)
@@ -84,7 +84,7 @@ public class CompetitorRepository : ICompetitorRepository
         return new Competitor
         {
             Id = entity.RowKey,
-            SportId = entity.PartitionKey,
+            DisciplineId = entity.PartitionKey,
             Name = entity.GetString("Name") ?? string.Empty,
             ShortName = entity.GetString("ShortName") ?? string.Empty,
             Type = entity.GetString("Type") ?? "Individual",

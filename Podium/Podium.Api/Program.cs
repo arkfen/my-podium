@@ -69,8 +69,8 @@ else
 }
 
 // Register repositories
-builder.Services.AddScoped<ISportRepository, SportRepository>();
-builder.Services.AddScoped<ITierRepository, TierRepository>();
+builder.Services.AddScoped<IDisciplineRepository, DisciplineRepository>();
+builder.Services.AddScoped<ISeriesRepository, SeriesRepository>();
 builder.Services.AddScoped<ISeasonRepository, SeasonRepository>();
 builder.Services.AddScoped<ICompetitorRepository, CompetitorRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();

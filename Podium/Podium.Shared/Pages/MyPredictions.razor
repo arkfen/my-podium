@@ -30,7 +30,7 @@
     {
         <div class="alert alert-info">
             <p>You haven't made any predictions yet.</p>
-            <a href="/sports" class="btn btn-primary">Make Your First Prediction</a>
+            <a href="/disciplines" class="btn btn-primary">Make Your First Prediction</a>
         </div>
     }
     else
@@ -168,17 +168,17 @@
         {
             // For now, we'll need to get all seasons and load predictions
             // In a real app, you'd have a "GetUserPredictions" endpoint
-            var sportsResponse = await ApiClient.GetSportsAsync();
-            if (sportsResponse.Success && sportsResponse.Data != null)
+            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null)
             {
-                foreach (var sport in sportsResponse.Data)
+                foreach (var discipline in disciplinesResponse.Data)
                 {
-                    var tiersResponse = await ApiClient.GetTiersAsync(sport.Id);
-                    if (tiersResponse.Success && tiersResponse.Data != null)
+                    var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
+                    if (seriesResponse.Success && seriesResponse.Data != null)
                     {
-                        foreach (var tier in tiersResponse.Data)
+                        foreach (var series in seriesResponse.Data)
                         {
-                            var seasonResponse = await ApiClient.GetActiveSeasonAsync(tier.Id);
+                            var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
                             if (seasonResponse.Success && seasonResponse.Data != null)
                             {
                                 var predsResponse = await ApiClient.GetUserSeasonPredictionsAsync(

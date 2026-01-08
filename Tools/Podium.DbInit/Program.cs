@@ -3,6 +3,7 @@ using Azure.Data.Tables;
 using Microsoft.Extensions.Configuration;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace Podium.DbInit;
 
@@ -91,7 +92,7 @@ class Program
 
         var tableNames = new[]
         {
-            "PodiumSports", "PodiumTiers", "PodiumSeasons", "PodiumCompetitors",
+            "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
             "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
             "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics"
@@ -118,7 +119,7 @@ class Program
 
         var tableNames = new[]
         {
-            "PodiumSports", "PodiumTiers", "PodiumSeasons", "PodiumCompetitors",
+            "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
             "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
             "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics"
@@ -134,178 +135,262 @@ class Program
 
     static async Task AddSampleDataAsync()
     {
-        Console.WriteLine("\n--- Adding Sample Data ---");
+        Console.WriteLine("\n--- Adding Motorsport Data ---");
 
-        // 1. Create sample sport: Motorsport
-        var sportId = Guid.NewGuid().ToString();
-        var sportClient = CreateTableClient("PodiumSports");
-        var sportEntity = new TableEntity("Sport", sportId)
-        {
-            ["Name"] = "Motorsport",
-            ["DisplayName"] = "Motorsport",
-            ["IsActive"] = true,
-            ["CreatedDate"] = DateTime.UtcNow
-        };
-        await sportClient.UpsertEntityAsync(sportEntity);
-        Console.WriteLine($"? Created sport: Motorsport (ID: {sportId})");
-
-        // 2. Create sample tier: Formula 1
-        var tierId = Guid.NewGuid().ToString();
-        var tierClient = CreateTableClient("PodiumTiers");
-        var tierEntity = new TableEntity(sportId, tierId)
-        {
-            ["SportId"] = sportId,
-            ["Name"] = "F1",
-            ["DisplayName"] = "Formula 1",
-            ["IsActive"] = true,
-            ["CreatedDate"] = DateTime.UtcNow
-        };
-        await tierClient.UpsertEntityAsync(tierEntity);
-        Console.WriteLine($"? Created tier: Formula 1 (ID: {tierId})");
-
-        // 3. Create sample season: 2025
-        var seasonId = Guid.NewGuid().ToString();
+        var disciplineClient = CreateTableClient("PodiumDisciplines");
+        var seriesClient = CreateTableClient("PodiumSeries");
         var seasonClient = CreateTableClient("PodiumSeasons");
-        var seasonEntity = new TableEntity(tierId, seasonId)
-        {
-            ["TierId"] = tierId,
-            ["Year"] = 2025,
-            ["Name"] = "2025 Season",
-            ["IsActive"] = true,
-            ["StartDate"] = new DateTime(2025, 3, 1, 0, 0, 0, DateTimeKind.Utc),
-            ["EndDate"] = new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc),
-            ["CreatedDate"] = DateTime.UtcNow
-        };
-        await seasonClient.UpsertEntityAsync(seasonEntity);
-        Console.WriteLine($"? Created season: 2025 (ID: {seasonId})");
-
-        // 4. Create scoring rules for season
-        var scoringClient = CreateTableClient("PodiumScoringRules");
-        var scoringEntity = new TableEntity(seasonId, "Scoring")
-        {
-            ["SeasonId"] = seasonId,
-            ["ExactMatchPoints"] = 25,
-            ["OneOffPoints"] = 18,
-            ["TwoOffPoints"] = 15,
-            ["CreatedDate"] = DateTime.UtcNow
-        };
-        await scoringClient.UpsertEntityAsync(scoringEntity);
-        Console.WriteLine($"? Created scoring rules (Exact: 25, OneOff: 18, TwoOff: 15)");
-
-        // 5. Create sample competitors
         var competitorClient = CreateTableClient("PodiumCompetitors");
-        var competitorIds = new Dictionary<string, string>();
-        var driverNames = new[]
-        {
-            "Max Verstappen", "Sergio Perez", "Lewis Hamilton", "George Russell",
-            "Charles Leclerc", "Carlos Sainz", "Lando Norris", "Oscar Piastri",
-            "Fernando Alonso", "Lance Stroll", "Pierre Gasly", "Esteban Ocon",
-            "Valtteri Bottas", "Zhou Guanyu", "Kevin Magnussen", "Nico Hulkenberg",
-            "Yuki Tsunoda", "Daniel Ricciardo", "Alexander Albon", "Logan Sargeant"
-        };
-
-        foreach (var driverName in driverNames)
-        {
-            var competitorId = Guid.NewGuid().ToString();
-            competitorIds[driverName] = competitorId;
-            
-            var competitorEntity = new TableEntity(sportId, competitorId)
-            {
-                ["SportId"] = sportId,
-                ["Name"] = driverName,
-                ["ShortName"] = GetShortName(driverName),
-                ["Type"] = "Individual",
-                ["IsActive"] = true,
-                ["CreatedDate"] = DateTime.UtcNow
-            };
-            await competitorClient.UpsertEntityAsync(competitorEntity);
-        }
-        Console.WriteLine($"? Created {driverNames.Length} competitors (F1 drivers)");
-
-        // 6. Link competitors to season
         var seasonCompClient = CreateTableClient("PodiumSeasonCompetitors");
-        foreach (var kvp in competitorIds)
-        {
-            var seasonCompEntity = new TableEntity(seasonId, kvp.Value)
-            {
-                ["SeasonId"] = seasonId,
-                ["CompetitorId"] = kvp.Value,
-                ["CompetitorName"] = kvp.Key,
-                ["JoinDate"] = DateTime.UtcNow
-            };
-            await seasonCompClient.UpsertEntityAsync(seasonCompEntity);
-        }
-        Console.WriteLine($"? Linked competitors to 2025 season");
-
-        // 7. Create sample events
         var eventClient = CreateTableClient("PodiumEvents");
-        var events = new[]
+        var scoringClient = CreateTableClient("PodiumScoringRules");
+
+        // Motorsport data structure
+        var motorsportData = new[]
         {
-            ("Australian Grand Prix", "Melbourne", new DateTime(2025, 3, 16, 5, 0, 0, DateTimeKind.Utc)),
-            ("Chinese Grand Prix", "Shanghai", new DateTime(2025, 3, 23, 7, 0, 0, DateTimeKind.Utc)),
-            ("Japanese Grand Prix", "Suzuka", new DateTime(2025, 4, 6, 5, 0, 0, DateTimeKind.Utc)),
-            ("Bahrain Grand Prix", "Sakhir", new DateTime(2025, 4, 13, 15, 0, 0, DateTimeKind.Utc)),
-            ("Saudi Arabian Grand Prix", "Jeddah", new DateTime(2025, 4, 20, 17, 0, 0, DateTimeKind.Utc))
+            new { 
+                Name = "Single-Seater Racing", 
+                Series = new[] {
+                    new { Name = "Formula 1", GoverningBody = "FIA", Region = "Global", VehicleType = "Open-wheel" },
+                    new { Name = "Formula 2", GoverningBody = "FIA", Region = "Global", VehicleType = "Open-wheel" },
+                    new { Name = "Formula 3", GoverningBody = "FIA", Region = "Global", VehicleType = "Open-wheel" },
+                    new { Name = "IndyCar", GoverningBody = "IndyCar", Region = "USA", VehicleType = "Open-wheel" }
+                }
+            },
+            new { 
+                Name = "Touring / Stock Cars", 
+                Series = new[] {
+                    new { Name = "NASCAR Cup Series", GoverningBody = "NASCAR", Region = "USA", VehicleType = "Stock Car" },
+                    new { Name = "British Touring Car Championship", GoverningBody = "TOCA", Region = "UK", VehicleType = "Touring Car" },
+                    new { Name = "Supercars Championship", GoverningBody = "Motorsport Australia", Region = "Australia", VehicleType = "Touring Car" }
+                }
+            },
+            new { 
+                Name = "Rally", 
+                Series = new[] {
+                    new { Name = "World Rally Championship", GoverningBody = "FIA", Region = "Global", VehicleType = "Rally Car" },
+                    new { Name = "American Rally Association", GoverningBody = "ARA", Region = "USA", VehicleType = "Rally Car" },
+                    new { Name = "Dakar Rally", GoverningBody = "FIA / FIM", Region = "Global", VehicleType = "Rally Raid" }
+                }
+            },
+            new { 
+                Name = "Endurance Racing", 
+                Series = new[] {
+                    new { Name = "FIA World Endurance Championship", GoverningBody = "FIA", Region = "Global", VehicleType = "Prototype / GT" },
+                    new { Name = "IMSA WeatherTech SportsCar Championship", GoverningBody = "IMSA", Region = "USA", VehicleType = "Prototype / GT" },
+                    new { Name = "Asian Le Mans Series", GoverningBody = "ACO", Region = "Asia", VehicleType = "Prototype / GT" }
+                }
+            },
+            new { 
+                Name = "Motorcycle Racing", 
+                Series = new[] {
+                    new { Name = "MotoGP", GoverningBody = "FIM", Region = "Global", VehicleType = "Motorcycle" },
+                    new { Name = "Moto2", GoverningBody = "FIM", Region = "Global", VehicleType = "Motorcycle" },
+                    new { Name = "Moto3", GoverningBody = "FIM", Region = "Global", VehicleType = "Motorcycle" },
+                    new { Name = "World Superbike Championship", GoverningBody = "FIM", Region = "Global", VehicleType = "Motorcycle" },
+                    new { Name = "MotoAmerica Superbike", GoverningBody = "MotoAmerica / FIM NA", Region = "USA", VehicleType = "Motorcycle" }
+                }
+            },
+            new { 
+                Name = "Electric Racing", 
+                Series = new[] {
+                    new { Name = "Formula E", GoverningBody = "FIA", Region = "Global", VehicleType = "Electric Open-wheel" },
+                    new { Name = "MotoE", GoverningBody = "FIM", Region = "Global", VehicleType = "Electric Motorcycle" },
+                    new { Name = "Extreme E", GoverningBody = "FIA", Region = "Global", VehicleType = "Electric Off-Road SUV" }
+                }
+            },
+            new { 
+                Name = "Drag Racing", 
+                Series = new[] {
+                    new { Name = "NHRA Camping World Series", GoverningBody = "NHRA", Region = "USA", VehicleType = "Dragster" },
+                    new { Name = "FIA European Drag Racing Championship", GoverningBody = "FIA", Region = "Europe", VehicleType = "Dragster" }
+                }
+            },
+            new { 
+                Name = "Karting", 
+                Series = new[] {
+                    new { Name = "CIK-FIA Karting World Championship", GoverningBody = "FIA", Region = "Global", VehicleType = "Kart" },
+                    new { Name = "SKUSA SuperNationals", GoverningBody = "SKUSA", Region = "USA", VehicleType = "Kart" }
+                }
+            }
         };
 
-        var eventIds = new List<string>();
-        for (int i = 0; i < events.Length; i++)
+        // Create disciplines and series
+        string? singleSeaterDisciplineId = null;
+        string? f1SeriesId = null;
+
+        foreach (var discipline in motorsportData)
         {
-            var eventId = Guid.NewGuid().ToString();
-            eventIds.Add(eventId);
+            var disciplineId = Guid.NewGuid().ToString();
             
-            var (name, location, date) = events[i];
-            var eventEntity = new TableEntity(seasonId, eventId)
+            // Save Single-Seater Racing ID for later use
+            if (discipline.Name == "Single-Seater Racing")
             {
-                ["SeasonId"] = seasonId,
-                ["Name"] = name,
-                ["DisplayName"] = name,
-                ["EventNumber"] = i + 1,
-                ["EventDate"] = date,
-                ["Location"] = location,
-                ["Status"] = date > DateTime.UtcNow ? "Upcoming" : "Completed",
+                singleSeaterDisciplineId = disciplineId;
+            }
+
+            var disciplineEntity = new TableEntity("Discipline", disciplineId)
+            {
+                ["Name"] = discipline.Name,
+                ["DisplayName"] = discipline.Name,
                 ["IsActive"] = true,
                 ["CreatedDate"] = DateTime.UtcNow
             };
-            await eventClient.UpsertEntityAsync(eventEntity);
-        }
-        Console.WriteLine($"? Created {events.Length} events (races)");
+            await disciplineClient.UpsertEntityAsync(disciplineEntity);
+            Console.WriteLine($"? Created discipline: {discipline.Name}");
 
-        // 8. Add results for first event (if it's in the past)
-        if (events[0].Item3 < DateTime.UtcNow)
-        {
-            var resultClient = CreateTableClient("PodiumEventResults");
-            var firstThreeDrivers = driverNames.Take(3).ToArray();
-            var resultEntity = new TableEntity(eventIds[0], "Result")
+            // Create series for this discipline
+            foreach (var series in discipline.Series)
             {
-                ["EventId"] = eventIds[0],
-                ["FirstPlaceId"] = competitorIds[firstThreeDrivers[0]],
-                ["FirstPlaceName"] = firstThreeDrivers[0],
-                ["SecondPlaceId"] = competitorIds[firstThreeDrivers[1]],
-                ["SecondPlaceName"] = firstThreeDrivers[1],
-                ["ThirdPlaceId"] = competitorIds[firstThreeDrivers[2]],
-                ["ThirdPlaceName"] = firstThreeDrivers[2],
-                ["UpdatedDate"] = DateTime.UtcNow
-            };
-            await resultClient.UpsertEntityAsync(resultEntity);
-            Console.WriteLine($"? Added results for Australian GP");
+                var seriesId = Guid.NewGuid().ToString();
+                
+                // Save F1 Series ID for detailed sample data
+                if (series.Name == "Formula 1")
+                {
+                    f1SeriesId = seriesId;
+                }
+
+                var seriesEntity = new TableEntity(disciplineId, seriesId)
+                {
+                    ["DisciplineId"] = disciplineId,
+                    ["Name"] = series.Name,
+                    ["DisplayName"] = series.Name,
+                    ["GoverningBody"] = series.GoverningBody,
+                    ["Region"] = series.Region,
+                    ["VehicleType"] = series.VehicleType,
+                    ["IsActive"] = true,
+                    ["CreatedDate"] = DateTime.UtcNow
+                };
+                await seriesClient.UpsertEntityAsync(seriesEntity);
+                Console.WriteLine($"  ? Created series: {series.Name}");
+            }
         }
 
-        // 9. Create sample users
+        // Add detailed F1 data
+        if (f1SeriesId != null && singleSeaterDisciplineId != null)
+        {
+            Console.WriteLine("\n--- Adding Formula 1 2025 Season Data ---");
+
+            // Create 2025 F1 season
+            var seasonId = Guid.NewGuid().ToString();
+            var seasonEntity = new TableEntity(f1SeriesId, seasonId)
+            {
+                ["SeriesId"] = f1SeriesId,
+                ["Year"] = 2025,
+                ["Name"] = "2025 Season",
+                ["IsActive"] = true,
+                ["StartDate"] = new DateTime(2025, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+                ["EndDate"] = new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc),
+                ["CreatedDate"] = DateTime.UtcNow
+            };
+            await seasonClient.UpsertEntityAsync(seasonEntity);
+            Console.WriteLine($"? Created 2025 F1 season");
+
+            // Create scoring rules
+            var scoringEntity = new TableEntity(seasonId, "Scoring")
+            {
+                ["SeasonId"] = seasonId,
+                ["ExactMatchPoints"] = 25,
+                ["OneOffPoints"] = 18,
+                ["TwoOffPoints"] = 15,
+                ["CreatedDate"] = DateTime.UtcNow
+            };
+            await scoringClient.UpsertEntityAsync(scoringEntity);
+            Console.WriteLine($"? Created scoring rules");
+
+            // Create F1 drivers
+            var driverNames = new[]
+            {
+                "Max Verstappen", "Sergio Perez", "Lewis Hamilton", "George Russell",
+                "Charles Leclerc", "Carlos Sainz", "Lando Norris", "Oscar Piastri",
+                "Fernando Alonso", "Lance Stroll", "Pierre Gasly", "Esteban Ocon",
+                "Valtteri Bottas", "Zhou Guanyu", "Kevin Magnussen", "Nico Hulkenberg",
+                "Yuki Tsunoda", "Daniel Ricciardo", "Alexander Albon", "Logan Sargeant"
+            };
+
+            var competitorIds = new Dictionary<string, string>();
+            foreach (var driverName in driverNames)
+            {
+                var competitorId = Guid.NewGuid().ToString();
+                competitorIds[driverName] = competitorId;
+                
+                var competitorEntity = new TableEntity(singleSeaterDisciplineId, competitorId)
+                {
+                    ["DisciplineId"] = singleSeaterDisciplineId,
+                    ["Name"] = driverName,
+                    ["ShortName"] = GetShortName(driverName),
+                    ["Type"] = "Individual",
+                    ["IsActive"] = true,
+                    ["CreatedDate"] = DateTime.UtcNow
+                };
+                await competitorClient.UpsertEntityAsync(competitorEntity);
+            }
+            Console.WriteLine($"? Created {driverNames.Length} F1 drivers");
+
+            // Link competitors to season
+            foreach (var kvp in competitorIds)
+            {
+                var seasonCompEntity = new TableEntity(seasonId, kvp.Value)
+                {
+                    ["SeasonId"] = seasonId,
+                    ["CompetitorId"] = kvp.Value,
+                    ["CompetitorName"] = kvp.Key,
+                    ["JoinDate"] = DateTime.UtcNow
+                };
+                await seasonCompClient.UpsertEntityAsync(seasonCompEntity);
+            }
+            Console.WriteLine($"? Linked drivers to season");
+
+            // Create F1 races
+            var races = new[]
+            {
+                ("Australian Grand Prix", "Melbourne", new DateTime(2025, 3, 16, 5, 0, 0, DateTimeKind.Utc)),
+                ("Chinese Grand Prix", "Shanghai", new DateTime(2025, 3, 23, 7, 0, 0, DateTimeKind.Utc)),
+                ("Japanese Grand Prix", "Suzuka", new DateTime(2025, 4, 6, 5, 0, 0, DateTimeKind.Utc)),
+                ("Bahrain Grand Prix", "Sakhir", new DateTime(2025, 4, 13, 15, 0, 0, DateTimeKind.Utc)),
+                ("Saudi Arabian Grand Prix", "Jeddah", new DateTime(2025, 4, 20, 17, 0, 0, DateTimeKind.Utc)),
+                ("Miami Grand Prix", "Miami", new DateTime(2025, 5, 4, 19, 0, 0, DateTimeKind.Utc)),
+                ("Emilia Romagna Grand Prix", "Imola", new DateTime(2025, 5, 18, 13, 0, 0, DateTimeKind.Utc)),
+                ("Monaco Grand Prix", "Monaco", new DateTime(2025, 5, 25, 13, 0, 0, DateTimeKind.Utc)),
+                ("Spanish Grand Prix", "Barcelona", new DateTime(2025, 6, 1, 13, 0, 0, DateTimeKind.Utc)),
+                ("Canadian Grand Prix", "Montreal", new DateTime(2025, 6, 15, 18, 0, 0, DateTimeKind.Utc))
+            };
+
+            for (int i = 0; i < races.Length; i++)
+            {
+                var eventId = Guid.NewGuid().ToString();
+                var (name, location, date) = races[i];
+                
+                var eventEntity = new TableEntity(seasonId, eventId)
+                {
+                    ["SeasonId"] = seasonId,
+                    ["Name"] = name,
+                    ["DisplayName"] = name,
+                    ["EventNumber"] = i + 1,
+                    ["EventDate"] = date,
+                    ["Location"] = location,
+                    ["Status"] = date > DateTime.UtcNow ? "Upcoming" : "Completed",
+                    ["IsActive"] = true,
+                    ["CreatedDate"] = DateTime.UtcNow
+                };
+                await eventClient.UpsertEntityAsync(eventEntity);
+            }
+            Console.WriteLine($"? Created {races.Length} F1 races");
+        }
+
+        // Create sample users
+        Console.WriteLine("\n--- Adding Sample Users ---");
         var userClient = CreateTableClient("PodiumUsers");
         var sampleUsers = new[]
         {
-            ("john@example.com", "JohnDoe", "John's password"),
-            ("jane@example.com", "JaneSmith", "Jane's password"),
-            ("alex@example.com", "AlexRacer", "Alex's password")
+            ("john@example.com", "JohnDoe", "password123"),
+            ("jane@example.com", "JaneSmith", "password123"),
+            ("alex@example.com", "AlexRacer", "password123")
         };
 
-        var userIds = new List<string>();
         foreach (var (email, username, password) in sampleUsers)
         {
             var userId = Guid.NewGuid().ToString();
-            userIds.Add(userId);
-            
             var (hash, salt) = HashPassword(password);
             var partitionKey = userId.Substring(0, 6);
             var rowKey = userId.Substring(6);
@@ -326,48 +411,14 @@ class Program
         }
         Console.WriteLine($"? Created {sampleUsers.Length} sample users");
 
-        // 10. Create sample predictions
-        var predictionClient = CreateTableClient("PodiumPredictions");
-        var random = new Random();
-        
-        // Create predictions for upcoming events
-        foreach (var eventId in eventIds.Where((_, idx) => events[idx].Item3 > DateTime.UtcNow))
-        {
-            foreach (var userId in userIds.Take(2)) // Just first 2 users
-            {
-                var shuffledDrivers = competitorIds.Values.OrderBy(_ => random.Next()).Take(3).ToArray();
-                var predictedDriverNames = competitorIds.Where(kvp => shuffledDrivers.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
-                
-                var predictionEntity = new TableEntity(eventId, userId)
-                {
-                    ["EventId"] = eventId,
-                    ["UserId"] = userId,
-                    ["FirstPlaceId"] = shuffledDrivers[0],
-                    ["FirstPlaceName"] = predictedDriverNames[0],
-                    ["SecondPlaceId"] = shuffledDrivers[1],
-                    ["SecondPlaceName"] = predictedDriverNames[1],
-                    ["ThirdPlaceId"] = shuffledDrivers[2],
-                    ["ThirdPlaceName"] = predictedDriverNames[2],
-                    ["PointsEarned"] = null,
-                    ["SubmittedDate"] = DateTime.UtcNow,
-                    ["UpdatedDate"] = DateTime.UtcNow
-                };
-                await predictionClient.UpsertEntityAsync(predictionEntity);
-            }
-        }
-        Console.WriteLine($"? Created sample predictions for upcoming events");
-
         Console.WriteLine("\n--- Sample Data Summary ---");
-        Console.WriteLine($"Sport: Motorsport");
-        Console.WriteLine($"Tier: Formula 1");
-        Console.WriteLine($"Season: 2025");
-        Console.WriteLine($"Competitors: {driverNames.Length} drivers");
-        Console.WriteLine($"Events: {events.Length} races");
-        Console.WriteLine($"Users: {sampleUsers.Length} test accounts");
+        Console.WriteLine($"Disciplines: 8 motorsport categories");
+        Console.WriteLine($"Series: Multiple racing series across disciplines");
+        Console.WriteLine($"Detailed F1 2025 Season: 20 drivers, 10 races");
         Console.WriteLine($"\nTest Login Credentials:");
-        foreach (var (email, username, password) in sampleUsers)
+        foreach (var (email, username, _) in sampleUsers)
         {
-            Console.WriteLine($"  Email: {email} | Username: {username} | Password: {password}");
+            Console.WriteLine($"  Email: {email} | Username: {username} | Password: password123");
         }
     }
 

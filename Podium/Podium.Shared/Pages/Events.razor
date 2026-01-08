@@ -1,4 +1,4 @@
-@page "/tiers/{TierId}/events"
+@page "/series/{SeriesId}/events"
 @inject IPodiumApiClient ApiClient
 @inject NavigationManager Navigation
 
@@ -6,7 +6,7 @@
 
 <div class="page-container">
     <nav class="breadcrumb">
-        <a href="/sports">Sports</a> / <a href="javascript:history.back()">Competition</a> / Events
+        <a href="/disciplines">Disciplines</a> / <a href="javascript:history.back()">Series</a> / Events
     </nav>
 
     <h1>Choose an Event</h1>
@@ -54,7 +54,7 @@
 
 @code {
     [Parameter]
-    public string TierId { get; set; } = "";
+    public string SeriesId { get; set; } = "";
 
     private List<Event> events = new();
     private string seasonId = "";
@@ -73,11 +73,11 @@
 
         try
         {
-            // First get the active season for this tier
-            var seasonResponse = await ApiClient.GetActiveSeasonAsync(TierId);
+            // First get the active season for this series
+            var seasonResponse = await ApiClient.GetActiveSeasonAsync(SeriesId);
             if (!seasonResponse.Success || seasonResponse.Data == null)
             {
-                errorMessage = "No active season found for this competition.";
+                errorMessage = "No active season found for this series.";
                 isLoading = false;
                 return;
             }

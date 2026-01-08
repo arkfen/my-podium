@@ -7,42 +7,42 @@ public static class SportEndpoints
 {
     public static void MapSportEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api").WithTags("Sports & Competitions");
+        var group = app.MapGroup("/api").WithTags("Disciplines & Competitions");
 
-        // Get all active sports
-        group.MapGet("/sports", async ([FromServices] ISportRepository sportRepo) =>
+        // Get all active disciplines
+        group.MapGet("/disciplines", async ([FromServices] IDisciplineRepository disciplineRepo) =>
         {
-            var sports = await sportRepo.GetActiveSportsAsync();
-            return Results.Ok(sports);
+            var disciplines = await disciplineRepo.GetActiveDisciplinesAsync();
+            return Results.Ok(disciplines);
         })
-        .WithName("GetSports");
+        .WithName("GetDisciplines");
 
-        // Get tiers for a sport
-        group.MapGet("/sports/{sportId}/tiers", async (
-            string sportId,
-            [FromServices] ITierRepository tierRepo) =>
+        // Get series for a discipline
+        group.MapGet("/disciplines/{disciplineId}/series", async (
+            string disciplineId,
+            [FromServices] ISeriesRepository seriesRepo) =>
         {
-            var tiers = await tierRepo.GetActiveTiersBySportAsync(sportId);
-            return Results.Ok(tiers);
+            var series = await seriesRepo.GetActiveSeriesByDisciplineAsync(disciplineId);
+            return Results.Ok(series);
         })
-        .WithName("GetTiers");
+        .WithName("GetSeries");
 
-        // Get seasons for a tier
-        group.MapGet("/tiers/{tierId}/seasons", async (
-            string tierId,
+        // Get seasons for a series
+        group.MapGet("/series/{seriesId}/seasons", async (
+            string seriesId,
             [FromServices] ISeasonRepository seasonRepo) =>
         {
-            var seasons = await seasonRepo.GetSeasonsByTierAsync(tierId);
+            var seasons = await seasonRepo.GetSeasonsBySeriesAsync(seriesId);
             return Results.Ok(seasons);
         })
         .WithName("GetSeasons");
 
-        // Get active season for a tier
-        group.MapGet("/tiers/{tierId}/seasons/active", async (
-            string tierId,
+        // Get active season for a series
+        group.MapGet("/series/{seriesId}/seasons/active", async (
+            string seriesId,
             [FromServices] ISeasonRepository seasonRepo) =>
         {
-            var season = await seasonRepo.GetActiveSeasonByTierAsync(tierId);
+            var season = await seasonRepo.GetActiveSeasonBySeriesAsync(seriesId);
             if (season == null)
                 return Results.NotFound(new { error = "No active season found" });
             

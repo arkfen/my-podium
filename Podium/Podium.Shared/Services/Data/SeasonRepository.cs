@@ -6,9 +6,9 @@ namespace Podium.Shared.Services.Data;
 
 public interface ISeasonRepository
 {
-    Task<List<Season>> GetSeasonsByTierAsync(string tierId);
-    Task<Season?> GetSeasonByIdAsync(string tierId, string seasonId);
-    Task<Season?> GetActiveSeasonByTierAsync(string tierId);
+    Task<List<Season>> GetSeasonsBySeriesAsync(string seriesId);
+    Task<Season?> GetSeasonByIdAsync(string seriesId, string seasonId);
+    Task<Season?> GetActiveSeasonBySeriesAsync(string seriesId);
 }
 
 public class SeasonRepository : ISeasonRepository
@@ -21,14 +21,14 @@ public class SeasonRepository : ISeasonRepository
         _tableClientFactory = tableClientFactory;
     }
 
-    public async Task<List<Season>> GetSeasonsByTierAsync(string tierId)
+    public async Task<List<Season>> GetSeasonsBySeriesAsync(string seriesId)
     {
         var tableClient = _tableClientFactory.GetTableClient(TableName);
         var seasons = new List<Season>();
 
         try
         {
-            var filter = $"PartitionKey eq '{tierId}'";
+            var filter = $"PartitionKey eq '{seriesId}'";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 seasons.Add(MapToSeason(entity));
@@ -42,13 +42,13 @@ public class SeasonRepository : ISeasonRepository
         return seasons.OrderByDescending(s => s.Year).ToList();
     }
 
-    public async Task<Season?> GetSeasonByIdAsync(string tierId, string seasonId)
+    public async Task<Season?> GetSeasonByIdAsync(string seriesId, string seasonId)
     {
         var tableClient = _tableClientFactory.GetTableClient(TableName);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<TableEntity>(tierId, seasonId);
+            var response = await tableClient.GetEntityAsync<TableEntity>(seriesId, seasonId);
             return MapToSeason(response.Value);
         }
         catch (RequestFailedException)
@@ -57,13 +57,13 @@ public class SeasonRepository : ISeasonRepository
         }
     }
 
-    public async Task<Season?> GetActiveSeasonByTierAsync(string tierId)
+    public async Task<Season?> GetActiveSeasonBySeriesAsync(string seriesId)
     {
         var tableClient = _tableClientFactory.GetTableClient(TableName);
 
         try
         {
-            var filter = $"PartitionKey eq '{tierId}' and IsActive eq true";
+            var filter = $"PartitionKey eq '{seriesId}' and IsActive eq true";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 return MapToSeason(entity);
@@ -82,7 +82,7 @@ public class SeasonRepository : ISeasonRepository
         return new Season
         {
             Id = entity.RowKey,
-            TierId = entity.PartitionKey,
+            SeriesId = entity.PartitionKey,
             Year = entity.GetInt32("Year") ?? 0,
             Name = entity.GetString("Name") ?? string.Empty,
             IsActive = entity.GetBoolean("IsActive") ?? false,

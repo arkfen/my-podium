@@ -1,41 +1,42 @@
-@page "/sports/{SportId}/tiers"
+@page "/disciplines/{DisciplineId}/series"
 @using Podium.Shared.Services.Api
 @using Podium.Shared.Models
 @inject IPodiumApiClient ApiClient
 @inject NavigationManager Navigation
 
-<PageTitle>Select Competition - Podium</PageTitle>
+<PageTitle>Select Series - Podium</PageTitle>
 
 <div class="page-container">
     <nav class="breadcrumb">
-        <a href="/sports">Sports</a> / Competitions
+        <a href="/disciplines">Disciplines</a> / Series
     </nav>
 
-    <h1>Choose a Competition</h1>
+    <h1>Choose a Series</h1>
 
     @if (isLoading)
     {
         <div class="loading-spinner">
-            <p>Loading competitions...</p>
+            <p>Loading series...</p>
         </div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
         <div class="alert alert-danger">@errorMessage</div>
     }
-    else if (tiers.Count == 0)
+    else if (seriesList.Count == 0)
     {
         <div class="alert alert-info">
-            No competitions available for this sport yet.
+            No series available for this discipline yet.
         </div>
     }
     else
     {
         <div class="tier-grid">
-            @foreach (var tier in tiers)
+            @foreach (var series in seriesList)
             {
-                <div class="tier-card" @onclick="() => SelectTier(tier.Id)">
-                    <h3>@tier.DisplayName</h3>
+                <div class="tier-card" @onclick="() => SelectSeries(series.Id)">
+                    <h3>@series.DisplayName</h3>
+                    <p class="series-info">@series.GoverningBody • @series.Region</p>
                     <p>View events ?</p>
                 </div>
             }
@@ -45,32 +46,32 @@
 
 @code {
     [Parameter]
-    public string SportId { get; set; } = "";
+    public string DisciplineId { get; set; } = "";
 
-    private List<Tier> tiers = new();
+    private List<Models.Series> seriesList = new();
     private bool isLoading = true;
     private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadTiers();
+        await LoadSeries();
     }
 
-    private async Task LoadTiers()
+    private async Task LoadSeries()
     {
         isLoading = true;
         errorMessage = null;
 
         try
         {
-            var response = await ApiClient.GetTiersAsync(SportId);
+            var response = await ApiClient.GetSeriesAsync(DisciplineId);
             if (response.Success && response.Data != null)
             {
-                tiers = response.Data;
+                seriesList = response.Data;
             }
             else
             {
-                errorMessage = response.Error ?? "Failed to load competitions.";
+                errorMessage = response.Error ?? "Failed to load series.";
             }
         }
         catch (Exception ex)
@@ -83,8 +84,8 @@
         }
     }
 
-    private void SelectTier(string tierId)
+    private void SelectSeries(string seriesId)
     {
-        Navigation.NavigateTo($"/tiers/{tierId}/events");
+        Navigation.NavigateTo($"/series/{seriesId}/events");
     }
 }

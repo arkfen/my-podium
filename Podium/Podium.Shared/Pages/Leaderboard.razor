@@ -19,8 +19,8 @@
     else if (selectedSeasonId == null)
     {
         <div class="alert alert-info">
-            <p>Select a competition to view its leaderboard.</p>
-            <a href="/sports" class="btn btn-primary">Browse Sports</a>
+            <p>Select a series to view its leaderboard.</p>
+            <a href="/disciplines" class="btn btn-primary">Browse Disciplines</a>
         </div>
     }
     else if (leaderboard.Count == 0)
@@ -87,16 +87,16 @@
         {
             // Get first active season for leaderboard
             // In a real app, you'd let users select which season to view
-            var sportsResponse = await ApiClient.GetSportsAsync();
-            if (sportsResponse.Success && sportsResponse.Data != null && sportsResponse.Data.Any())
+            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null && disciplinesResponse.Data.Any())
             {
-                var sport = sportsResponse.Data.First();
-                var tiersResponse = await ApiClient.GetTiersAsync(sport.Id);
+                var discipline = disciplinesResponse.Data.First();
+                var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
                 
-                if (tiersResponse.Success && tiersResponse.Data != null && tiersResponse.Data.Any())
+                if (seriesResponse.Success && seriesResponse.Data != null && seriesResponse.Data.Any())
                 {
-                    var tier = tiersResponse.Data.First();
-                    var seasonResponse = await ApiClient.GetActiveSeasonAsync(tier.Id);
+                    var series = seriesResponse.Data.First();
+                    var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
                     
                     if (seasonResponse.Success && seasonResponse.Data != null)
                     {

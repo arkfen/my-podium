@@ -9,8 +9,6 @@ azurite --silent   --location c:\azurite2   --debug c:\azurite2\debug.log   --bl
 
 ---
 
-
-
 # Podium Prediction Platform - Database Structure
 
 This document describes the Azure Table Storage structure for the Podium prediction platform.
@@ -21,59 +19,65 @@ The platform uses Azure Table Storage for data persistence. All tables follow Az
 
 ## Tables
 
-### 1. Sports
-**Table Name:** `PodiumSports`
+### 1. Disciplines
+**Table Name:** `PodiumDisciplines`
 
-Stores information about different sports categories.
+Stores information about different motorsport disciplines (racing categories).
 
 | Column | Type | Description |
 |--------|------|-------------|
-| PartitionKey | string | Fixed value: "Sport" |
-| RowKey | string | Unique sport ID (GUID) |
-| Name | string | Sport name (e.g., "Motorsport", "Football") |
+| PartitionKey | string | Fixed value: "Discipline" |
+| RowKey | string | Unique discipline ID (GUID) |
+| Name | string | Discipline name (e.g., "Single-Seater Racing", "Touring / Stock Cars") |
 | DisplayName | string | Display name for UI |
-| IsActive | bool | Whether sport is active |
-| CreatedDate | DateTime | When the sport was created |
+| IsActive | bool | Whether discipline is active |
+| CreatedDate | DateTime | When the discipline was created |
 
 **Example:**
-- PartitionKey: "Sport"
+- PartitionKey: "Discipline"
 - RowKey: "f1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o"
-- Name: "Motorsport"
+- Name: "Single-Seater Racing"
 
 ---
 
-### 2. Tiers
-**Table Name:** `PodiumTiers`
+### 2. Series
+**Table Name:** `PodiumSeries`
 
-Stores competition tiers/series within sports (e.g., F1, F2, MotoGP).
+Stores racing series within disciplines (e.g., Formula 1, MotoGP, NASCAR).
 
 | Column | Type | Description |
 |--------|------|-------------|
-| PartitionKey | string | Sport ID (links to Sports.RowKey) |
-| RowKey | string | Unique tier ID (GUID) |
-| SportId | string | Sport ID (redundant for easier queries) |
-| Name | string | Tier name (e.g., "F1", "Premier League") |
+| PartitionKey | string | Discipline ID (links to Disciplines.RowKey) |
+| RowKey | string | Unique series ID (GUID) |
+| DisciplineId | string | Discipline ID (redundant for easier queries) |
+| Name | string | Series name (e.g., "Formula 1", "MotoGP") |
 | DisplayName | string | Display name for UI |
-| IsActive | bool | Whether tier is active |
-| CreatedDate | DateTime | When the tier was created |
+| GoverningBody | string | Governing organization (e.g., "FIA", "FIM", "NASCAR") |
+| Region | string | Primary region (e.g., "Global", "USA", "Europe") |
+| VehicleType | string | Type of vehicle (e.g., "Open-wheel", "Motorcycle", "Stock Car") |
+| IsActive | bool | Whether series is active |
+| CreatedDate | DateTime | When the series was created |
 
 **Example:**
 - PartitionKey: "f1a2b3c4-d5e6-7f8g-9h0i-1j2k3l4m5n6o"
 - RowKey: "a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"
-- Name: "F1"
+- Name: "Formula 1"
+- GoverningBody: "FIA"
+- Region: "Global"
+- VehicleType: "Open-wheel"
 
 ---
 
 ### 3. Seasons
 **Table Name:** `PodiumSeasons`
 
-Stores seasons for each tier/competition.
+Stores seasons for each series/competition.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| PartitionKey | string | Tier ID (links to Tiers.RowKey) |
+| PartitionKey | string | Series ID (links to Series.RowKey) |
 | RowKey | string | Unique season ID (GUID) |
-| TierId | string | Tier ID (redundant for easier queries) |
+| SeriesId | string | Series ID (redundant for easier queries) |
 | Year | int | Season year (e.g., 2025) |
 | Name | string | Season name (e.g., "2025 Season") |
 | IsActive | bool | Whether season is currently active |
@@ -91,13 +95,13 @@ Stores seasons for each tier/competition.
 ### 4. Competitors
 **Table Name:** `PodiumCompetitors`
 
-Stores competitors (drivers, athletes, teams) across all sports.
+Stores competitors (drivers, riders, teams) across all disciplines.
 
 | Column | Type | Description |
 |--------|------|-------------|
-| PartitionKey | string | Sport ID (links to Sports.RowKey) |
+| PartitionKey | string | Discipline ID (links to Disciplines.RowKey) |
 | RowKey | string | Unique competitor ID (GUID) |
-| SportId | string | Sport ID (redundant for easier queries) |
+| DisciplineId | string | Discipline ID (redundant for easier queries) |
 | Name | string | Competitor full name |
 | ShortName | string | Short name for display |
 | Type | string | "Individual" or "Team" |
@@ -284,7 +288,7 @@ Stores user predictions for events.
 ### 12. ScoringRules
 **Table Name:** `PodiumScoringRules`
 
-Stores scoring rules for each sport/tier/season combination.
+Stores scoring rules for each series/season combination.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -338,9 +342,9 @@ Azure Table Storage supports querying by:
 3. PartitionKey + filter on other properties
 
 Our design ensures efficient queries:
-- Sports by ID: Direct lookup
-- Tiers by Sport: Query by PartitionKey = SportId
-- Seasons by Tier: Query by PartitionKey = TierId
+- Disciplines by ID: Direct lookup
+- Series by Discipline: Query by PartitionKey = DisciplineId
+- Seasons by Series: Query by PartitionKey = SeriesId
 - Events by Season: Query by PartitionKey = SeasonId
 - Predictions by Event: Query by PartitionKey = EventId
 - User stats by Season: Query by PartitionKey = SeasonId

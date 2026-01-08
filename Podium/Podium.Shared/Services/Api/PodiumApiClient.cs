@@ -13,11 +13,11 @@ public interface IPodiumApiClient
     Task<ApiResponse<AuthResponse>> ValidateSessionAsync(string sessionId);
     Task<ApiResponse<MessageResponse>> SignOutAsync(string sessionId);
 
-    // Sports & Competitions
-    Task<ApiResponse<List<Sport>>> GetSportsAsync();
-    Task<ApiResponse<List<Tier>>> GetTiersAsync(string sportId);
-    Task<ApiResponse<List<Season>>> GetSeasonsAsync(string tierId);
-    Task<ApiResponse<Season>> GetActiveSeasonAsync(string tierId);
+    // Disciplines & Competitions
+    Task<ApiResponse<List<Discipline>>> GetDisciplinesAsync();
+    Task<ApiResponse<List<Series>>> GetSeriesAsync(string disciplineId);
+    Task<ApiResponse<List<Season>>> GetSeasonsAsync(string seriesId);
+    Task<ApiResponse<Season>> GetActiveSeasonAsync(string seriesId);
     Task<ApiResponse<List<Event>>> GetEventsAsync(string seasonId);
     Task<ApiResponse<List<Event>>> GetUpcomingEventsAsync(string seasonId);
     Task<ApiResponse<List<SeasonCompetitor>>> GetCompetitorsAsync(string seasonId);
@@ -76,25 +76,25 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<MessageResponse>("/api/auth/signout", new { sessionId });
     }
 
-    // Sports & Competitions
-    public async Task<ApiResponse<List<Sport>>> GetSportsAsync()
+    // Disciplines & Competitions
+    public async Task<ApiResponse<List<Discipline>>> GetDisciplinesAsync()
     {
-        return await GetAsync<List<Sport>>("/api/sports");
+        return await GetAsync<List<Discipline>>("/api/disciplines");
     }
 
-    public async Task<ApiResponse<List<Tier>>> GetTiersAsync(string sportId)
+    public async Task<ApiResponse<List<Series>>> GetSeriesAsync(string disciplineId)
     {
-        return await GetAsync<List<Tier>>($"/api/sports/{sportId}/tiers");
+        return await GetAsync<List<Series>>($"/api/disciplines/{disciplineId}/series");
     }
 
-    public async Task<ApiResponse<List<Season>>> GetSeasonsAsync(string tierId)
+    public async Task<ApiResponse<List<Season>>> GetSeasonsAsync(string seriesId)
     {
-        return await GetAsync<List<Season>>($"/api/tiers/{tierId}/seasons");
+        return await GetAsync<List<Season>>($"/api/series/{seriesId}/seasons");
     }
 
-    public async Task<ApiResponse<Season>> GetActiveSeasonAsync(string tierId)
+    public async Task<ApiResponse<Season>> GetActiveSeasonAsync(string seriesId)
     {
-        return await GetAsync<Season>($"/api/tiers/{tierId}/seasons/active");
+        return await GetAsync<Season>($"/api/series/{seriesId}/seasons/active");
     }
 
     public async Task<ApiResponse<List<Event>>> GetEventsAsync(string seasonId)
