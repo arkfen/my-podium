@@ -269,22 +269,22 @@ class Program
         // Add detailed F1 data
         if (f1SeriesId != null && singleSeaterDisciplineId != null)
         {
-            Console.WriteLine("\n--- Adding Formula 1 2025 Season Data ---");
+            Console.WriteLine("\n--- Adding Formula 1 2026 Season Data ---");
 
             // Create 2025 F1 season
             var seasonId = Guid.NewGuid().ToString();
             var seasonEntity = new TableEntity(f1SeriesId, seasonId)
             {
                 ["SeriesId"] = f1SeriesId,
-                ["Year"] = 2025,
-                ["Name"] = "2025 Season",
+                ["Year"] = 2026,
+                ["Name"] = "2026 Season",
                 ["IsActive"] = true,
-                ["StartDate"] = new DateTime(2025, 3, 1, 0, 0, 0, DateTimeKind.Utc),
-                ["EndDate"] = new DateTime(2025, 12, 1, 0, 0, 0, DateTimeKind.Utc),
+                ["StartDate"] = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc),
+                ["EndDate"] = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc),
                 ["CreatedDate"] = DateTime.UtcNow
             };
             await seasonClient.UpsertEntityAsync(seasonEntity);
-            Console.WriteLine($"? Created 2025 F1 season");
+            Console.WriteLine($"? Created 2026 F1 season");
 
             // Create scoring rules
             var scoringEntity = new TableEntity(seasonId, "Scoring")

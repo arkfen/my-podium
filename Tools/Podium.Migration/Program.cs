@@ -33,6 +33,15 @@ class Program
                 return;
             }
 
+            // Check for diagnostic mode
+            if (args.Length > 0 && args[0].Equals("--diagnose", StringComparison.OrdinalIgnoreCase))
+            {
+                await DiagnosticHelper.DiagnoseTablesAsync(storageUri, accountName, accountKey);
+                Console.WriteLine("\nPress any key to exit...");
+                Console.ReadKey();
+                return;
+            }
+
             var season2024 = bool.TryParse(configuration["Migration:Season2024"], out var s2024) ? s2024 : true;
             var season2025 = bool.TryParse(configuration["Migration:Season2025"], out var s2025) ? s2025 : true;
             var dryRun = bool.TryParse(configuration["Migration:DryRun"], out var dr) ? dr : false;
@@ -42,6 +51,8 @@ class Program
             Console.WriteLine($"   Migrate 2024 Season: {season2024}");
             Console.WriteLine($"   Migrate 2025 Season: {season2025}");
             Console.WriteLine($"   Dry Run: {dryRun}");
+            Console.WriteLine();
+            Console.WriteLine("💡 Tip: Run with '--diagnose' to see database contents");
             Console.WriteLine();
 
             if (dryRun)

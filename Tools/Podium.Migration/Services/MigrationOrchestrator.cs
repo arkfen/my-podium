@@ -179,8 +179,21 @@ public class MigrationOrchestrator
             // Create scoring rules
             await _inserter.InsertScoringRulesAsync(seasonId);
 
-            // Link all drivers to this season
+            // Extract races FIRST
+            var races = await _extractor.ExtractRacesAsync(year);
+            Console.WriteLine($"  Found {races.Count} races to process");
+            
+            if (races.Count == 0)
+            {
+                _result.AddWarning($"No races found for {year}. Skipping predictions and stats.");
+                return;
+            }
+
+            // Extract predictions for this season
             var predictions = await _extractor.ExtractPredictionsAsync(year);
+            Console.WriteLine($"  Found {predictions.Count} predictions to process");
+
+            // Link all drivers to this season (from predictions)
             var driversInSeason = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             
             foreach (var pred in predictions)
@@ -190,6 +203,7 @@ public class MigrationOrchestrator
                 if (!string.IsNullOrWhiteSpace(pred.P3)) driversInSeason.Add(pred.P3.Trim());
             }
 
+            Console.WriteLine($"  Linking {driversInSeason.Count} drivers to season");
             foreach (var driverName in driversInSeason)
             {
                 var driverId = _transformer.GetDriverId(driverName);
@@ -198,11 +212,8 @@ public class MigrationOrchestrator
                     await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName);
                 }
             }
-
-            // Extract races
-            var races = await _extractor.ExtractRacesAsync(year);
             
-            // Migrate events
+            // Migrate events and predictions
             await MigrateEventsAsync(seasonId, year, races, predictions);
             
             // Calculate and insert user statistics
@@ -211,6 +222,7 @@ public class MigrationOrchestrator
         catch (Exception ex)
         {
             _result.AddError($"Failed to migrate season {year}: {ex.Message}");
+            Console.WriteLine($"  Exception: {ex}");
         }
     }
 
@@ -219,12 +231,20 @@ public class MigrationOrchestrator
     {
         Console.WriteLine($"Migrating {races.Count} events for {year}...");
         
+        if (races.Count == 0)
+        {
+            Console.WriteLine($"  ? No races to migrate for {year}");
+            return;
+        }
+        
         foreach (var race in races)
         {
             try
             {
                 var eventId = _transformer.GetOrCreateEventId(year, race.NumberRace);
                 var status = _transformer.DetermineEventStatus(race.Date);
+                
+                Console.WriteLine($"  Processing Race #{race.NumberRace}: {race.Name}");
                 
                 await _inserter.InsertEventAsync(
                     seasonId,
@@ -242,12 +262,15 @@ public class MigrationOrchestrator
                     .Where(p => p.Race == race.NumberRace)
                     .ToList();
 
+                Console.WriteLine($"    Found {racePredictions.Count} predictions for this race");
+
                 // Determine actual results from the most common podium in scored predictions
                 var actualResult = DetermineActualResults(racePredictions);
                 
                 if (actualResult != null)
                 {
                     var (p1, p2, p3) = actualResult.Value;
+                    Console.WriteLine($"    Result: 1st={p1}, 2nd={p2}, 3rd={p3}");
                     await _inserter.InsertEventResultAsync(
                         eventId,
                         _transformer.GetDriverId(p1), p1,
@@ -256,8 +279,13 @@ public class MigrationOrchestrator
                     );
                     _result.EventResultsCreated++;
                 }
+                else
+                {
+                    Console.WriteLine($"    No result available yet");
+                }
 
                 // Migrate predictions for this race
+                int predsMigrated = 0;
                 foreach (var pred in racePredictions)
                 {
                     try
@@ -274,18 +302,23 @@ public class MigrationOrchestrator
                             pred.SubmittedDate ?? DateTime.UtcNow
                         );
                         _result.PredictionsMigrated++;
+                        predsMigrated++;
                     }
                     catch (Exception ex)
                     {
                         _result.AddWarning($"Failed to migrate prediction for race {race.NumberRace}, user {pred.UserId}: {ex.Message}");
                     }
                 }
+                Console.WriteLine($"    Migrated {predsMigrated} predictions");
             }
             catch (Exception ex)
             {
                 _result.AddError($"Failed to migrate event {race.Name}: {ex.Message}");
+                Console.WriteLine($"    Exception: {ex}");
             }
         }
+        
+        Console.WriteLine($"? Completed migration of {_result.EventsCreated} events");
     }
 
     private (string P1, string P2, string P3)? DetermineActualResults(List<LegacyPrediction> predictions)

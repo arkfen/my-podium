@@ -18,6 +18,70 @@ public class LegacyDataExtractor
     }
 
     /// <summary>
+    /// Safely extract integer value from entity
+    /// </summary>
+    private int? SafeGetInt32(TableEntity entity, string propertyName)
+    {
+        if (!entity.ContainsKey(propertyName))
+            return null;
+
+        var value = entity[propertyName];
+        
+        if (value is int intValue)
+            return intValue;
+        if (value is long longValue)
+            return (int)longValue;
+        if (value is double doubleValue)
+            return (int)doubleValue;
+        if (int.TryParse(value?.ToString(), out var parsed))
+            return parsed;
+            
+        return null;
+    }
+
+    /// <summary>
+    /// Safely extract double value from entity
+    /// </summary>
+    private double? SafeGetDouble(TableEntity entity, string propertyName)
+    {
+        if (!entity.ContainsKey(propertyName))
+            return null;
+
+        var value = entity[propertyName];
+        
+        if (value is double doubleValue)
+            return doubleValue;
+        if (value is int intValue)
+            return intValue;
+        if (value is long longValue)
+            return longValue;
+        if (double.TryParse(value?.ToString(), out var parsed))
+            return parsed;
+            
+        return null;
+    }
+
+    /// <summary>
+    /// Safely extract DateTime value from entity
+    /// </summary>
+    private DateTime? SafeGetDateTime(TableEntity entity, string propertyName)
+    {
+        if (!entity.ContainsKey(propertyName))
+            return null;
+
+        var value = entity[propertyName];
+        
+        if (value is DateTimeOffset dto)
+            return dto.DateTime;
+        if (value is DateTime dt)
+            return dt;
+        if (DateTime.TryParse(value?.ToString(), out var parsed))
+            return parsed;
+            
+        return null;
+    }
+
+    /// <summary>
     /// Extract all users from MyPodiumUsers table
     /// </summary>
     public async Task<List<LegacyUser>> ExtractUsersAsync()
@@ -70,27 +134,60 @@ public class LegacyDataExtractor
             
             await foreach (var entity in queryResults)
             {
-                var race = new LegacyRace
+                try
                 {
-                    PartitionKey = entity.PartitionKey,
-                    RowKey = entity.RowKey,
-                    Year = entity.GetInt32("Year") ?? 0,
-                    NumberRace = entity.GetInt32("NumberRace") ?? entity.GetInt32("Number") ?? 0,
-                    NumberGP = entity.GetDouble("NumberGP"),
-                    Name = entity.GetString("Name") ?? string.Empty,
-                    Location = entity.GetString("Location"),
-                    Date = entity.GetDateTimeOffset("Date")?.DateTime
-                };
-                races.Add(race);
+                    // For 2024: use "Number" field
+                    // For 2025: use "NumberRace" field (with "NumberGP" being different for sprints)
+                    int raceNumber = 0;
+                    
+                    if (year == 2024)
+                    {
+                        raceNumber = SafeGetInt32(entity, "Number") ?? 0;
+                        Console.WriteLine($"  2024 Race: {entity.GetString("Name")}, Number={raceNumber}");
+                    }
+                    else // 2025 and beyond
+                    {
+                        raceNumber = SafeGetInt32(entity, "NumberRace") ?? SafeGetInt32(entity, "Number") ?? 0;
+                        var numberGP = SafeGetDouble(entity, "NumberGP");
+                        Console.WriteLine($"  2025 Race: {entity.GetString("Name")}, NumberRace={raceNumber}, NumberGP={numberGP}");
+                    }
+                    
+                    var race = new LegacyRace
+                    {
+                        PartitionKey = entity.PartitionKey,
+                        RowKey = entity.RowKey,
+                        Year = SafeGetInt32(entity, "Year") ?? year,
+                        NumberRace = raceNumber,
+                        NumberGP = SafeGetDouble(entity, "NumberGP"),
+                        Name = entity.GetString("Name") ?? string.Empty,
+                        Location = entity.GetString("Location"),
+                        Date = SafeGetDateTime(entity, "Date")
+                    };
+                    races.Add(race);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ? Error processing race {entity.GetString("Name")}: {ex.Message}");
+                }
             }
             
             // Sort by race number
             races = races.OrderBy(r => r.NumberRace).ToList();
             Console.WriteLine($"? Extracted {races.Count} races for {year}");
+            
+            if (races.Count == 0)
+            {
+                Console.WriteLine($"? WARNING: No races found for {year}. Check if data exists in MyPodiumRaces table.");
+            }
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
             Console.WriteLine("? MyPodiumRaces table not found");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"? Error extracting races: {ex.Message}");
+            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
         }
         
         return races;
@@ -110,30 +207,60 @@ public class LegacyDataExtractor
             var filter = $"PartitionKey eq 'F1' and Year eq {year}";
             var queryResults = tableClient.QueryAsync<TableEntity>(filter: filter);
             
+            var raceGroups = new Dictionary<int, int>();
+            
             await foreach (var entity in queryResults)
             {
-                var prediction = new LegacyPrediction
+                try
                 {
-                    PartitionKey = entity.PartitionKey,
-                    RowKey = entity.RowKey,
-                    UserId = entity.GetString("UserId") ?? string.Empty,
-                    Year = entity.GetInt32("Year") ?? 0,
-                    Race = entity.GetInt32("Race") ?? 0,
-                    P1 = entity.GetString("P1") ?? string.Empty,
-                    P2 = entity.GetString("P2") ?? string.Empty,
-                    P3 = entity.GetString("P3") ?? string.Empty,
-                    Points = entity.GetInt32("Points"),
-                    SubmittedDate = entity.GetDateTimeOffset("SubmittedDate")?.DateTime ?? 
-                                   entity.GetDateTimeOffset("Timestamp")?.DateTime
-                };
-                predictions.Add(prediction);
+                    var raceNumber = SafeGetInt32(entity, "Race") ?? 0;
+                    
+                    var prediction = new LegacyPrediction
+                    {
+                        PartitionKey = entity.PartitionKey,
+                        RowKey = entity.RowKey,
+                        UserId = entity.GetString("UserId") ?? string.Empty,
+                        Year = SafeGetInt32(entity, "Year") ?? year,
+                        Race = raceNumber,
+                        P1 = entity.GetString("P1") ?? string.Empty,
+                        P2 = entity.GetString("P2") ?? string.Empty,
+                        P3 = entity.GetString("P3") ?? string.Empty,
+                        Points = SafeGetInt32(entity, "Points"),
+                        SubmittedDate = SafeGetDateTime(entity, "SubmittedDate") ?? 
+                                       SafeGetDateTime(entity, "Timestamp")
+                    };
+                    predictions.Add(prediction);
+                    
+                    // Count predictions per race
+                    if (!raceGroups.ContainsKey(raceNumber))
+                        raceGroups[raceNumber] = 0;
+                    raceGroups[raceNumber]++;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ? Error processing prediction: {ex.Message}");
+                }
             }
             
             Console.WriteLine($"? Extracted {predictions.Count} predictions for {year}");
+            if (raceGroups.Any())
+            {
+                Console.WriteLine($"  Predictions per race: {string.Join(", ", raceGroups.OrderBy(x => x.Key).Select(x => $"Race {x.Key}: {x.Value}"))}");
+            }
+            
+            if (predictions.Count == 0)
+            {
+                Console.WriteLine($"? WARNING: No predictions found for {year}. Check if data exists in MyPodiumDreams table.");
+            }
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
             Console.WriteLine("? MyPodiumDreams table not found");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"? Error extracting predictions: {ex.Message}");
+            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
         }
         
         return predictions;
