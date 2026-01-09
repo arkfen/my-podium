@@ -19,6 +19,25 @@ public class PodiumDataInserter
         _dryRun = dryRun;
     }
 
+    /// <summary>
+    /// Ensure DateTime is UTC (required by Azure Table Storage)
+    /// </summary>
+    private DateTime EnsureUtc(DateTime dateTime)
+    {
+        if (dateTime.Kind == DateTimeKind.Unspecified)
+        {
+            // Assume unspecified dates are UTC
+            return DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+        }
+        else if (dateTime.Kind == DateTimeKind.Local)
+        {
+            // Convert local time to UTC
+            return dateTime.ToUniversalTime();
+        }
+        // Already UTC
+        return dateTime;
+    }
+
     private async Task<TableClient> GetTableClientAsync(string tableName)
     {
         var client = _tableServiceClient.GetTableClient(tableName);
@@ -197,13 +216,17 @@ public class PodiumDataInserter
         }
 
         var client = await GetTableClientAsync("PodiumEvents");
+        
+        // Ensure event date is UTC
+        var utcEventDate = EnsureUtc(eventDate);
+        
         var entity = new TableEntity(seasonId, eventId)
         {
             ["SeasonId"] = seasonId,
             ["Name"] = name,
             ["DisplayName"] = name,
             ["EventNumber"] = eventNumber,
-            ["EventDate"] = eventDate,
+            ["EventDate"] = utcEventDate,
             ["Location"] = location,
             ["Status"] = status,
             ["IsActive"] = status != "Completed",
@@ -289,6 +312,10 @@ public class PodiumDataInserter
         }
 
         var client = await GetTableClientAsync("PodiumPredictions");
+        
+        // Ensure submitted date is UTC
+        var utcSubmittedDate = EnsureUtc(submittedDate);
+        
         var entity = new TableEntity(eventId, userId)
         {
             ["EventId"] = eventId,
@@ -300,7 +327,7 @@ public class PodiumDataInserter
             ["ThirdPlaceId"] = thirdPlaceId,
             ["ThirdPlaceName"] = thirdPlaceName,
             ["PointsEarned"] = pointsEarned,
-            ["SubmittedDate"] = submittedDate,
+            ["SubmittedDate"] = utcSubmittedDate,
             ["UpdatedDate"] = DateTime.UtcNow
         };
         

@@ -344,16 +344,16 @@ class Program
             // Create F1 races
             var races = new[]
             {
-                ("Australian Grand Prix", "Melbourne", new DateTime(2025, 3, 16, 5, 0, 0, DateTimeKind.Utc)),
-                ("Chinese Grand Prix", "Shanghai", new DateTime(2025, 3, 23, 7, 0, 0, DateTimeKind.Utc)),
-                ("Japanese Grand Prix", "Suzuka", new DateTime(2025, 4, 6, 5, 0, 0, DateTimeKind.Utc)),
-                ("Bahrain Grand Prix", "Sakhir", new DateTime(2025, 4, 13, 15, 0, 0, DateTimeKind.Utc)),
-                ("Saudi Arabian Grand Prix", "Jeddah", new DateTime(2025, 4, 20, 17, 0, 0, DateTimeKind.Utc)),
-                ("Miami Grand Prix", "Miami", new DateTime(2025, 5, 4, 19, 0, 0, DateTimeKind.Utc)),
-                ("Emilia Romagna Grand Prix", "Imola", new DateTime(2025, 5, 18, 13, 0, 0, DateTimeKind.Utc)),
-                ("Monaco Grand Prix", "Monaco", new DateTime(2025, 5, 25, 13, 0, 0, DateTimeKind.Utc)),
-                ("Spanish Grand Prix", "Barcelona", new DateTime(2025, 6, 1, 13, 0, 0, DateTimeKind.Utc)),
-                ("Canadian Grand Prix", "Montreal", new DateTime(2025, 6, 15, 18, 0, 0, DateTimeKind.Utc))
+                ("Australian Grand Prix", "Melbourne", new DateTime(2026, 3, 16, 5, 0, 0, DateTimeKind.Utc)),
+                ("Chinese Grand Prix", "Shanghai", new DateTime(2026, 3, 23, 7, 0, 0, DateTimeKind.Utc)),
+                ("Japanese Grand Prix", "Suzuka", new DateTime(2026, 4, 6, 5, 0, 0, DateTimeKind.Utc)),
+                ("Bahrain Grand Prix", "Sakhir", new DateTime(2026, 4, 13, 15, 0, 0, DateTimeKind.Utc)),
+                ("Saudi Arabian Grand Prix", "Jeddah", new DateTime(2026, 4, 20, 17, 0, 0, DateTimeKind.Utc)),
+                ("Miami Grand Prix", "Miami", new DateTime(2026, 5, 4, 19, 0, 0, DateTimeKind.Utc)),
+                ("Emilia Romagna Grand Prix", "Imola", new DateTime(2026, 5, 18, 13, 0, 0, DateTimeKind.Utc)),
+                ("Monaco Grand Prix", "Monaco", new DateTime(2026, 5, 25, 13, 0, 0, DateTimeKind.Utc)),
+                ("Spanish Grand Prix", "Barcelona", new DateTime(2026, 6, 1, 13, 0, 0, DateTimeKind.Utc)),
+                ("Canadian Grand Prix", "Montreal", new DateTime(2026, 6, 15, 18, 0, 0, DateTimeKind.Utc))
             };
 
             for (int i = 0; i < races.Length; i++)

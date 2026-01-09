@@ -62,7 +62,7 @@ public class LegacyDataExtractor
     }
 
     /// <summary>
-    /// Safely extract DateTime value from entity
+    /// Safely extract DateTime value from entity and ensure it's UTC
     /// </summary>
     private DateTime? SafeGetDateTime(TableEntity entity, string propertyName)
     {
@@ -70,13 +70,31 @@ public class LegacyDataExtractor
             return null;
 
         var value = entity[propertyName];
+        DateTime? result = null;
         
         if (value is DateTimeOffset dto)
-            return dto.DateTime;
-        if (value is DateTime dt)
-            return dt;
-        if (DateTime.TryParse(value?.ToString(), out var parsed))
-            return parsed;
+            result = dto.UtcDateTime;
+        else if (value is DateTime dt)
+            result = dt;
+        else if (DateTime.TryParse(value?.ToString(), out var parsed))
+            result = parsed;
+        
+        // Ensure the DateTime is UTC
+        if (result.HasValue)
+        {
+            if (result.Value.Kind == DateTimeKind.Unspecified)
+            {
+                // Assume unspecified dates are UTC
+                return DateTime.SpecifyKind(result.Value, DateTimeKind.Utc);
+            }
+            else if (result.Value.Kind == DateTimeKind.Local)
+            {
+                // Convert local time to UTC
+                return result.Value.ToUniversalTime();
+            }
+            // Already UTC
+            return result.Value;
+        }
             
         return null;
     }
