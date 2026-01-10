@@ -154,9 +154,6 @@ public class LegacyDataExtractor
             {
                 try
                 {
-                    // Log all available properties for debugging
-                    Console.WriteLine($"  Race properties: {string.Join(", ", entity.Keys)}");
-                    
                     // For 2024: use "Number" field
                     // For 2025: use "NumberRace" field (with "NumberGP" being different for sprints)
                     int raceNumber = 0;
@@ -164,54 +161,34 @@ public class LegacyDataExtractor
                     if (year == 2024)
                     {
                         raceNumber = SafeGetInt32(entity, "Number") ?? 0;
-                        Console.WriteLine($"  2024 Race: {entity.GetString("Name")}, Number={raceNumber}");
                     }
                     else // 2025 and beyond
                     {
                         raceNumber = SafeGetInt32(entity, "NumberRace") ?? SafeGetInt32(entity, "Number") ?? 0;
-                        var numberGP = SafeGetDouble(entity, "NumberGP");
-                        Console.WriteLine($"  2025 Race: {entity.GetString("Name")}, NumberRace={raceNumber}, NumberGP={numberGP}");
                     }
                     
-                    // Extract date components (Day, Month, Year) or Date field
-                    var day = SafeGetInt32(entity, "Day");
+                    // Extract date: Date field contains DAY, Month field contains MONTH
+                    var day = SafeGetInt32(entity, "Date"); // Date field is actually the DAY!
                     var month = SafeGetInt32(entity, "Month");
                     var eventYear = SafeGetInt32(entity, "Year") ?? year;
                     
-                    Console.WriteLine($"    Raw date fields - Day: {day}, Month: {month}, Year: {eventYear}");
-                    
-                    // Construct DateTime from components if available
+                    // Construct DateTime from day and month
                     DateTime? eventDate = null;
                     if (day.HasValue && month.HasValue && day.Value > 0 && month.Value > 0)
                     {
                         try
                         {
-                            // Create UTC datetime from components (assume midnight UTC as default time)
                             eventDate = new DateTime(eventYear, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
-                            Console.WriteLine($"    ? Constructed date from components: {eventDate:yyyy-MM-dd HH:mm:ss} UTC");
+                            Console.WriteLine($"  ? {entity.GetString("Name")}: {eventDate:yyyy-MM-dd}");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"    ? Invalid date components (Year={eventYear}, Month={month}, Day={day}): {ex.Message}");
+                            Console.WriteLine($"  ? {entity.GetString("Name")}: Invalid date (Day={day}, Month={month}): {ex.Message}");
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"    ? Day or Month is missing or zero - cannot construct date from components");
-                    }
-                    
-                    // Fallback to Date field if components not available or invalid
-                    if (!eventDate.HasValue)
-                    {
-                        eventDate = SafeGetDateTime(entity, "Date");
-                        if (eventDate.HasValue)
-                        {
-                            Console.WriteLine($"    ? Using Date field: {eventDate:yyyy-MM-dd HH:mm:ss} UTC");
-                        }
-                        else
-                        {
-                            Console.WriteLine($"    ? Date field also not available or invalid");
-                        }
+                        Console.WriteLine($"  ? {entity.GetString("Name")}: Missing date (Date/Day={day}, Month={month})");
                     }
                     
                     var race = new LegacyRace
@@ -238,11 +215,6 @@ public class LegacyDataExtractor
             // Sort by race number
             races = races.OrderBy(r => r.NumberRace).ToList();
             Console.WriteLine($"? Extracted {races.Count} races for {year}");
-            
-            if (races.Count == 0)
-            {
-                Console.WriteLine($"? WARNING: No races found for {year}. Check if data exists in MyPodiumRaces table.");
-            }
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
@@ -251,7 +223,6 @@ public class LegacyDataExtractor
         catch (Exception ex)
         {
             Console.WriteLine($"? Error extracting races: {ex.Message}");
-            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
         }
         
         return races;

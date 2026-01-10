@@ -184,7 +184,7 @@ public class PodiumDataInserter
     /// <summary>
     /// Insert season competitor link
     /// </summary>
-    public async Task InsertSeasonCompetitorAsync(string seasonId, string competitorId, string competitorName)
+    public async Task InsertSeasonCompetitorAsync(string seasonId, string competitorId, string competitorName, DateTime? joinDate = null)
     {
         if (_dryRun)
         {
@@ -197,7 +197,7 @@ public class PodiumDataInserter
             ["SeasonId"] = seasonId,
             ["CompetitorId"] = competitorId,
             ["CompetitorName"] = competitorName,
-            ["JoinDate"] = DateTime.UtcNow
+            ["JoinDate"] = joinDate ?? DateTime.UtcNow
         };
         
         await client.UpsertEntityAsync(entity, TableUpdateMode.Replace);

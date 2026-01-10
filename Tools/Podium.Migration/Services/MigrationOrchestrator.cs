@@ -215,29 +215,54 @@ public class MigrationOrchestrator
             var predictions = await _extractor.ExtractPredictionsAsync(year);
             Console.WriteLine($"  Found {predictions.Count} predictions to process");
 
-            // Link all drivers to this season (from predictions AND results)
-            var driversInSeason = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            
-            foreach (var pred in predictions)
-            {
-                if (!string.IsNullOrWhiteSpace(pred.P1)) driversInSeason.Add(pred.P1.Trim());
-                if (!string.IsNullOrWhiteSpace(pred.P2)) driversInSeason.Add(pred.P2.Trim());
-                if (!string.IsNullOrWhiteSpace(pred.P3)) driversInSeason.Add(pred.P3.Trim());
-            }
-            
-            foreach (var result in raceResults)
-            {
-                if (!string.IsNullOrWhiteSpace(result.P1)) driversInSeason.Add(result.P1.Trim());
-                if (!string.IsNullOrWhiteSpace(result.P2)) driversInSeason.Add(result.P2.Trim());
-                if (!string.IsNullOrWhiteSpace(result.P3)) driversInSeason.Add(result.P3.Trim());
-            }
+            // Link all official F1 drivers who raced in this season
+            Console.WriteLine($"  Linking F1 drivers to {year} season...");
+            var seasonDrivers = Data.F1DriverLineups.GetDriversForSeason(year).ToList();
+            int linkedCount = 0;
 
-            Console.WriteLine($"  Linking {driversInSeason.Count} drivers to season");
-            foreach (var driverName in driversInSeason)
+            foreach (var (driverName, joinDate) in seasonDrivers)
             {
                 var driverId = _transformer.GetDriverId(driverName);
-                if (!string.IsNullOrEmpty(driverId))
+                
+                // If driver not in system yet, create them
+                if (string.IsNullOrEmpty(driverId))
                 {
+                    driverId = _transformer.GetOrCreateDriverId(driverName);
+                    var shortName = _transformer.GenerateShortName(driverName);
+                    await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, driverId, driverName, shortName);
+                    Console.WriteLine($"    Created missing driver: {driverName}");
+                }
+                
+                await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName, joinDate);
+                linkedCount++;
+            }
+
+            Console.WriteLine($"  ? Linked {linkedCount} official F1 drivers to {year} season");
+
+            // Also link any additional drivers found in results (substitutes, etc.)
+            var additionalDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var result in raceResults)
+            {
+                if (!string.IsNullOrWhiteSpace(result.P1) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P1))
+                    additionalDrivers.Add(result.P1.Trim());
+                if (!string.IsNullOrWhiteSpace(result.P2) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P2))
+                    additionalDrivers.Add(result.P2.Trim());
+                if (!string.IsNullOrWhiteSpace(result.P3) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P3))
+                    additionalDrivers.Add(result.P3.Trim());
+            }
+
+            if (additionalDrivers.Any())
+            {
+                Console.WriteLine($"  Found {additionalDrivers.Count} additional drivers in results (substitutes/reserves)");
+                foreach (var driverName in additionalDrivers)
+                {
+                    var driverId = _transformer.GetDriverId(driverName);
+                    if (string.IsNullOrEmpty(driverId))
+                    {
+                        driverId = _transformer.GetOrCreateDriverId(driverName);
+                        var shortName = _transformer.GenerateShortName(driverName);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, driverId, driverName, shortName);
+                    }
                     await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName);
                 }
             }
@@ -423,51 +448,62 @@ public class MigrationOrchestrator
                 !string.IsNullOrWhiteSpace(actualResult.P2) &&
                 !string.IsNullOrWhiteSpace(actualResult.P3))
             {
-                // Count how many drivers are correctly predicted (regardless of position)
-                var predictedDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
-                { 
-                    pred.P1?.Trim() ?? "", 
-                    pred.P2?.Trim() ?? "",
-                    pred.P3?.Trim() ?? "" 
-                };
-                predictedDrivers.Remove(""); // Remove empty
+                // Count INDIVIDUAL driver matches (not whole predictions)
+                // For each predicted driver position, check if they're in the actual podium
                 
-                var actualDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
-                { 
-                    actualResult.P1.Trim(), 
-                    actualResult.P2.Trim(), 
-                    actualResult.P3.Trim() 
-                };
-                
-                // Count correct drivers
-                int correctDrivers = predictedDrivers.Intersect(actualDrivers).Count();
-                
-                // Now count exact position matches
-                int exactPositions = 0;
-                if (string.Equals(pred.P1?.Trim(), actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase))
-                    exactPositions++;
-                if (string.Equals(pred.P2?.Trim(), actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase))
-                    exactPositions++;
-                if (string.Equals(pred.P3?.Trim(), actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase))
-                    exactPositions++;
-                
-                // Classification based on both correct drivers and exact positions
-                if (exactPositions == 3)
+                // Check P1 prediction
+                if (!string.IsNullOrWhiteSpace(pred.P1))
                 {
-                    // All 3 in exact positions = exact match
-                    exact++;
+                    var p1Trim = pred.P1.Trim();
+                    if (string.Equals(p1Trim, actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        exact++; // P1 exact match (25 points)
+                    }
+                    else if (string.Equals(p1Trim, actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        oneOff++; // P1 predicted was actually P2 (18 points, 1 position off)
+                    }
+                    else if (string.Equals(p1Trim, actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        twoOff++; // P1 predicted was actually P3 (15 points, 2 positions off)
+                    }
+                    // else: P1 not in podium (0 points)
                 }
-                else if (correctDrivers == 3)
+                
+                // Check P2 prediction
+                if (!string.IsNullOrWhiteSpace(pred.P2))
                 {
-                    // All 3 drivers correct but not all in right positions = one off
-                    oneOff++;
+                    var p2Trim = pred.P2.Trim();
+                    if (string.Equals(p2Trim, actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        exact++; // P2 exact match (25 points)
+                    }
+                    else if (string.Equals(p2Trim, actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(p2Trim, actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        oneOff++; // P2 predicted was P1 or P3 (18 points, 1 position off)
+                    }
+                    // else: P2 not in podium (0 points)
                 }
-                else if (correctDrivers == 2)
+                
+                // Check P3 prediction
+                if (!string.IsNullOrWhiteSpace(pred.P3))
                 {
-                    // 2 drivers correct = two off
-                    twoOff++;
+                    var p3Trim = pred.P3.Trim();
+                    if (string.Equals(p3Trim, actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        exact++; // P3 exact match (25 points)
+                    }
+                    else if (string.Equals(p3Trim, actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        oneOff++; // P3 predicted was actually P2 (18 points, 1 position off)
+                    }
+                    else if (string.Equals(p3Trim, actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        twoOff++; // P3 predicted was actually P1 (15 points, 2 positions off)
+                    }
+                    // else: P3 not in podium (0 points)
                 }
-                // Less than 2 correct = no match category
             }
             
             userStats[userId] = (total, count, exact, oneOff, twoOff);
