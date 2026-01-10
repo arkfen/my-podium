@@ -170,16 +170,53 @@ public class LegacyDataExtractor
                         Console.WriteLine($"  2025 Race: {entity.GetString("Name")}, NumberRace={raceNumber}, NumberGP={numberGP}");
                     }
                     
+                    // Extract date components (Day, Month, Year) or Date field
+                    var day = SafeGetInt32(entity, "Day");
+                    var month = SafeGetInt32(entity, "Month");
+                    var eventYear = SafeGetInt32(entity, "Year") ?? year;
+                    
+                    // Construct DateTime from components if available
+                    DateTime? eventDate = null;
+                    if (day.HasValue && month.HasValue && day.Value > 0 && month.Value > 0)
+                    {
+                        try
+                        {
+                            // Create UTC datetime from components (assume midnight UTC as default time)
+                            eventDate = new DateTime(eventYear, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
+                            Console.WriteLine($"    Constructed date from components: {eventDate:yyyy-MM-dd}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"    ? Invalid date components (Year={eventYear}, Month={month}, Day={day}): {ex.Message}");
+                        }
+                    }
+                    
+                    // Fallback to Date field if components not available or invalid
+                    if (!eventDate.HasValue)
+                    {
+                        eventDate = SafeGetDateTime(entity, "Date");
+                        if (eventDate.HasValue)
+                        {
+                            Console.WriteLine($"    Using Date field: {eventDate:yyyy-MM-dd}");
+                        }
+                    }
+                    
                     var race = new LegacyRace
                     {
                         PartitionKey = entity.PartitionKey,
                         RowKey = entity.RowKey,
-                        Year = SafeGetInt32(entity, "Year") ?? year,
+                        Year = eventYear,
+                        Day = day,
+                        Month = month,
                         NumberRace = raceNumber,
                         NumberGP = SafeGetDouble(entity, "NumberGP"),
                         Name = entity.GetString("Name") ?? string.Empty,
                         Location = entity.GetString("Location"),
-                        Date = SafeGetDateTime(entity, "Date")
+                        Date = eventDate,
+                        // Extract actual race results if present in the race record
+                        P1 = entity.GetString("P1"),
+                        P2 = entity.GetString("P2"),
+                        P3 = entity.GetString("P3")
                     };
                     races.Add(race);
                 }

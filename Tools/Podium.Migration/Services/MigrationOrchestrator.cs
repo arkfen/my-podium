@@ -246,36 +246,81 @@ public class MigrationOrchestrator
                 
                 Console.WriteLine($"  Processing Race #{race.NumberRace}: {race.Name}");
                 
+                // Use the date from race.Date (already constructed from Day/Month/Year or Date field)
+                var eventDate = race.Date ?? DateTime.UtcNow;
+                
                 await _inserter.InsertEventAsync(
                     seasonId,
                     eventId,
                     race.Name,
                     race.NumberRace,
-                    race.Date ?? DateTime.UtcNow,
+                    eventDate,
                     race.Location ?? "Unknown",
                     status
                 );
                 _result.EventsCreated++;
 
-                // Find the actual results from predictions (the ones with points)
+                // Find predictions for this race
                 var racePredictions = predictions
                     .Where(p => p.Race == race.NumberRace)
                     .ToList();
 
                 Console.WriteLine($"    Found {racePredictions.Count} predictions for this race");
 
-                // Determine actual results from the most common podium in scored predictions
-                var actualResult = DetermineActualResults(racePredictions);
+                // Determine actual results - first try predictions, then fall back to race record
+                (string P1, string P2, string P3)? actualResult = null;
+                
+                // Try to get results from predictions
+                actualResult = DetermineActualResults(racePredictions);
+                
+                // If no results from predictions, check if race record has results
+                if (actualResult == null && 
+                    !string.IsNullOrWhiteSpace(race.P1) && 
+                    !string.IsNullOrWhiteSpace(race.P2) && 
+                    !string.IsNullOrWhiteSpace(race.P3))
+                {
+                    actualResult = (race.P1, race.P2, race.P3);
+                    Console.WriteLine($"    Using results from race record");
+                }
                 
                 if (actualResult != null)
                 {
                     var (p1, p2, p3) = actualResult.Value;
                     Console.WriteLine($"    Result: 1st={p1}, 2nd={p2}, 3rd={p3}");
+                    
+                    // Ensure driver IDs exist for result drivers
+                    var p1Id = _transformer.GetDriverId(p1);
+                    var p2Id = _transformer.GetDriverId(p2);
+                    var p3Id = _transformer.GetDriverId(p3);
+                    
+                    // If driver IDs don't exist, create them on-the-fly
+                    if (string.IsNullOrEmpty(p1Id))
+                    {
+                        p1Id = _transformer.GetOrCreateDriverId(p1);
+                        var shortName = _transformer.GenerateShortName(p1);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p1Id, p1, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p1Id, p1);
+                    }
+                    if (string.IsNullOrEmpty(p2Id))
+                    {
+                        p2Id = _transformer.GetOrCreateDriverId(p2);
+                        var shortName = _transformer.GenerateShortName(p2);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p2Id, p2, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p2Id, p2);
+                    }
+                    if (string.IsNullOrEmpty(p3Id))
+                    {
+                        p3Id = _transformer.GetOrCreateDriverId(p3);
+                        var shortName = _transformer.GenerateShortName(p3);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p3Id, p3, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p3Id, p3);
+                    }
+                    
                     await _inserter.InsertEventResultAsync(
                         eventId,
-                        _transformer.GetDriverId(p1), p1,
-                        _transformer.GetDriverId(p2), p2,
-                        _transformer.GetDriverId(p3), p3
+                        p1Id, p1,
+                        p2Id, p2,
+                        p3Id, p3
                     );
                     _result.EventResultsCreated++;
                 }
