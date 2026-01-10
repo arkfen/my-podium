@@ -299,47 +299,47 @@ class Program
             Console.WriteLine($"? Created scoring rules");
 
             // Create F1 drivers
-            var driverNames = new[]
-            {
-                "Max Verstappen", "Sergio Perez", "Lewis Hamilton", "George Russell",
-                "Charles Leclerc", "Carlos Sainz", "Lando Norris", "Oscar Piastri",
-                "Fernando Alonso", "Lance Stroll", "Pierre Gasly", "Esteban Ocon",
-                "Valtteri Bottas", "Zhou Guanyu", "Kevin Magnussen", "Nico Hulkenberg",
-                "Yuki Tsunoda", "Daniel Ricciardo", "Alexander Albon", "Logan Sargeant"
-            };
+            //var driverNames = new[]
+            //{
+            //    "Max Verstappen", "Sergio Perez", "Lewis Hamilton", "George Russell",
+            //    "Charles Leclerc", "Carlos Sainz", "Lando Norris", "Oscar Piastri",
+            //    "Fernando Alonso", "Lance Stroll", "Pierre Gasly", "Esteban Ocon",
+            //    "Valtteri Bottas", "Zhou Guanyu", "Kevin Magnussen", "Nico Hulkenberg",
+            //    "Yuki Tsunoda", "Daniel Ricciardo", "Alexander Albon", "Logan Sargeant"
+            //};
 
-            var competitorIds = new Dictionary<string, string>();
-            foreach (var driverName in driverNames)
-            {
-                var competitorId = Guid.NewGuid().ToString();
-                competitorIds[driverName] = competitorId;
+            //var competitorIds = new Dictionary<string, string>();
+            //foreach (var driverName in driverNames)
+            //{
+            //    var competitorId = Guid.NewGuid().ToString();
+            //    competitorIds[driverName] = competitorId;
                 
-                var competitorEntity = new TableEntity(singleSeaterDisciplineId, competitorId)
-                {
-                    ["DisciplineId"] = singleSeaterDisciplineId,
-                    ["Name"] = driverName,
-                    ["ShortName"] = GetShortName(driverName),
-                    ["Type"] = "Individual",
-                    ["IsActive"] = true,
-                    ["CreatedDate"] = DateTime.UtcNow
-                };
-                await competitorClient.UpsertEntityAsync(competitorEntity);
-            }
-            Console.WriteLine($"? Created {driverNames.Length} F1 drivers");
+            //    var competitorEntity = new TableEntity(singleSeaterDisciplineId, competitorId)
+            //    {
+            //        ["DisciplineId"] = singleSeaterDisciplineId,
+            //        ["Name"] = driverName,
+            //        ["ShortName"] = GetShortName(driverName),
+            //        ["Type"] = "Individual",
+            //        ["IsActive"] = true,
+            //        ["CreatedDate"] = DateTime.UtcNow
+            //    };
+            //    await competitorClient.UpsertEntityAsync(competitorEntity);
+            //}
+            //Console.WriteLine($"? Created {driverNames.Length} F1 drivers");
 
             // Link competitors to season
-            foreach (var kvp in competitorIds)
-            {
-                var seasonCompEntity = new TableEntity(seasonId, kvp.Value)
-                {
-                    ["SeasonId"] = seasonId,
-                    ["CompetitorId"] = kvp.Value,
-                    ["CompetitorName"] = kvp.Key,
-                    ["JoinDate"] = DateTime.UtcNow
-                };
-                await seasonCompClient.UpsertEntityAsync(seasonCompEntity);
-            }
-            Console.WriteLine($"? Linked drivers to season");
+            //foreach (var kvp in competitorIds)
+            //{
+            //    var seasonCompEntity = new TableEntity(seasonId, kvp.Value)
+            //    {
+            //        ["SeasonId"] = seasonId,
+            //        ["CompetitorId"] = kvp.Value,
+            //        ["CompetitorName"] = kvp.Key,
+            //        ["JoinDate"] = DateTime.UtcNow
+            //    };
+            //    await seasonCompClient.UpsertEntityAsync(seasonCompEntity);
+            //}
+            //Console.WriteLine($"? Linked drivers to season");
 
             // Create F1 races
             var races = new[]

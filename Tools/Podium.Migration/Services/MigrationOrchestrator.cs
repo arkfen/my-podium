@@ -55,8 +55,26 @@ public class MigrationOrchestrator
             var users = await _extractor.ExtractUsersAsync();
             await MigrateUsersAsync(users);
 
-            // Step 4: Extract drivers from all predictions
-            var driverNames = await _extractor.ExtractDriverNamesAsync(yearsToMigrate);
+            // Step 4: Extract drivers from MyPodiumDrivers table
+            var legacyDrivers = await _extractor.ExtractDriversAsync();
+            var driverNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            
+            // Add drivers from MyPodiumDrivers
+            foreach (var driver in legacyDrivers)
+            {
+                if (!string.IsNullOrWhiteSpace(driver.Name))
+                    driverNames.Add(driver.Name.Trim());
+            }
+            Console.WriteLine($"Found {driverNames.Count} drivers from MyPodiumDrivers");
+            
+            // Also add drivers from predictions to catch any missing ones
+            var predictionDrivers = await _extractor.ExtractDriverNamesAsync(yearsToMigrate);
+            foreach (var driver in predictionDrivers)
+            {
+                driverNames.Add(driver);
+            }
+            Console.WriteLine($"Total unique drivers: {driverNames.Count}");
+            
             await MigrateDriversAsync(driverNames);
 
             // Step 5: Process each season
@@ -189,11 +207,15 @@ public class MigrationOrchestrator
                 return;
             }
 
+            // Extract race results from MyPodiumResults table
+            var raceResults = await _extractor.ExtractRaceResultsAsync(year);
+            Console.WriteLine($"  Found {raceResults.Count} race results");
+
             // Extract predictions for this season
             var predictions = await _extractor.ExtractPredictionsAsync(year);
             Console.WriteLine($"  Found {predictions.Count} predictions to process");
 
-            // Link all drivers to this season (from predictions)
+            // Link all drivers to this season (from predictions AND results)
             var driversInSeason = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             
             foreach (var pred in predictions)
@@ -201,6 +223,13 @@ public class MigrationOrchestrator
                 if (!string.IsNullOrWhiteSpace(pred.P1)) driversInSeason.Add(pred.P1.Trim());
                 if (!string.IsNullOrWhiteSpace(pred.P2)) driversInSeason.Add(pred.P2.Trim());
                 if (!string.IsNullOrWhiteSpace(pred.P3)) driversInSeason.Add(pred.P3.Trim());
+            }
+            
+            foreach (var result in raceResults)
+            {
+                if (!string.IsNullOrWhiteSpace(result.P1)) driversInSeason.Add(result.P1.Trim());
+                if (!string.IsNullOrWhiteSpace(result.P2)) driversInSeason.Add(result.P2.Trim());
+                if (!string.IsNullOrWhiteSpace(result.P3)) driversInSeason.Add(result.P3.Trim());
             }
 
             Console.WriteLine($"  Linking {driversInSeason.Count} drivers to season");
@@ -213,11 +242,11 @@ public class MigrationOrchestrator
                 }
             }
             
-            // Migrate events and predictions
-            await MigrateEventsAsync(seasonId, year, races, predictions);
+            // Migrate events and predictions with race results
+            await MigrateEventsAsync(seasonId, year, races, predictions, raceResults);
             
-            // Calculate and insert user statistics
-            await CalculateUserStatisticsAsync(seasonId, year, predictions, users);
+            // Calculate and insert user statistics with proper match calculations
+            await CalculateUserStatisticsAsync(seasonId, year, predictions, raceResults, users);
         }
         catch (Exception ex)
         {
@@ -227,7 +256,7 @@ public class MigrationOrchestrator
     }
 
     private async Task MigrateEventsAsync(string seasonId, int year, 
-        List<LegacyRace> races, List<LegacyPrediction> predictions)
+        List<LegacyRace> races, List<LegacyPrediction> predictions, List<LegacyRaceResult> raceResults)
     {
         Console.WriteLine($"Migrating {races.Count} events for {year}...");
         
@@ -267,60 +296,49 @@ public class MigrationOrchestrator
 
                 Console.WriteLine($"    Found {racePredictions.Count} predictions for this race");
 
-                // Determine actual results - first try predictions, then fall back to race record
-                (string P1, string P2, string P3)? actualResult = null;
+                // Get actual result from MyPodiumResults table
+                var actualResult = raceResults.FirstOrDefault(r => r.Race == race.NumberRace);
                 
-                // Try to get results from predictions
-                actualResult = DetermineActualResults(racePredictions);
-                
-                // If no results from predictions, check if race record has results
-                if (actualResult == null && 
-                    !string.IsNullOrWhiteSpace(race.P1) && 
-                    !string.IsNullOrWhiteSpace(race.P2) && 
-                    !string.IsNullOrWhiteSpace(race.P3))
+                if (actualResult != null && 
+                    !string.IsNullOrWhiteSpace(actualResult.P1) && 
+                    !string.IsNullOrWhiteSpace(actualResult.P2) && 
+                    !string.IsNullOrWhiteSpace(actualResult.P3))
                 {
-                    actualResult = (race.P1, race.P2, race.P3);
-                    Console.WriteLine($"    Using results from race record");
-                }
-                
-                if (actualResult != null)
-                {
-                    var (p1, p2, p3) = actualResult.Value;
-                    Console.WriteLine($"    Result: 1st={p1}, 2nd={p2}, 3rd={p3}");
+                    Console.WriteLine($"    Result: 1st={actualResult.P1}, 2nd={actualResult.P2}, 3rd={actualResult.P3}");
                     
                     // Ensure driver IDs exist for result drivers
-                    var p1Id = _transformer.GetDriverId(p1);
-                    var p2Id = _transformer.GetDriverId(p2);
-                    var p3Id = _transformer.GetDriverId(p3);
+                    var p1Id = _transformer.GetDriverId(actualResult.P1);
+                    var p2Id = _transformer.GetDriverId(actualResult.P2);
+                    var p3Id = _transformer.GetDriverId(actualResult.P3);
                     
                     // If driver IDs don't exist, create them on-the-fly
                     if (string.IsNullOrEmpty(p1Id))
                     {
-                        p1Id = _transformer.GetOrCreateDriverId(p1);
-                        var shortName = _transformer.GenerateShortName(p1);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p1Id, p1, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p1Id, p1);
+                        p1Id = _transformer.GetOrCreateDriverId(actualResult.P1);
+                        var shortName = _transformer.GenerateShortName(actualResult.P1);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p1Id, actualResult.P1, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p1Id, actualResult.P1);
                     }
                     if (string.IsNullOrEmpty(p2Id))
                     {
-                        p2Id = _transformer.GetOrCreateDriverId(p2);
-                        var shortName = _transformer.GenerateShortName(p2);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p2Id, p2, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p2Id, p2);
+                        p2Id = _transformer.GetOrCreateDriverId(actualResult.P2);
+                        var shortName = _transformer.GenerateShortName(actualResult.P2);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p2Id, actualResult.P2, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p2Id, actualResult.P2);
                     }
                     if (string.IsNullOrEmpty(p3Id))
                     {
-                        p3Id = _transformer.GetOrCreateDriverId(p3);
-                        var shortName = _transformer.GenerateShortName(p3);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p3Id, p3, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p3Id, p3);
+                        p3Id = _transformer.GetOrCreateDriverId(actualResult.P3);
+                        var shortName = _transformer.GenerateShortName(actualResult.P3);
+                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p3Id, actualResult.P3, shortName);
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p3Id, actualResult.P3);
                     }
                     
                     await _inserter.InsertEventResultAsync(
                         eventId,
-                        p1Id, p1,
-                        p2Id, p2,
-                        p3Id, p3
+                        p1Id, actualResult.P1,
+                        p2Id, actualResult.P2,
+                        p3Id, actualResult.P3
                     );
                     _result.EventResultsCreated++;
                 }
@@ -366,33 +384,8 @@ public class MigrationOrchestrator
         Console.WriteLine($"? Completed migration of {_result.EventsCreated} events");
     }
 
-    private (string P1, string P2, string P3)? DetermineActualResults(List<LegacyPrediction> predictions)
-    {
-        // Find predictions that have exact match points (25) - these likely reflect actual results
-        var exactMatches = predictions.Where(p => p.Points == 25).ToList();
-        
-        if (exactMatches.Any())
-        {
-            // Return the most common exact match
-            var result = exactMatches.First();
-            return (result.P1, result.P2, result.P3);
-        }
-
-        // If no exact matches, try to find the most common podium from scored predictions
-        var scoredPredictions = predictions.Where(p => p.Points.HasValue && p.Points.Value > 0).ToList();
-        
-        if (scoredPredictions.Any())
-        {
-            // Use the first scored prediction as best guess
-            var result = scoredPredictions.First();
-            return (result.P1, result.P2, result.P3);
-        }
-
-        return null; // No results available yet
-    }
-
     private async Task CalculateUserStatisticsAsync(string seasonId, int year, 
-        List<LegacyPrediction> predictions, List<LegacyUser> users)
+        List<LegacyPrediction> predictions, List<LegacyRaceResult> raceResults, List<LegacyUser> users)
     {
         Console.WriteLine("Calculating user statistics...");
         
@@ -408,12 +401,63 @@ public class MigrationOrchestrator
             }
 
             var (total, count, exact, oneOff, twoOff) = userStats[userId];
-            total += pred.Points!.Value; // Non-null assertion since we filtered by HasValue
+            total += pred.Points!.Value;
             count++;
             
-            if (pred.Points.Value == 25) exact++;
-            else if (pred.Points.Value == 18) oneOff++;
-            else if (pred.Points.Value == 15) twoOff++;
+            // Find the actual result for this race
+            var actualResult = raceResults.FirstOrDefault(r => r.Race == pred.Race);
+            
+            if (actualResult != null &&
+                !string.IsNullOrWhiteSpace(actualResult.P1) &&
+                !string.IsNullOrWhiteSpace(actualResult.P2) &&
+                !string.IsNullOrWhiteSpace(actualResult.P3))
+            {
+                // Count how many drivers are correctly predicted (regardless of position)
+                var predictedDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+                { 
+                    pred.P1?.Trim() ?? "", 
+                    pred.P2?.Trim() ?? "",
+                    pred.P3?.Trim() ?? "" 
+                };
+                predictedDrivers.Remove(""); // Remove empty
+                
+                var actualDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase) 
+                { 
+                    actualResult.P1.Trim(), 
+                    actualResult.P2.Trim(), 
+                    actualResult.P3.Trim() 
+                };
+                
+                // Count correct drivers
+                int correctDrivers = predictedDrivers.Intersect(actualDrivers).Count();
+                
+                // Now count exact position matches
+                int exactPositions = 0;
+                if (string.Equals(pred.P1?.Trim(), actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase))
+                    exactPositions++;
+                if (string.Equals(pred.P2?.Trim(), actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase))
+                    exactPositions++;
+                if (string.Equals(pred.P3?.Trim(), actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase))
+                    exactPositions++;
+                
+                // Classification based on both correct drivers and exact positions
+                if (exactPositions == 3)
+                {
+                    // All 3 in exact positions = exact match
+                    exact++;
+                }
+                else if (correctDrivers == 3)
+                {
+                    // All 3 drivers correct but not all in right positions = one off
+                    oneOff++;
+                }
+                else if (correctDrivers == 2)
+                {
+                    // 2 drivers correct = two off
+                    twoOff++;
+                }
+                // Less than 2 correct = no match category
+            }
             
             userStats[userId] = (total, count, exact, oneOff, twoOff);
         }
@@ -432,5 +476,7 @@ public class MigrationOrchestrator
                 seasonId, userId, username, total, count, exact, oneOff, twoOff);
             _result.UserStatisticsCreated++;
         }
+        
+        Console.WriteLine($"? Calculated statistics for {userStats.Count} users");
     }
 }

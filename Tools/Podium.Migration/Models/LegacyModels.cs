@@ -28,9 +28,20 @@ public class LegacyRace
     public string Name { get; set; } = string.Empty;
     public string? Location { get; set; }
     public DateTime? Date { get; set; } // Calculated from Year, Month, Day or from Date field
-    public string? P1 { get; set; } // Actual result - 1st place
-    public string? P2 { get; set; } // Actual result - 2nd place
-    public string? P3 { get; set; } // Actual result - 3rd place
+}
+
+/// <summary>
+/// Represents a race result from MyPodiumResults table
+/// </summary>
+public class LegacyRaceResult
+{
+    public string PartitionKey { get; set; } = string.Empty; // "F1"
+    public string RowKey { get; set; } = string.Empty;
+    public int Year { get; set; }
+    public int Race { get; set; }
+    public string P1 { get; set; } = string.Empty; // 1st place
+    public string P2 { get; set; } = string.Empty; // 2nd place
+    public string P3 { get; set; } = string.Empty; // 3rd place
 }
 
 /// <summary>

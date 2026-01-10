@@ -212,11 +212,7 @@ public class LegacyDataExtractor
                         NumberGP = SafeGetDouble(entity, "NumberGP"),
                         Name = entity.GetString("Name") ?? string.Empty,
                         Location = entity.GetString("Location"),
-                        Date = eventDate,
-                        // Extract actual race results if present in the race record
-                        P1 = entity.GetString("P1"),
-                        P2 = entity.GetString("P2"),
-                        P3 = entity.GetString("P3")
+                        Date = eventDate
                     };
                     races.Add(race);
                 }
@@ -381,5 +377,65 @@ public class LegacyDataExtractor
         }
         
         return drivers;
+    }
+
+    /// <summary>
+    /// Extract race results for specific year from MyPodiumResults table
+    /// </summary>
+    public async Task<List<LegacyRaceResult>> ExtractRaceResultsAsync(int year)
+    {
+        Console.WriteLine($"Extracting race results for year {year}...");
+        var results = new List<LegacyRaceResult>();
+        
+        try
+        {
+            var tableClient = _tableServiceClient.GetTableClient("MyPodiumResults");
+            var filter = $"PartitionKey eq 'F1' and Year eq {year}";
+            var queryResults = tableClient.QueryAsync<TableEntity>(filter: filter);
+            
+            await foreach (var entity in queryResults)
+            {
+                try
+                {
+                    var raceNumber = SafeGetInt32(entity, "Race") ?? 0;
+                    
+                    var result = new LegacyRaceResult
+                    {
+                        PartitionKey = entity.PartitionKey,
+                        RowKey = entity.RowKey,
+                        Year = SafeGetInt32(entity, "Year") ?? year,
+                        Race = raceNumber,
+                        P1 = entity.GetString("P1") ?? string.Empty,
+                        P2 = entity.GetString("P2") ?? string.Empty,
+                        P3 = entity.GetString("P3") ?? string.Empty
+                    };
+                    results.Add(result);
+                    
+                    Console.WriteLine($"  Result for Race #{raceNumber}: 1st={result.P1}, 2nd={result.P2}, 3rd={result.P3}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ? Error processing result: {ex.Message}");
+                }
+            }
+            
+            Console.WriteLine($"? Extracted {results.Count} race results for {year}");
+            
+            if (results.Count == 0)
+            {
+                Console.WriteLine($"? WARNING: No results found for {year}. Check if data exists in MyPodiumResults table.");
+            }
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            Console.WriteLine("? MyPodiumResults table not found");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"? Error extracting race results: {ex.Message}");
+            Console.WriteLine($"   Stack trace: {ex.StackTrace}");
+        }
+        
+        return results;
     }
 }
