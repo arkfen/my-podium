@@ -55,27 +55,14 @@ public class MigrationOrchestrator
             var users = await _extractor.ExtractUsersAsync();
             await MigrateUsersAsync(users);
 
-            // Step 4: Extract drivers from MyPodiumDrivers table
+            // Step 4: Extract drivers from MyPodiumDrivers table ONLY
+            Console.WriteLine("\n--- Extracting Drivers from MyPodiumDrivers ---");
             var legacyDrivers = await _extractor.ExtractDriversAsync();
-            var driverNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             
-            // Add drivers from MyPodiumDrivers
-            foreach (var driver in legacyDrivers)
-            {
-                if (!string.IsNullOrWhiteSpace(driver.Name))
-                    driverNames.Add(driver.Name.Trim());
-            }
-            Console.WriteLine($"Found {driverNames.Count} drivers from MyPodiumDrivers");
+            // Create drivers ONLY from MyPodiumDrivers - no other sources!
+            await MigrateDriversAsync(legacyDrivers.Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase));
             
-            // Also add drivers from predictions to catch any missing ones
-            var predictionDrivers = await _extractor.ExtractDriverNamesAsync(yearsToMigrate);
-            foreach (var driver in predictionDrivers)
-            {
-                driverNames.Add(driver);
-            }
-            Console.WriteLine($"Total unique drivers: {driverNames.Count}");
-            
-            await MigrateDriversAsync(driverNames);
+            Console.WriteLine($"? Migrated {_result.DriversCreated} drivers from MyPodiumDrivers");
 
             // Step 5: Process each season
             foreach (var year in yearsToMigrate)
@@ -222,15 +209,14 @@ public class MigrationOrchestrator
 
             foreach (var (driverName, joinDate) in seasonDrivers)
             {
+                // Try to find driver by case-insensitive name match
                 var driverId = _transformer.GetDriverId(driverName);
                 
-                // If driver not in system yet, create them
+                // If driver doesn't exist, skip with warning (should exist from MyPodiumDrivers)
                 if (string.IsNullOrEmpty(driverId))
                 {
-                    driverId = _transformer.GetOrCreateDriverId(driverName);
-                    var shortName = _transformer.GenerateShortName(driverName);
-                    await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, driverId, driverName, shortName);
-                    Console.WriteLine($"    Created missing driver: {driverName}");
+                    Console.WriteLine($"    ? Warning: Driver '{driverName}' not found in MyPodiumDrivers, skipping season link");
+                    continue;
                 }
                 
                 await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName, joinDate);
@@ -240,15 +226,21 @@ public class MigrationOrchestrator
             Console.WriteLine($"  ? Linked {linkedCount} official F1 drivers to {year} season");
 
             // Also link any additional drivers found in results (substitutes, etc.)
+            // But DON'T create them - they must exist in MyPodiumDrivers
             var additionalDrivers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var result in raceResults)
             {
-                if (!string.IsNullOrWhiteSpace(result.P1) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P1))
-                    additionalDrivers.Add(result.P1.Trim());
-                if (!string.IsNullOrWhiteSpace(result.P2) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P2))
-                    additionalDrivers.Add(result.P2.Trim());
-                if (!string.IsNullOrWhiteSpace(result.P3) && !Data.F1DriverLineups.DriverRacedInSeason(year, result.P3))
-                    additionalDrivers.Add(result.P3.Trim());
+                // Trim names before checking to avoid issues with leading/trailing spaces
+                var p1Trimmed = result.P1?.Trim() ?? "";
+                var p2Trimmed = result.P2?.Trim() ?? "";
+                var p3Trimmed = result.P3?.Trim() ?? "";
+                
+                if (!string.IsNullOrWhiteSpace(p1Trimmed) && !Data.F1DriverLineups.DriverRacedInSeason(year, p1Trimmed))
+                    additionalDrivers.Add(p1Trimmed);
+                if (!string.IsNullOrWhiteSpace(p2Trimmed) && !Data.F1DriverLineups.DriverRacedInSeason(year, p2Trimmed))
+                    additionalDrivers.Add(p2Trimmed);
+                if (!string.IsNullOrWhiteSpace(p3Trimmed) && !Data.F1DriverLineups.DriverRacedInSeason(year, p3Trimmed))
+                    additionalDrivers.Add(p3Trimmed);
             }
 
             if (additionalDrivers.Any())
@@ -257,13 +249,17 @@ public class MigrationOrchestrator
                 foreach (var driverName in additionalDrivers)
                 {
                     var driverId = _transformer.GetDriverId(driverName);
-                    if (string.IsNullOrEmpty(driverId))
+                    if (!string.IsNullOrEmpty(driverId))
                     {
-                        driverId = _transformer.GetOrCreateDriverId(driverName);
-                        var shortName = _transformer.GenerateShortName(driverName);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, driverId, driverName, shortName);
+                        // Check if already linked to avoid duplicate linking
+                        // (This shouldn't happen now with proper trimming, but add safety check)
+                        Console.WriteLine($"    Linking substitute: {driverName}");
+                        await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName);
                     }
-                    await _inserter.InsertSeasonCompetitorAsync(seasonId, driverId, driverName);
+                    else
+                    {
+                        Console.WriteLine($"    ? Warning: Substitute driver '{driverName}' not in MyPodiumDrivers, skipping");
+                    }
                 }
             }
             
@@ -342,41 +338,62 @@ public class MigrationOrchestrator
                 {
                     Console.WriteLine($"    Result: 1st={actualResult.P1}, 2nd={actualResult.P2}, 3rd={actualResult.P3}");
                     
-                    // Ensure driver IDs exist for result drivers
-                    var p1Id = _transformer.GetDriverId(actualResult.P1);
-                    var p2Id = _transformer.GetDriverId(actualResult.P2);
-                    var p3Id = _transformer.GetDriverId(actualResult.P3);
+                    // Get driver IDs with trimmed names for better matching
+                    var p1Id = _transformer.GetDriverId(actualResult.P1.Trim());
+                    var p2Id = _transformer.GetDriverId(actualResult.P2.Trim());
+                    var p3Id = _transformer.GetDriverId(actualResult.P3.Trim());
                     
-                    // If driver IDs don't exist, create them on-the-fly
+                    // Track which drivers are missing
+                    bool anyMissing = false;
                     if (string.IsNullOrEmpty(p1Id))
                     {
-                        p1Id = _transformer.GetOrCreateDriverId(actualResult.P1);
-                        var shortName = _transformer.GenerateShortName(actualResult.P1);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p1Id, actualResult.P1, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p1Id, actualResult.P1);
+                        Console.WriteLine($"    ? Warning: P1 driver '{actualResult.P1}' not found in MyPodiumDrivers");
+                        anyMissing = true;
                     }
                     if (string.IsNullOrEmpty(p2Id))
                     {
-                        p2Id = _transformer.GetOrCreateDriverId(actualResult.P2);
-                        var shortName = _transformer.GenerateShortName(actualResult.P2);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p2Id, actualResult.P2, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p2Id, actualResult.P2);
+                        Console.WriteLine($"    ? Warning: P2 driver '{actualResult.P2}' not found in MyPodiumDrivers");
+                        anyMissing = true;
                     }
                     if (string.IsNullOrEmpty(p3Id))
                     {
-                        p3Id = _transformer.GetOrCreateDriverId(actualResult.P3);
-                        var shortName = _transformer.GenerateShortName(actualResult.P3);
-                        await _inserter.InsertCompetitorAsync(_transformer.DisciplineId, p3Id, actualResult.P3, shortName);
-                        await _inserter.InsertSeasonCompetitorAsync(seasonId, p3Id, actualResult.P3);
+                        Console.WriteLine($"    ? Warning: P3 driver '{actualResult.P3}' not found in MyPodiumDrivers");
+                        anyMissing = true;
                     }
                     
+                    // If any drivers missing, try to fix common issues and log details
+                    if (anyMissing)
+                    {
+                        Console.WriteLine($"    ? MISSING DRIVER DETAILS:");
+                        Console.WriteLine($"       P1: '{actualResult.P1}' (Length: {actualResult.P1.Length}, Has leading space: {actualResult.P1.StartsWith(" ")})");
+                        Console.WriteLine($"       P2: '{actualResult.P2}' (Length: {actualResult.P2.Length}, Has leading space: {actualResult.P2.StartsWith(" ")})");
+                        Console.WriteLine($"       P3: '{actualResult.P3}' (Length: {actualResult.P3.Length}, Has leading space: {actualResult.P3.StartsWith(" ")})");
+                        
+                        // Try to find these drivers in the known list for debugging
+                        var allDriverIds = _transformer.GetAllDriverNames();
+                        Console.WriteLine($"    Known drivers containing similar names:");
+                        foreach (var knownDriver in allDriverIds.Where(d => 
+                            d.Contains(actualResult.P1.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                            d.Contains(actualResult.P2.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                            d.Contains(actualResult.P3.Trim(), StringComparison.OrdinalIgnoreCase)))
+                        {
+                            Console.WriteLine($"       - '{knownDriver}'");
+                        }
+                    }
+                    
+                    // Insert result even if some drivers are missing (use empty ID for missing drivers)
                     await _inserter.InsertEventResultAsync(
                         eventId,
-                        p1Id, actualResult.P1,
-                        p2Id, actualResult.P2,
-                        p3Id, actualResult.P3
+                        p1Id ?? string.Empty, actualResult.P1.Trim(),
+                        p2Id ?? string.Empty, actualResult.P2.Trim(),
+                        p3Id ?? string.Empty, actualResult.P3.Trim()
                     );
                     _result.EventResultsCreated++;
+                    
+                    if (anyMissing)
+                    {
+                        Console.WriteLine($"    ? Result inserted with missing driver IDs (will need manual correction)");
+                    }
                 }
                 else
                 {

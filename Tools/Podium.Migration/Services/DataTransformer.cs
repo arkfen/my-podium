@@ -13,7 +13,7 @@ public class DataTransformer
     private readonly string _seriesId = Guid.NewGuid().ToString(); // Formula 1
     private readonly Dictionary<int, string> _seasonIds = new(); // Year -> SeasonId
     private readonly Dictionary<string, string> _userIdMap = new(); // Legacy UserId -> New UserId
-    private readonly Dictionary<string, string> _driverIdMap = new(); // Driver Name -> CompetitorId
+    private readonly Dictionary<string, string> _driverIdMap = new(StringComparer.OrdinalIgnoreCase); // Driver Name -> CompetitorId (case-insensitive)
     private readonly Dictionary<string, string> _eventIdMap = new(); // Year_RaceNumber -> EventId
 
     public string DisciplineId => _disciplineId;
@@ -85,6 +85,14 @@ public class DataTransformer
 
         var normalizedName = driverName.Trim();
         return _driverIdMap.TryGetValue(normalizedName, out var id) ? id : string.Empty;
+    }
+
+    /// <summary>
+    /// Get all driver names for debugging
+    /// </summary>
+    public IEnumerable<string> GetAllDriverNames()
+    {
+        return _driverIdMap.Keys;
     }
 
     /// <summary>
