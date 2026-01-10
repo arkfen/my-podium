@@ -276,7 +276,18 @@ public class MigrationOrchestrator
                 Console.WriteLine($"  Processing Race #{race.NumberRace}: {race.Name}");
                 
                 // Use the date from race.Date (already constructed from Day/Month/Year or Date field)
-                var eventDate = race.Date ?? DateTime.UtcNow;
+                DateTime eventDate;
+                if (race.Date.HasValue)
+                {
+                    eventDate = race.Date.Value;
+                    Console.WriteLine($"    Using event date: {eventDate:yyyy-MM-dd HH:mm:ss}");
+                }
+                else
+                {
+                    eventDate = DateTime.UtcNow;
+                    _result.AddWarning($"Race {race.NumberRace} ({race.Name}) has no date - using current date as fallback");
+                    Console.WriteLine($"    ? WARNING: No date available, using current date: {eventDate:yyyy-MM-dd HH:mm:ss}");
+                }
                 
                 await _inserter.InsertEventAsync(
                     seasonId,
