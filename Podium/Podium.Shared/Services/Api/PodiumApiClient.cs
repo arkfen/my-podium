@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using Podium.Shared.Models;
 
 namespace Podium.Shared.Services.Api;
@@ -166,7 +167,7 @@ public class PodiumApiClient : IPodiumApiClient
                 return new ApiResponse<T> { Success = true, Data = data };
             }
 
-            var error = await response.Content.ReadAsStringAsync();
+            var error = await ParseErrorResponseAsync(response);
             return new ApiResponse<T> { Success = false, Error = error };
         }
         catch (Exception ex)
@@ -186,12 +187,35 @@ public class PodiumApiClient : IPodiumApiClient
                 return new ApiResponse<T> { Success = true, Data = result };
             }
 
-            var error = await response.Content.ReadAsStringAsync();
+            var error = await ParseErrorResponseAsync(response);
             return new ApiResponse<T> { Success = false, Error = error };
         }
         catch (Exception ex)
         {
             return new ApiResponse<T> { Success = false, Error = ex.Message };
+        }
+    }
+
+    private async Task<string> ParseErrorResponseAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            
+            // Try to parse as JSON and extract the error message
+            using var doc = JsonDocument.Parse(errorContent);
+            if (doc.RootElement.TryGetProperty("error", out var errorProperty))
+            {
+                return errorProperty.GetString() ?? errorContent;
+            }
+            
+            // If no "error" property, return the raw content
+            return errorContent;
+        }
+        catch
+        {
+            // If parsing fails, return a generic error message
+            return "An error occurred. Please try again.";
         }
     }
 }
