@@ -592,14 +592,14 @@ public record SubmitPredictionRequest(
 public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 
-public record CreateSeriesRequest(string DisciplineId, string Name, string DisplayName, string GoverningBody, string Region, string VehicleType, bool IsActive);
-public record UpdateSeriesRequest(string Name, string DisplayName, string GoverningBody, string Region, string VehicleType, bool IsActive);
-
 public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
 public record UpdateSeasonRequest(int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
 
 public record CreateCompetitorRequest(string DisciplineId, string Name, string ShortName, string Type, bool IsActive);
 public record UpdateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
+
+public record CreateSeriesRequest(string DisciplineId, string Name, string DisplayName, bool IsActive, string? GoverningBody, string? Region, string? VehicleType);
+public record UpdateSeriesRequest(string DisciplineId, string Name, string DisplayName, bool IsActive, string? GoverningBody, string? Region, string? VehicleType);
 
 public record CreateEventRequest(string SeasonId, string Name, string DisplayName, int EventNumber, DateTime EventDate, string Location, string Status, bool IsActive);
 public record UpdateEventRequest(string Name, string DisplayName, int EventNumber, DateTime EventDate, string Location, string Status, bool IsActive);

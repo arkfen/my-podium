@@ -9,6 +9,9 @@ public interface ISeriesRepository
     Task<List<Series>> GetSeriesByDisciplineAsync(string disciplineId);
     Task<Series?> GetSeriesByIdAsync(string disciplineId, string seriesId);
     Task<List<Series>> GetActiveSeriesByDisciplineAsync(string disciplineId);
+    Task<Series?> CreateSeriesAsync(Series series);
+    Task<Series?> UpdateSeriesAsync(Series series);
+    Task<bool> DeleteSeriesAsync(string disciplineId, string seriesId);
 }
 
 public class SeriesRepository : ISeriesRepository
@@ -92,5 +95,85 @@ public class SeriesRepository : ISeriesRepository
             IsActive = entity.GetBoolean("IsActive") ?? false,
             CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
+    }
+
+    public async Task<Series?> CreateSeriesAsync(Series series)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            series.Id = Guid.NewGuid().ToString();
+            series.CreatedDate = DateTime.UtcNow;
+
+            var entity = new TableEntity(series.DisciplineId, series.Id)
+            {
+                ["Name"] = series.Name,
+                ["DisplayName"] = series.DisplayName,
+                ["GoverningBody"] = series.GoverningBody,
+                ["Region"] = series.Region,
+                ["VehicleType"] = series.VehicleType,
+                ["IsActive"] = series.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(series.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.AddEntityAsync(entity);
+            return series;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Series?> UpdateSeriesAsync(Series series)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            // If DisciplineId changed, we need to delete old and create new
+            // since PartitionKey cannot be updated
+            var oldEntity = await tableClient.GetEntityAsync<TableEntity>(series.DisciplineId, series.Id);
+            
+            // Delete old entity first if discipline changed
+            if (oldEntity.Value.PartitionKey != series.DisciplineId)
+            {
+                await tableClient.DeleteEntityAsync(oldEntity.Value.PartitionKey, series.Id);
+            }
+
+            var entity = new TableEntity(series.DisciplineId, series.Id)
+            {
+                ["Name"] = series.Name,
+                ["DisplayName"] = series.DisplayName,
+                ["GoverningBody"] = series.GoverningBody,
+                ["Region"] = series.Region,
+                ["VehicleType"] = series.VehicleType,
+                ["IsActive"] = series.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(series.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return series;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteSeriesAsync(string disciplineId, string seriesId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(disciplineId, seriesId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
     }
 }

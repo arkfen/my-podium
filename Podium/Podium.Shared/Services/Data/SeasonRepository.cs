@@ -11,6 +11,7 @@ public interface ISeasonRepository
     Task<Season?> GetActiveSeasonBySeriesAsync(string seriesId);
     Task<bool> SetActiveSeasonAsync(string seriesId, string seasonId);
     Task<Dictionary<string, List<Season>>> FindSeriesWithMultipleActiveSeasonsAsync();
+    Task<int> GetSeasonCountBySeriesAsync(string seriesId);
 }
 
 public class SeasonRepository : ISeasonRepository
@@ -163,5 +164,26 @@ public class SeasonRepository : ISeasonRepository
         };
 
         return entity;
+    }
+
+    public async Task<int> GetSeasonCountBySeriesAsync(string seriesId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        int count = 0;
+
+        try
+        {
+            var filter = $"PartitionKey eq '{seriesId}'";
+            await foreach (var _ in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                count++;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Table doesn't exist or error - return 0
+        }
+
+        return count;
     }
 }

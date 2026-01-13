@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Services.Data;
 using Podium.Shared.Models;
+using Podium.Shared.Services.Api;
 using Podium.Api.Middleware;
 
 namespace Podium.Api.Endpoints;
@@ -243,6 +244,19 @@ public static class AdminEndpoints
             string disciplineId,
             [FromServices] IDisciplineRepository disciplineRepo) =>
         {
+            // Check for dependencies first
+            var seriesCount = await disciplineRepo.GetSeriesCountByDisciplineAsync(disciplineId);
+            if (seriesCount > 0)
+            {
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete discipline with existing series",
+                    message = $"This discipline has {seriesCount} series associated with it. Please delete or reassign those series first.",
+                    seriesCount = seriesCount,
+                    canDelete = false
+                });
+            }
+
             var success = await disciplineRepo.DeleteDisciplineAsync(disciplineId);
             if (!success)
                 return Results.NotFound(new { error = "Discipline not found" });
@@ -251,6 +265,128 @@ public static class AdminEndpoints
         })
         .RequireAdmin()
         .WithName("DeleteDiscipline");
+
+        // ===== SERIES MANAGEMENT =====
+
+        // Get all series for a discipline (admin)
+        group.MapGet("/disciplines/{disciplineId}/series", async (
+            string disciplineId,
+            [FromServices] ISeriesRepository seriesRepo) =>
+        {
+            var series = await seriesRepo.GetSeriesByDisciplineAsync(disciplineId);
+            return Results.Ok(series);
+        })
+        .RequireAdmin()
+        .WithName("GetSeriesByDisciplineAdmin");
+
+        // Get specific series (admin)
+        group.MapGet("/series/{seriesId}", async (
+            string seriesId,
+            string disciplineId,
+            [FromServices] ISeriesRepository seriesRepo) =>
+        {
+            var series = await seriesRepo.GetSeriesByIdAsync(disciplineId, seriesId);
+            if (series == null)
+                return Results.NotFound(new { error = "Series not found" });
+            
+            return Results.Ok(series);
+        })
+        .RequireAdmin()
+        .WithName("GetSeriesAdmin");
+
+        // Create series
+        group.MapPost("/series", async (
+            [FromBody] CreateSeriesRequest request,
+            [FromServices] ISeriesRepository seriesRepo,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            // Verify discipline exists
+            var discipline = await disciplineRepo.GetDisciplineByIdAsync(request.DisciplineId);
+            if (discipline == null)
+                return Results.BadRequest(new { error = "Discipline not found" });
+
+            var series = new Series
+            {
+                DisciplineId = request.DisciplineId,
+                Name = request.Name,
+                DisplayName = request.DisplayName,
+                GoverningBody = request.GoverningBody ?? string.Empty,
+                Region = request.Region ?? string.Empty,
+                VehicleType = request.VehicleType ?? string.Empty,
+                IsActive = request.IsActive
+            };
+
+            var created = await seriesRepo.CreateSeriesAsync(series);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateSeries");
+
+        // Update series
+        group.MapPut("/series/{seriesId}", async (
+            string seriesId,
+            [FromBody] UpdateSeriesRequest request,
+            [FromServices] ISeriesRepository seriesRepo,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            // Get existing series
+            var existing = await seriesRepo.GetSeriesByIdAsync(request.DisciplineId, seriesId);
+            if (existing == null)
+                return Results.NotFound(new { error = "Series not found" });
+
+            // Verify discipline exists (in case it's being changed)
+            var discipline = await disciplineRepo.GetDisciplineByIdAsync(request.DisciplineId);
+            if (discipline == null)
+                return Results.BadRequest(new { error = "Discipline not found" });
+
+            existing.DisciplineId = request.DisciplineId;
+            existing.Name = request.Name;
+            existing.DisplayName = request.DisplayName;
+            existing.GoverningBody = request.GoverningBody ?? string.Empty;
+            existing.Region = request.Region ?? string.Empty;
+            existing.VehicleType = request.VehicleType ?? string.Empty;
+            existing.IsActive = request.IsActive;
+
+            var updated = await seriesRepo.UpdateSeriesAsync(existing);
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(updated);
+        })
+        .RequireAdmin()
+        .WithName("UpdateSeries");
+
+        // Delete series
+        group.MapDelete("/series/{seriesId}", async (
+            string seriesId,
+            string disciplineId,
+            [FromServices] ISeriesRepository seriesRepo,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Check for dependencies first
+            var seasonCount = await seasonRepo.GetSeasonCountBySeriesAsync(seriesId);
+            if (seasonCount > 0)
+            {
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete series with existing seasons",
+                    message = $"This series has {seasonCount} season(s) associated with it. Please delete those seasons first.",
+                    seasonCount = seasonCount,
+                    canDelete = false
+                });
+            }
+
+            var success = await seriesRepo.DeleteSeriesAsync(disciplineId, seriesId);
+            if (!success)
+                return Results.NotFound(new { error = "Series not found" });
+
+            return Results.Ok(new { message = "Series deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteSeries");
 
         // ===== USER MANAGEMENT =====
 

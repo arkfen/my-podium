@@ -12,6 +12,7 @@ public interface IDisciplineRepository
     Task<Discipline?> CreateDisciplineAsync(Discipline discipline);
     Task<Discipline?> UpdateDisciplineAsync(Discipline discipline);
     Task<bool> DeleteDisciplineAsync(string disciplineId);
+    Task<int> GetSeriesCountByDisciplineAsync(string disciplineId);
 }
 
 public class DisciplineRepository : IDisciplineRepository
@@ -155,5 +156,26 @@ public class DisciplineRepository : IDisciplineRepository
         {
             return false;
         }
+    }
+
+    public async Task<int> GetSeriesCountByDisciplineAsync(string disciplineId)
+    {
+        var seriesTableClient = _tableClientFactory.GetTableClient("PodiumSeries");
+        int count = 0;
+
+        try
+        {
+            var filter = $"PartitionKey eq '{disciplineId}'";
+            await foreach (var _ in seriesTableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                count++;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Table doesn't exist or error - return 0
+        }
+
+        return count;
     }
 }
