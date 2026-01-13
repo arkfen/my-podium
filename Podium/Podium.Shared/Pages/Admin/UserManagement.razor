@@ -1,0 +1,357 @@
+@page "/admin/users"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Users - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>?? Manage Users</h1>
+        <div class="search-bar">
+            <input type="text" 
+                   class="form-control" 
+                   @bind="searchQuery" 
+                   @bind:event="oninput"
+                   @onkeyup="HandleSearch"
+                   placeholder="Search users by username or email..." />
+        </div>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading users...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+    else
+    {
+        @if (showEditForm)
+        {
+            <div class="admin-form">
+                <h3>Edit User: @editingUser?.Username</h3>
+                
+                <div class="form-group">
+                    <label>Username:</label>
+                    <input type="text" class="form-control" @bind="formUsername" />
+                </div>
+                
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" class="form-control" @bind="formEmail" />
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active (can sign in and use the application)
+                    </label>
+                </div>
+                
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelEdit">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveUser" disabled="@saving">
+                        @(saving ? "Saving..." : "Save Changes")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Status</th>
+                        <th>Registered</th>
+                        <th>Last Login</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in displayUsers)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/admin/users/@user.UserId" class="user-link">
+                                    @user.Username
+                                </a>
+                            </td>
+                            <td>@user.Email</td>
+                            <td>
+                                <span class="badge @(user.IsActive ? "badge-success" : "badge-inactive")">
+                                    @(user.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>@user.CreatedDate.ToShortDateString()</td>
+                            <td>@(user.LastLoginDate?.ToShortDateString() ?? "Never")</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditUser(user)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(user)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (!displayUsers.Any())
+            {
+                <div class="no-results">
+                    @if (string.IsNullOrWhiteSpace(searchQuery))
+                    {
+                        <p>No users found.</p>
+                    }
+                    else
+                    {
+                        <p>No users match your search query.</p>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="@deleteConfirmTitle"
+               Message="@deleteConfirmMessage"
+               ConfirmText="@deleteConfirmButtonText"
+               OnConfirm="DeleteUser"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<User> allUsers = new();
+    private List<User> displayUsers = new();
+    private bool loading = true;
+    private bool saving = false;
+    private bool showEditForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+    private string searchQuery = "";
+
+    private User? editingUser = null;
+    private User? userToDelete = null;
+    private UserDependencies? userDependencies = null;
+    
+    private string formUsername = "";
+    private string formEmail = "";
+    private bool formIsActive = true;
+
+    private string deleteConfirmTitle = "";
+    private string deleteConfirmMessage = "";
+    private string deleteConfirmButtonText = "Delete";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        loading = true;
+        errorMessage = "";
+        var response = await ApiClient.GetAllUsersAsync();
+        
+        if (response.Success && response.Data != null)
+        {
+            allUsers = response.Data;
+            FilterUsers();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to load users";
+        }
+        
+        loading = false;
+    }
+
+    private void HandleSearch()
+    {
+        FilterUsers();
+    }
+
+    private void FilterUsers()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            displayUsers = allUsers;
+        }
+        else
+        {
+            var query = searchQuery.ToLowerInvariant();
+            displayUsers = allUsers
+                .Where(u => u.Username.ToLowerInvariant().Contains(query) || 
+                           u.Email.ToLowerInvariant().Contains(query))
+                .ToList();
+        }
+    }
+
+    private void EditUser(User user)
+    {
+        editingUser = user;
+        formUsername = user.Username;
+        formEmail = user.Email;
+        formIsActive = user.IsActive;
+        formError = "";
+        showEditForm = true;
+    }
+
+    private void CancelEdit()
+    {
+        showEditForm = false;
+        editingUser = null;
+        formError = "";
+    }
+
+    private async Task SaveUser()
+    {
+        if (editingUser == null) return;
+
+        if (string.IsNullOrWhiteSpace(formUsername))
+        {
+            formError = "Username is required";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formEmail))
+        {
+            formError = "Email is required";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        var request = new UpdateUserRequest(formUsername, formEmail, formIsActive);
+        var response = await ApiClient.UpdateUserAsync(editingUser.UserId, request);
+        
+        if (response.Success)
+        {
+            await LoadUsers();
+            CancelEdit();
+        }
+        else
+        {
+            formError = response.Error ?? "Failed to update user";
+        }
+
+        saving = false;
+    }
+
+    private async Task ConfirmDelete(User user)
+    {
+        userToDelete = user;
+        
+        // Check dependencies first
+        var response = await ApiClient.GetUserDependenciesAsync(user.UserId);
+        if (response.Success && response.Data != null)
+        {
+            userDependencies = response.Data;
+            
+            if (userDependencies.HasDependencies)
+            {
+                // User has dependencies - show warning
+                var reasons = new List<string>();
+                if (userDependencies.PredictionCount > 0)
+                    reasons.Add($"{userDependencies.PredictionCount} prediction(s)");
+                if (userDependencies.IsAdmin)
+                    reasons.Add("admin privileges");
+
+                deleteConfirmTitle = "Cannot Delete User";
+                deleteConfirmMessage = $"User '{user.Username}' has existing data: {string.Join(", ", reasons)}.\n\n" +
+                                      "To preserve data integrity, please deactivate this user instead of deleting.";
+                deleteConfirmButtonText = "Deactivate Instead";
+            }
+            else
+            {
+                // User can be deleted
+                deleteConfirmTitle = "Delete User";
+                deleteConfirmMessage = $"Are you sure you want to permanently delete user '{user.Username}'?\n\n" +
+                                      "This action cannot be undone.";
+                deleteConfirmButtonText = "Delete";
+            }
+        }
+        else
+        {
+            // Couldn't check dependencies - show general warning
+            deleteConfirmTitle = "Delete User";
+            deleteConfirmMessage = $"Are you sure you want to delete user '{user.Username}'?";
+            deleteConfirmButtonText = "Delete";
+        }
+
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        userToDelete = null;
+        userDependencies = null;
+    }
+
+    private async Task DeleteUser()
+    {
+        if (userToDelete == null) return;
+
+        showDeleteConfirm = false;
+
+        // If user has dependencies, deactivate instead of delete
+        if (userDependencies?.HasDependencies == true)
+        {
+            // Deactivate the user
+            var request = new UpdateUserRequest(userToDelete.Username, userToDelete.Email, false);
+            var response = await ApiClient.UpdateUserAsync(userToDelete.UserId, request);
+            
+            if (response.Success)
+            {
+                await LoadUsers();
+                errorMessage = ""; // Clear any previous errors
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to deactivate user";
+            }
+        }
+        else
+        {
+            // Actually delete the user
+            var response = await ApiClient.DeleteUserAsync(userToDelete.UserId);
+            
+            if (response.Success)
+            {
+                await LoadUsers();
+                errorMessage = ""; // Clear any previous errors
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to delete user";
+            }
+        }
+        
+        userToDelete = null;
+        userDependencies = null;
+    }
+}

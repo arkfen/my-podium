@@ -94,7 +94,9 @@ public interface IPodiumApiClient
 
     // Admin - User Management
     Task<ApiResponse<List<User>>> GetAllUsersAsync();
+    Task<ApiResponse<List<UserSearchResult>>> SearchUsersAsync(string searchTerm);
     Task<ApiResponse<User>> GetUserAdminAsync(string userId);
+    Task<ApiResponse<UserDependencies>> GetUserDependenciesAsync(string userId);
     Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request);
     Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId);
 }
@@ -430,9 +432,19 @@ public class PodiumApiClient : IPodiumApiClient
         return await GetAsync<List<User>>("/api/admin/users");
     }
 
+    public async Task<ApiResponse<List<UserSearchResult>>> SearchUsersAsync(string searchTerm)
+    {
+        return await GetAsync<List<UserSearchResult>>($"/api/admin/users/search?q={Uri.EscapeDataString(searchTerm)}");
+    }
+
     public async Task<ApiResponse<User>> GetUserAdminAsync(string userId)
     {
         return await GetAsync<User>($"/api/admin/users/{userId}");
+    }
+
+    public async Task<ApiResponse<UserDependencies>> GetUserDependenciesAsync(string userId)
+    {
+        return await GetAsync<UserDependencies>($"/api/admin/users/{userId}/dependencies");
     }
 
     public async Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request)
@@ -595,3 +607,5 @@ public record UpdateEventRequest(string Name, string DisplayName, int EventNumbe
 public record CreateEventResultRequest(string FirstPlaceId, string FirstPlaceName, string SecondPlaceId, string SecondPlaceName, string ThirdPlaceId, string ThirdPlaceName);
 
 public record UpdateUserRequest(string Username, string Email, bool IsActive);
+
+public record UserSearchResult(string UserId, string Email, string Username, bool IsActive);

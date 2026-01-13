@@ -167,9 +167,238 @@ public static class AdminEndpoints
         })
         .RequireAdminManagement()
         .WithName("RemoveAdmin");
+
+        // ===== DISCIPLINE MANAGEMENT =====
+        
+        // Get all disciplines (admin)
+        group.MapGet("/disciplines", async (
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            var disciplines = await disciplineRepo.GetAllDisciplinesAsync();
+            return Results.Ok(disciplines);
+        })
+        .RequireAdmin()
+        .WithName("GetAllDisciplinesAdmin");
+
+        // Get specific discipline (admin)
+        group.MapGet("/disciplines/{disciplineId}", async (
+            string disciplineId,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            var discipline = await disciplineRepo.GetDisciplineByIdAsync(disciplineId);
+            if (discipline == null)
+                return Results.NotFound(new { error = "Discipline not found" });
+            
+            return Results.Ok(discipline);
+        })
+        .RequireAdmin()
+        .WithName("GetDisciplineAdmin");
+
+        // Create discipline
+        group.MapPost("/disciplines", async (
+            [FromBody] CreateDisciplineRequest request,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            var discipline = new Discipline
+            {
+                Name = request.Name,
+                DisplayName = request.DisplayName,
+                IsActive = request.IsActive
+            };
+
+            var created = await disciplineRepo.CreateDisciplineAsync(discipline);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateDiscipline");
+
+        // Update discipline
+        group.MapPut("/disciplines/{disciplineId}", async (
+            string disciplineId,
+            [FromBody] UpdateDisciplineRequest request,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            var existing = await disciplineRepo.GetDisciplineByIdAsync(disciplineId);
+            if (existing == null)
+                return Results.NotFound(new { error = "Discipline not found" });
+
+            existing.Name = request.Name;
+            existing.DisplayName = request.DisplayName;
+            existing.IsActive = request.IsActive;
+
+            var updated = await disciplineRepo.UpdateDisciplineAsync(existing);
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(updated);
+        })
+        .RequireAdmin()
+        .WithName("UpdateDiscipline");
+
+        // Delete discipline
+        group.MapDelete("/disciplines/{disciplineId}", async (
+            string disciplineId,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            var success = await disciplineRepo.DeleteDisciplineAsync(disciplineId);
+            if (!success)
+                return Results.NotFound(new { error = "Discipline not found" });
+
+            return Results.Ok(new { message = "Discipline deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteDiscipline");
+
+        // ===== USER MANAGEMENT =====
+
+        // Get all users (admin)
+        group.MapGet("/users", async (
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var users = await userRepo.GetAllUsersAsync();
+            // Don't send password hash/salt to frontend
+            var safeUsers = users.Select(u => new 
+            {
+                u.UserId,
+                u.Email,
+                u.Username,
+                u.PreferredAuthMethod,
+                u.IsActive,
+                u.CreatedDate,
+                u.LastLoginDate
+            }).ToList();
+            return Results.Ok(safeUsers);
+        })
+        .RequireAdmin()
+        .WithName("GetAllUsers");
+
+        // Search users by username or email
+        group.MapGet("/users/search", async (
+            [FromQuery] string q,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            if (string.IsNullOrWhiteSpace(q))
+                return Results.Ok(new List<object>());
+
+            var users = await userRepo.SearchUsersAsync(q);
+            // Don't send password hash/salt to frontend
+            var safeUsers = users.Select(u => new 
+            {
+                u.UserId,
+                u.Email,
+                u.Username,
+                u.IsActive
+            }).ToList();
+            return Results.Ok(safeUsers);
+        })
+        .RequireAdmin()
+        .WithName("SearchUsers");
+
+        // Get specific user (admin)
+        group.MapGet("/users/{userId}", async (
+            string userId,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+            
+            // Don't send password hash/salt to frontend
+            var safeUser = new 
+            {
+                user.UserId,
+                user.Email,
+                user.Username,
+                user.PreferredAuthMethod,
+                user.IsActive,
+                user.CreatedDate,
+                user.LastLoginDate
+            };
+            return Results.Ok(safeUser);
+        })
+        .RequireAdmin()
+        .WithName("GetUserAdmin");
+
+        // Check user dependencies before deletion
+        group.MapGet("/users/{userId}/dependencies", async (
+            string userId,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var dependencies = await userRepo.GetUserDependenciesAsync(userId);
+            return Results.Ok(dependencies);
+        })
+        .RequireAdmin()
+        .WithName("GetUserDependencies");
+
+        // Update user
+        group.MapPut("/users/{userId}", async (
+            string userId,
+            [FromBody] UpdateUserRequest request,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+
+            // Update allowed fields
+            user.Username = request.Username;
+            user.Email = request.Email;
+            user.IsActive = request.IsActive;
+
+            var success = await userRepo.UpdateUserAsync(user);
+            if (!success)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new { message = "User updated successfully" });
+        })
+        .RequireAdmin()
+        .WithName("UpdateUserAdmin");
+
+        // Delete user (with dependency check)
+        group.MapDelete("/users/{userId}", async (
+            string userId,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+
+            // Check for dependencies
+            var dependencies = await userRepo.GetUserDependenciesAsync(userId);
+            if (dependencies.HasDependencies)
+            {
+                var reasons = new List<string>();
+                if (dependencies.PredictionCount > 0)
+                    reasons.Add($"{dependencies.PredictionCount} prediction(s)");
+                if (dependencies.IsAdmin)
+                    reasons.Add("admin privileges");
+
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete user with existing data",
+                    message = $"This user has {string.Join(" and ", reasons)}. Please deactivate the user instead of deleting.",
+                    dependencies = dependencies,
+                    canDelete = false
+                });
+            }
+
+            var success = await userRepo.DeleteUserAsync(userId);
+            if (!success)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new { message = "User deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteUserAdmin");
     }
 }
 
 // Request DTOs
 public record CreateAdminRequest(string UserId, bool IsActive, bool CanManageAdmins);
 public record UpdateAdminRequest(bool IsActive, bool CanManageAdmins);
+public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
+public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
+public record UpdateUserRequest(string Username, string Email, bool IsActive);

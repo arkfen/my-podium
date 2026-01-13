@@ -896,3 +896,139 @@ body {
     color: #991b1b;
     border: 1px solid #fca5a5;
 }
+
+/* User Search Results */
+.search-results {
+    position: absolute;
+    z-index: 10;
+    width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    margin-top: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.search-result-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.search-result-item:hover {
+    background: var(--bg-light);
+}
+
+.search-result-item strong {
+    margin-right: 0.5rem;
+}
+
+.selected-user {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: #dbeafe;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.selected-user button {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-decoration: underline;
+}
+
+.user-display {
+    padding: 0.75rem;
+    background: var(--bg-light);
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+/* User Management Styles */
+.search-bar {
+    max-width: 500px;
+}
+
+.search-bar .form-control {
+    width: 100%;
+}
+
+.user-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.user-link:hover {
+    text-decoration: underline;
+}
+
+.no-results {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-light);
+}
+
+/* User Details Page */
+.user-email {
+    color: var(--text-light);
+    margin-top: 0.5rem;
+}
+
+.user-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.detail-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detail-card h3 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: var(--text-color);
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-label {
+    font-weight: 500;
+    color: var(--text-light);
+}
+
+.detail-value {
+    color: var(--text-color);
+}
+
+.action-buttons {
+    margin-top: 2rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}

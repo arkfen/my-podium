@@ -34,16 +34,45 @@
                 @if (editingAdmin == null)
                 {
                     <div class="form-group">
-                        <label>User ID:</label>
-                        <input type="text" class="form-control" @bind="formUserId" placeholder="Enter User ID" />
-                        <small>Get user ID from Users management page</small>
+                        <label>Search User:</label>
+                        <input type="text" 
+                               class="form-control" 
+                               @bind="searchQuery" 
+                               @bind:event="oninput"
+                               @onkeyup="SearchUsers"
+                               placeholder="Type username or email..." />
+                        
+                        @if (searchResults.Any())
+                        {
+                            <div class="search-results">
+                                @foreach (var user in searchResults)
+                                {
+                                    <div class="search-result-item" @onclick="() => SelectUser(user)">
+                                        <strong>@user.Username</strong> (@user.Email)
+                                        <span class="badge @(user.IsActive ? "badge-success" : "badge-inactive")">
+                                            @(user.IsActive ? "Active" : "Inactive")
+                                        </span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        
+                        @if (selectedUser != null)
+                        {
+                            <div class="selected-user">
+                                <strong>Selected:</strong> @selectedUser.Username (@selectedUser.Email)
+                                <button class="btn-link" @onclick="ClearSelection">Clear</button>
+                            </div>
+                        }
                     </div>
                 }
                 else
                 {
                     <div class="form-group">
-                        <label>User ID:</label>
-                        <input type="text" class="form-control" value="@editingAdmin.UserId" disabled />
+                        <label>User:</label>
+                        <div class="user-display">
+                            <strong>@GetUserDisplay(editingAdmin.UserId)</strong>
+                        </div>
                     </div>
                 }
                 
@@ -61,7 +90,9 @@
                 </div>
                 <div class="form-actions">
                     <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
-                    <button class="btn btn-primary" @onclick="SaveAdmin" disabled="@saving">
+                    <button class="btn btn-primary" 
+                            @onclick="SaveAdmin" 
+                            disabled="@(saving || (editingAdmin == null && selectedUser == null))">
                         @(saving ? "Saving..." : "Save")
                     </button>
                 </div>
@@ -76,7 +107,8 @@
             <table>
                 <thead>
                     <tr>
-                        <th>User ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
                         <th>Status</th>
                         <th>Can Manage Admins</th>
                         <th>Created</th>
@@ -88,7 +120,8 @@
                     @foreach (var admin in admins)
                     {
                         <tr>
-                            <td>@admin.UserId</td>
+                            <td>@GetUsername(admin.UserId)</td>
+                            <td>@GetEmail(admin.UserId)</td>
                             <td>
                                 <span class="badge @(admin.IsActive ? "badge-success" : "badge-inactive")">
                                     @(admin.IsActive ? "Active" : "Inactive")
@@ -105,7 +138,18 @@
                                 }
                             </td>
                             <td>@admin.CreatedDate.ToShortDateString()</td>
-                            <td>@admin.CreatedBy</td>
+                            <td>
+                                @if (admin.CreatedBy == "System")
+                                {
+                                    <span>System</span>
+                                }
+                                else
+                                {
+                                    <a href="/admin/users/@admin.CreatedBy" class="user-link">
+                                        @GetCreatedByUsername(admin.CreatedBy)
+                                    </a>
+                                }
+                            </td>
                             <td>
                                 <button class="btn btn-sm btn-secondary" @onclick="() => EditAdmin(admin)">Edit</button>
                                 <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(admin)" 
@@ -123,23 +167,26 @@
 
 <ConfirmDialog IsVisible="showDeleteConfirm"
                Title="Remove Administrator"
-               Message="@($"Are you sure you want to remove admin privileges for User ID '{adminToDelete?.UserId}'?")"
+               Message="@($"Are you sure you want to remove admin privileges for {GetUsername(adminToDelete?.UserId ?? "")}?")"
                ConfirmText="Remove"
                OnConfirm="DeleteAdmin"
                OnCancel="CancelDelete" />
 
 @code {
     private List<Admin> admins = new();
+    private Dictionary<string, User> userCache = new();
+    private List<UserSearchResult> searchResults = new();
+    private UserSearchResult? selectedUser = null;
     private bool loading = true;
     private bool saving = false;
     private bool showForm = false;
     private bool showDeleteConfirm = false;
     private string errorMessage = "";
     private string formError = "";
+    private string searchQuery = "";
 
     private Admin? editingAdmin = null;
     private Admin? adminToDelete = null;
-    private string formUserId = "";
     private bool formIsActive = true;
     private bool formCanManageAdmins = false;
 
@@ -157,6 +204,7 @@
         }
 
         await LoadAdmins();
+        await LoadUserDetails();
     }
 
     private async Task LoadAdmins()
@@ -177,10 +225,98 @@
         loading = false;
     }
 
+    private async Task LoadUserDetails()
+    {
+        // Load user details for all admins and their creators
+        var userIdsToLoad = new HashSet<string>();
+        
+        foreach (var admin in admins)
+        {
+            userIdsToLoad.Add(admin.UserId);
+            if (!string.IsNullOrEmpty(admin.CreatedBy) && admin.CreatedBy != "System")
+            {
+                userIdsToLoad.Add(admin.CreatedBy);
+            }
+        }
+
+        foreach (var userId in userIdsToLoad)
+        {
+            if (!userCache.ContainsKey(userId))
+            {
+                var response = await ApiClient.GetUserAdminAsync(userId);
+                if (response.Success && response.Data != null)
+                {
+                    userCache[userId] = response.Data;
+                }
+            }
+        }
+        StateHasChanged();
+    }
+
+    private string GetUsername(string userId)
+    {
+        return userCache.TryGetValue(userId, out var user) ? user.Username : userId;
+    }
+
+    private string GetEmail(string userId)
+    {
+        return userCache.TryGetValue(userId, out var user) ? user.Email : "Loading...";
+    }
+
+    private string GetCreatedByUsername(string userId)
+    {
+        if (string.IsNullOrEmpty(userId) || userId == "System")
+            return "System";
+        return userCache.TryGetValue(userId, out var user) ? user.Username : userId;
+    }
+
+    private string GetUserDisplay(string userId)
+    {
+        if (userCache.TryGetValue(userId, out var user))
+        {
+            return $"{user.Username} ({user.Email})";
+        }
+        return userId;
+    }
+
+    private async Task SearchUsers()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery) || searchQuery.Length < 2)
+        {
+            searchResults.Clear();
+            return;
+        }
+
+        var response = await ApiClient.SearchUsersAsync(searchQuery);
+        if (response.Success && response.Data != null)
+        {
+            searchResults = response.Data.Take(10).ToList();
+        }
+        else
+        {
+            searchResults.Clear();
+        }
+    }
+
+    private void SelectUser(UserSearchResult user)
+    {
+        selectedUser = user;
+        searchResults.Clear();
+        searchQuery = "";
+    }
+
+    private void ClearSelection()
+    {
+        selectedUser = null;
+        searchQuery = "";
+    }
+
     private void ShowCreateForm()
     {
         editingAdmin = null;
-        formUserId = "";
+        selectedUser = null;
+        searchQuery = "";
+        searchResults.Clear();
         formIsActive = true;
         formCanManageAdmins = false;
         formError = "";
@@ -190,7 +326,6 @@
     private void EditAdmin(Admin admin)
     {
         editingAdmin = admin;
-        formUserId = admin.UserId;
         formIsActive = admin.IsActive;
         formCanManageAdmins = admin.CanManageAdmins;
         formError = "";
@@ -201,28 +336,32 @@
     {
         showForm = false;
         editingAdmin = null;
+        selectedUser = null;
+        searchQuery = "";
+        searchResults.Clear();
         formError = "";
     }
 
     private async Task SaveAdmin()
     {
-        if (editingAdmin == null && string.IsNullOrWhiteSpace(formUserId))
+        if (editingAdmin == null && selectedUser == null)
         {
-            formError = "User ID is required";
+            formError = "Please select a user";
             return;
         }
 
         saving = true;
         formError = "";
 
-        if (editingAdmin == null)
+        if (editingAdmin == null && selectedUser != null)
         {
             // Create
-            var response = await ApiClient.CreateAdminAsync(formUserId, formIsActive, formCanManageAdmins);
+            var response = await ApiClient.CreateAdminAsync(selectedUser.UserId, formIsActive, formCanManageAdmins);
             
             if (response.Success)
             {
                 await LoadAdmins();
+                await LoadUserDetails();
                 CancelForm();
             }
             else
@@ -230,7 +369,7 @@
                 formError = response.Error ?? "Failed to create administrator";
             }
         }
-        else
+        else if (editingAdmin != null)
         {
             // Update
             var response = await ApiClient.UpdateAdminAsync(editingAdmin.UserId, formIsActive, formCanManageAdmins);

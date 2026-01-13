@@ -10,6 +10,11 @@ public interface IUserRepository
     Task<User?> GetUserByIdAsync(string userId);
     Task<bool> CreateUserAsync(User user);
     Task<bool> UpdateLastLoginAsync(string userId);
+    Task<List<User>> GetAllUsersAsync();
+    Task<List<User>> SearchUsersAsync(string searchTerm);
+    Task<bool> UpdateUserAsync(User user);
+    Task<bool> DeleteUserAsync(string userId);
+    Task<UserDependencies> GetUserDependenciesAsync(string userId);
 }
 
 public class UserRepository : IUserRepository
@@ -124,6 +129,147 @@ public class UserRepository : IUserRepository
         {
             return false;
         }
+    }
+
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        var users = new List<User>();
+
+        try
+        {
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>())
+            {
+                users.Add(MapToUser(entity));
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return users;
+        }
+
+        return users.OrderBy(u => u.Username).ToList();
+    }
+
+    public async Task<List<User>> SearchUsersAsync(string searchTerm)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        var users = new List<User>();
+
+        if (string.IsNullOrWhiteSpace(searchTerm))
+            return users;
+
+        try
+        {
+            var normalizedSearch = searchTerm.ToLowerInvariant();
+            
+            // Get all users and filter in memory (Azure Tables has limited query capabilities)
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>())
+            {
+                var user = MapToUser(entity);
+                if (user.Username.ToLowerInvariant().Contains(normalizedSearch) ||
+                    user.Email.ToLowerInvariant().Contains(normalizedSearch))
+                {
+                    users.Add(user);
+                }
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return users;
+        }
+
+        return users.OrderBy(u => u.Username).ToList();
+    }
+
+    public async Task<bool> UpdateUserAsync(User user)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            if (user.UserId.Length < 6)
+                return false;
+
+            var partitionKey = user.UserId.Substring(0, 6);
+            var rowKey = user.UserId.Substring(6);
+
+            var entity = new TableEntity(partitionKey, rowKey)
+            {
+                ["UserId"] = user.UserId,
+                ["Email"] = user.Email.ToLowerInvariant(),
+                ["Username"] = user.Username,
+                ["PasswordHash"] = user.PasswordHash,
+                ["PasswordSalt"] = user.PasswordSalt,
+                ["PreferredAuthMethod"] = user.PreferredAuthMethod,
+                ["IsActive"] = user.IsActive,
+                ["CreatedDate"] = user.CreatedDate,
+                ["LastLoginDate"] = user.LastLoginDate
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteUserAsync(string userId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            if (userId.Length < 6)
+                return false;
+
+            var partitionKey = userId.Substring(0, 6);
+            var rowKey = userId.Substring(6);
+
+            await tableClient.DeleteEntityAsync(partitionKey, rowKey);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<UserDependencies> GetUserDependenciesAsync(string userId)
+    {
+        // Check if user has any data that would prevent deletion
+        var dependencies = new UserDependencies { UserId = userId };
+
+        try
+        {
+            // Check predictions
+            var predictionsClient = _tableClientFactory.GetTableClient("PodiumPredictions");
+            var predictionFilter = $"UserId eq '{userId}'";
+            await foreach (var _ in predictionsClient.QueryAsync<TableEntity>(filter: predictionFilter))
+            {
+                dependencies.PredictionCount++;
+            }
+
+            // Check if user is an admin
+            var adminsClient = _tableClientFactory.GetTableClient("PodiumAdmins");
+            try
+            {
+                var adminResponse = await adminsClient.GetEntityAsync<TableEntity>("Admin", userId);
+                dependencies.IsAdmin = true;
+            }
+            catch (RequestFailedException)
+            {
+                dependencies.IsAdmin = false;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Tables might not exist, that's okay
+        }
+
+        return dependencies;
     }
 
     private static User MapToUser(TableEntity entity)
