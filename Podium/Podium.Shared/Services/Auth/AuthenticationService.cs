@@ -9,8 +9,8 @@ namespace Podium.Shared.Services.Auth;
 public interface IAuthenticationService
 {
     Task<(bool Success, string ErrorMessage)> SendOTPAsync(string email);
-    Task<(bool Success, string UserId, string Username, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode);
-    Task<(bool Success, string UserId, string Username, string ErrorMessage)> SignInWithPasswordAsync(string email, string password);
+    Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode);
+    Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string email, string password);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> ValidateSessionAsync(string sessionId);
     Task SignOutAsync(string sessionId);
 }
@@ -100,7 +100,7 @@ public class AuthenticationService : IAuthenticationService
         return (true, string.Empty);
     }
 
-    public async Task<(bool Success, string UserId, string Username, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode)
+    public async Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode)
     {
         var otpClient = _tableClientFactory.GetTableClient(OTPTable);
         var cutoffTime = DateTime.UtcNow.AddMinutes(-10);
@@ -121,7 +121,7 @@ public class AuthenticationService : IAuthenticationService
 
             if (validOtp == null)
             {
-                return (false, string.Empty, string.Empty, "Invalid or expired code.");
+                return (false, string.Empty, string.Empty, string.Empty, "Invalid or expired code.");
             }
 
             // Mark OTP as used
@@ -140,15 +140,15 @@ public class AuthenticationService : IAuthenticationService
             // Create session
             var sessionId = await CreateSessionAsync(userId, email, username);
 
-            return (true, userId, username, string.Empty);
+            return (true, userId, username, sessionId, string.Empty);
         }
         catch (Exception ex)
         {
-            return (false, string.Empty, string.Empty, $"Verification failed: {ex.Message}");
+            return (false, string.Empty, string.Empty, string.Empty, $"Verification failed: {ex.Message}");
         }
     }
 
-    public async Task<(bool Success, string UserId, string Username, string ErrorMessage)> SignInWithPasswordAsync(string email, string password)
+    public async Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string email, string password)
     {
         var userClient = _tableClientFactory.GetTableClient(UsersTable);
         User? user = null;
@@ -164,24 +164,24 @@ public class AuthenticationService : IAuthenticationService
         }
         catch (RequestFailedException ex)
         {
-            return (false, string.Empty, string.Empty, $"Database error: {ex.Message}");
+            return (false, string.Empty, string.Empty, string.Empty, $"Database error: {ex.Message}");
         }
 
         if (user == null)
         {
-            return (false, string.Empty, string.Empty, "Invalid email or password.");
+            return (false, string.Empty, string.Empty, string.Empty, "Invalid email or password.");
         }
 
         // Verify password
         if (!VerifyPassword(password, user.PasswordHash, user.PasswordSalt))
         {
-            return (false, string.Empty, string.Empty, "Invalid email or password.");
+            return (false, string.Empty, string.Empty, string.Empty, "Invalid email or password.");
         }
 
         // Create session
         var sessionId = await CreateSessionAsync(user.UserId, user.Email, user.Username);
 
-        return (true, user.UserId, user.Username, string.Empty);
+        return (true, user.UserId, user.Username, sessionId, string.Empty);
     }
 
     public async Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> ValidateSessionAsync(string sessionId)

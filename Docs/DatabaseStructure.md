@@ -334,20 +334,52 @@ Stores aggregated user statistics per season.
 
 ---
 
-## Indexing Strategy
+### 14. Admins
+**Table Name:** `PodiumAdmins`
 
-Azure Table Storage supports querying by:
-1. PartitionKey (most efficient)
-2. PartitionKey + RowKey (direct lookup)
-3. PartitionKey + filter on other properties
+Stores administrator privileges for users. Admins are regular users with elevated permissions.
 
-Our design ensures efficient queries:
-- Disciplines by ID: Direct lookup
-- Series by Discipline: Query by PartitionKey = DisciplineId
-- Seasons by Series: Query by PartitionKey = SeriesId
-- Events by Season: Query by PartitionKey = SeasonId
-- Predictions by Event: Query by PartitionKey = EventId
-- User stats by Season: Query by PartitionKey = SeasonId
+| Column | Type | Description |
+|--------|------|-------------|
+| PartitionKey | string | Fixed value: "Admin" |
+| RowKey | string | User ID (links to Users.UserId) |
+| UserId | string | User ID (redundant for easier queries) |
+| IsActive | bool | Whether admin account is active |
+| CanManageAdmins | bool | Whether admin can create/modify other admins |
+| CreatedDate | DateTime | When admin privileges were granted |
+| CreatedBy | string | User ID who created this admin |
+| LastModifiedDate | DateTime? | Last modification date (nullable) |
+| LastModifiedBy | string? | User ID who last modified this admin |
+
+**Example:**
+- PartitionKey: "Admin"
+- RowKey: "e5f6g7h8i9j0-k1l2-3m4n-5o6p-7q8r9s0t1u2v"
+- IsActive: true
+- CanManageAdmins: true
+
+**Admin Permissions:**
+- **IsActive = true**: User can access admin endpoints (manage seasons, view diagnostics, etc.)
+- **CanManageAdmins = true**: User can create, modify, and remove other admin accounts
+
+**Security Notes:**
+- Admins must first be regular users (must exist in PodiumUsers table)
+- Admins still sign in normally using their user credentials
+- Admin status is checked after session validation
+- Admins cannot remove themselves
+- Only admins with CanManageAdmins=true can modify the admin list
+
+---
+
+## Future Enhancements
+
+Potential future additions:
+1. ~~UserRoles table for admin/moderator roles~~ **IMPLEMENTED** (see PodiumAdmins above)
+2. Notifications table for user notifications
+3. AuditLog table for tracking changes
+4. UserPreferences table for UI preferences
+5. Comments/Social features
+
+---
 
 ## Security Considerations
 
@@ -356,18 +388,5 @@ Our design ensures efficient queries:
 3. **Sessions**: Expire after 14 days and can be invalidated
 4. **Connection Strings**: Stored securely in app configuration
 5. **Input Validation**: All user inputs validated before storage
-
-## Migration Notes
-
-This is a new database structure. The legacy MyPodium tables are not migrated but can coexist:
-- Legacy tables: `MyPodiumUsers`, `MyPodiumRaces`, `MyPodiumDreams`, etc.
-- New tables: `Podium*` prefix
-
-## Future Enhancements
-
-Potential future additions:
-1. UserRoles table for admin/moderator roles
-2. Notifications table for user notifications
-3. AuditLog table for tracking changes
-4. UserPreferences table for UI preferences
-5. Comments/Social features
+6. **API Authorization**: All endpoints (except auth endpoints) require valid session via X-Session-Id header
+7. **Admin Authorization**: Admin endpoints require active admin status; admin management endpoints require CanManageAdmins permission

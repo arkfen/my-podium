@@ -51,7 +51,7 @@ public static class AuthEndpoints
             [FromBody] VerifyOtpRequest request,
             [FromServices] IAuthenticationService authService) =>
         {
-            var (success, userId, username, errorMessage) = await authService.VerifyOTPAsync(
+            var (success, userId, username, sessionId, errorMessage) = await authService.VerifyOTPAsync(
                 request.Email, 
                 request.OtpCode);
 
@@ -60,7 +60,7 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = errorMessage });
             }
 
-            return Results.Ok(new { userId, username, message = "Authentication successful" });
+            return Results.Ok(new { userId, username, sessionId, message = "Authentication successful" });
         })
         .WithName("VerifyOTP");
 
@@ -69,7 +69,7 @@ public static class AuthEndpoints
             [FromBody] SignInRequest request,
             [FromServices] IAuthenticationService authService) =>
         {
-            var (success, userId, username, errorMessage) = await authService.SignInWithPasswordAsync(
+            var (success, userId, username, sessionId, errorMessage) = await authService.SignInWithPasswordAsync(
                 request.Email, 
                 request.Password);
 
@@ -78,7 +78,7 @@ public static class AuthEndpoints
                 return Results.BadRequest(new { error = errorMessage });
             }
 
-            return Results.Ok(new { userId, username, message = "Sign in successful" });
+            return Results.Ok(new { userId, username, sessionId, message = "Sign in successful" });
         })
         .WithName("SignIn");
 

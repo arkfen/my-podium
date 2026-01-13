@@ -42,7 +42,7 @@ public class EmailService : IEmailService
             var message = new MailMessage
             {
                 From = new MailAddress(_senderEmail, _senderName),
-                Subject = "Your Verification Code for Podium",
+                Subject = "Your Verification Code for YouCent Podium",
                 IsBodyHtml = true,
                 Body = $@"
                     <!DOCTYPE html>
@@ -60,7 +60,7 @@ public class EmailService : IEmailService
                     <body>
                         <div class='container'>
                             <div class='header'>
-                                <h1>?? Podium</h1>
+                                <h1>YouCent Podium</h1>
                             </div>
                             <div class='content'>
                                 <h2>Your Verification Code</h2>

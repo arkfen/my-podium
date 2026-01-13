@@ -40,24 +40,28 @@ namespace Podium.Native
 
             builder.Services.AddSingleton<IAppConfiguration>(appConfig);
 
-            // Configure HttpClient with API base URL
-            builder.Services.AddScoped(sp => 
-            {
-                var config = sp.GetRequiredService<IAppConfiguration>();
-                return new HttpClient { BaseAddress = new Uri(config.ApiBaseUrl) };
-            });
-
-            builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
-
-            // Add storage service for session persistence
+            // Add state management with storage first (needed by message handler)
             builder.Services.AddScoped<IStorageService, BrowserStorageService>();
-
-            // Add state management with storage
             builder.Services.AddScoped<AuthStateService>(sp =>
             {
                 var storageService = sp.GetRequiredService<IStorageService>();
                 return new AuthStateService(storageService);
             });
+
+            // Register the authentication message handler
+            builder.Services.AddScoped<AuthenticationMessageHandler>();
+
+            // Configure HttpClient with API base URL and authentication handler
+            builder.Services.AddScoped(sp => 
+            {
+                var config = sp.GetRequiredService<IAppConfiguration>();
+                var authHandler = sp.GetRequiredService<AuthenticationMessageHandler>();
+                authHandler.InnerHandler = new HttpClientHandler();
+                
+                return new HttpClient(authHandler) { BaseAddress = new Uri(config.ApiBaseUrl) };
+            });
+
+            builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
 
             return builder.Build();
         }

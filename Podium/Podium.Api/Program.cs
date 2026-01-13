@@ -77,6 +77,7 @@ builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<IPredictionRepository, PredictionRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ILeaderboardRepository, LeaderboardRepository>();
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 
 // Register authentication services with email callback
 builder.Services.AddScoped<IAuthenticationService>(sp =>

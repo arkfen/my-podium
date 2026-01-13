@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Data;
+using Podium.Api.Middleware;
 
 namespace Podium.Api.Endpoints;
 
@@ -14,17 +15,26 @@ public static class PredictionEndpoints
         group.MapGet("/{eventId}/user/{userId}", async (
             string eventId,
             string userId,
+            HttpContext httpContext,
             [FromServices] IPredictionRepository predictionRepo) =>
         {
+            // Ensure user can only access their own predictions
+            var authenticatedUserId = httpContext.GetUserId();
+            if (authenticatedUserId != userId)
+            {
+                return Results.Forbid();
+            }
+
             var prediction = await predictionRepo.GetPredictionAsync(eventId, userId);
             if (prediction == null)
                 return Results.NotFound(new { error = "No prediction found" });
             
             return Results.Ok(prediction);
         })
+        .RequireAuth()
         .WithName("GetPrediction");
 
-        // Get all predictions for an event
+        // Get all predictions for an event (public after event starts)
         group.MapGet("/{eventId}", async (
             string eventId,
             [FromServices] IPredictionRepository predictionRepo) =>
@@ -32,15 +42,24 @@ public static class PredictionEndpoints
             var predictions = await predictionRepo.GetPredictionsByEventAsync(eventId);
             return Results.Ok(predictions);
         })
+        .RequireAuth()
         .WithName("GetEventPredictions");
 
         // Get user's predictions for a season
         group.MapGet("/user/{userId}/season/{seasonId}", async (
             string userId,
             string seasonId,
+            HttpContext httpContext,
             [FromServices] IPredictionRepository predictionRepo,
             [FromServices] IEventRepository eventRepo) =>
         {
+            // Ensure user can only access their own predictions
+            var authenticatedUserId = httpContext.GetUserId();
+            if (authenticatedUserId != userId)
+            {
+                return Results.Forbid();
+            }
+
             // Get all events in the season
             var events = await eventRepo.GetEventsBySeasonAsync(seasonId);
             var eventIds = events.Select(e => e.Id).ToList();
@@ -49,14 +68,23 @@ public static class PredictionEndpoints
             var predictions = await predictionRepo.GetPredictionsByUserAndSeasonAsync(userId, seasonId, eventIds);
             return Results.Ok(predictions);
         })
+        .RequireAuth()
         .WithName("GetUserSeasonPredictions");
 
         // Submit/update a prediction
         group.MapPost("/", async (
             [FromBody] SubmitPredictionRequest request,
+            HttpContext httpContext,
             [FromServices] IPredictionRepository predictionRepo,
             [FromServices] IEventRepository eventRepo) =>
         {
+            // Ensure user can only submit their own predictions
+            var authenticatedUserId = httpContext.GetUserId();
+            if (authenticatedUserId != request.UserId)
+            {
+                return Results.Forbid();
+            }
+
             // Validate event exists and accepts predictions
             var eventDetails = await eventRepo.GetEventByIdAsync(request.SeasonId, request.EventId);
             if (eventDetails == null)
@@ -94,6 +122,7 @@ public static class PredictionEndpoints
 
             return Results.Ok(new { message = "Prediction saved successfully", prediction });
         })
+        .RequireAuth()
         .WithName("SubmitPrediction");
     }
 }

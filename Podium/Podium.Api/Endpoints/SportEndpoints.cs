@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Services.Data;
+using Podium.Api.Middleware;
 
 namespace Podium.Api.Endpoints;
 
@@ -15,6 +16,7 @@ public static class SportEndpoints
             var disciplines = await disciplineRepo.GetActiveDisciplinesAsync();
             return Results.Ok(disciplines);
         })
+        .RequireAuth()
         .WithName("GetDisciplines");
 
         // Get series for a discipline
@@ -25,6 +27,7 @@ public static class SportEndpoints
             var series = await seriesRepo.GetActiveSeriesByDisciplineAsync(disciplineId);
             return Results.Ok(series);
         })
+        .RequireAuth()
         .WithName("GetSeries");
 
         // Get seasons for a series
@@ -35,6 +38,7 @@ public static class SportEndpoints
             var seasons = await seasonRepo.GetSeasonsBySeriesAsync(seriesId);
             return Results.Ok(seasons);
         })
+        .RequireAuth()
         .WithName("GetSeasons");
 
         // Get active season for a series
@@ -48,6 +52,7 @@ public static class SportEndpoints
             
             return Results.Ok(season);
         })
+        .RequireAuth()
         .WithName("GetActiveSeason");
 
         // Get events for a season
@@ -58,6 +63,7 @@ public static class SportEndpoints
             var events = await eventRepo.GetEventsBySeasonAsync(seasonId);
             return Results.Ok(events);
         })
+        .RequireAuth()
         .WithName("GetEvents");
 
         // Get upcoming events for a season
@@ -68,6 +74,7 @@ public static class SportEndpoints
             var events = await eventRepo.GetUpcomingEventsBySeasonAsync(seasonId);
             return Results.Ok(events);
         })
+        .RequireAuth()
         .WithName("GetUpcomingEvents");
 
         // Get competitors for a season
@@ -78,6 +85,7 @@ public static class SportEndpoints
             var competitors = await competitorRepo.GetCompetitorsBySeasonAsync(seasonId);
             return Results.Ok(competitors);
         })
+        .RequireAuth()
         .WithName("GetCompetitors");
 
         // Get event details
@@ -92,6 +100,7 @@ public static class SportEndpoints
             
             return Results.Ok(eventDetails);
         })
+        .RequireAuth()
         .WithName("GetEventDetails");
 
         // Get event result
@@ -105,6 +114,7 @@ public static class SportEndpoints
             
             return Results.Ok(result);
         })
+        .RequireAuth()
         .WithName("GetEventResult");
     }
 }

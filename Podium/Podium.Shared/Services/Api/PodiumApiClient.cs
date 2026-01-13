@@ -230,7 +230,7 @@ public class ApiResponse<T>
 
 public record RegisterResponse(string UserId, string Message);
 public record MessageResponse(string Message);
-public record AuthResponse(string UserId, string Username, string Message);
+public record AuthResponse(string UserId, string Username, string SessionId, string Message);
 public record PredictionResponse(string Message, Prediction Prediction);
 
 public record SubmitPredictionRequest(

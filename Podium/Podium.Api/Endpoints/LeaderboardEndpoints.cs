@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Services.Data;
+using Podium.Api.Middleware;
 
 namespace Podium.Api.Endpoints;
 
@@ -17,6 +18,7 @@ public static class LeaderboardEndpoints
             var leaderboard = await leaderboardRepo.GetLeaderboardBySeasonAsync(seasonId);
             return Results.Ok(leaderboard);
         })
+        .RequireAuth()
         .WithName("GetLeaderboard");
 
         // Get user statistics for a season
@@ -44,6 +46,7 @@ public static class LeaderboardEndpoints
             
             return Results.Ok(stats);
         })
+        .RequireAuth()
         .WithName("GetUserStatistics");
     }
 }

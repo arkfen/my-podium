@@ -1,0 +1,163 @@
+using Azure;
+using Azure.Data.Tables;
+using Podium.Shared.Models;
+
+namespace Podium.Shared.Services.Data;
+
+public interface IAdminRepository
+{
+    Task<Admin?> GetAdminAsync(string userId);
+    Task<bool> IsAdminAsync(string userId);
+    Task<bool> IsActiveAdminAsync(string userId);
+    Task<bool> CanManageAdminsAsync(string userId);
+    Task<List<Admin>> GetAllAdminsAsync();
+    Task<bool> CreateAdminAsync(Admin admin);
+    Task<bool> UpdateAdminAsync(Admin admin);
+    Task<bool> DeleteAdminAsync(string userId);
+}
+
+public class AdminRepository : IAdminRepository
+{
+    private readonly ITableClientFactory _tableClientFactory;
+    private const string TableName = "PodiumAdmins";
+
+    public AdminRepository(ITableClientFactory tableClientFactory)
+    {
+        _tableClientFactory = tableClientFactory;
+    }
+
+    public async Task<Admin?> GetAdminAsync(string userId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            var response = await tableClient.GetEntityAsync<TableEntity>("Admin", userId);
+            return MapToAdmin(response.Value);
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> IsAdminAsync(string userId)
+    {
+        var admin = await GetAdminAsync(userId);
+        return admin != null;
+    }
+
+    public async Task<bool> IsActiveAdminAsync(string userId)
+    {
+        var admin = await GetAdminAsync(userId);
+        return admin != null && admin.IsActive;
+    }
+
+    public async Task<bool> CanManageAdminsAsync(string userId)
+    {
+        var admin = await GetAdminAsync(userId);
+        return admin != null && admin.IsActive && admin.CanManageAdmins;
+    }
+
+    public async Task<List<Admin>> GetAllAdminsAsync()
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        var admins = new List<Admin>();
+
+        try
+        {
+            var filter = "PartitionKey eq 'Admin'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                admins.Add(MapToAdmin(entity));
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return admins;
+        }
+
+        return admins.OrderBy(a => a.CreatedDate).ToList();
+    }
+
+    public async Task<bool> CreateAdminAsync(Admin admin)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            var entity = new TableEntity("Admin", admin.UserId)
+            {
+                ["UserId"] = admin.UserId,
+                ["IsActive"] = admin.IsActive,
+                ["CanManageAdmins"] = admin.CanManageAdmins,
+                ["CreatedDate"] = admin.CreatedDate,
+                ["CreatedBy"] = admin.CreatedBy,
+                ["LastModifiedDate"] = admin.LastModifiedDate,
+                ["LastModifiedBy"] = admin.LastModifiedBy
+            };
+
+            await tableClient.AddEntityAsync(entity);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> UpdateAdminAsync(Admin admin)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            var entity = new TableEntity("Admin", admin.UserId)
+            {
+                ["UserId"] = admin.UserId,
+                ["IsActive"] = admin.IsActive,
+                ["CanManageAdmins"] = admin.CanManageAdmins,
+                ["CreatedDate"] = admin.CreatedDate,
+                ["CreatedBy"] = admin.CreatedBy,
+                ["LastModifiedDate"] = admin.LastModifiedDate,
+                ["LastModifiedBy"] = admin.LastModifiedBy
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteAdminAsync(string userId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync("Admin", userId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    private static Admin MapToAdmin(TableEntity entity)
+    {
+        return new Admin
+        {
+            UserId = entity.RowKey,
+            IsActive = entity.GetBoolean("IsActive") ?? false,
+            CanManageAdmins = entity.GetBoolean("CanManageAdmins") ?? false,
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.UtcNow,
+            CreatedBy = entity.GetString("CreatedBy") ?? string.Empty,
+            LastModifiedDate = entity.GetDateTimeOffset("LastModifiedDate")?.DateTime,
+            LastModifiedBy = entity.GetString("LastModifiedBy")
+        };
+    }
+}

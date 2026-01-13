@@ -95,7 +95,7 @@ class Program
             "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
             "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
-            "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics"
+            "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics", "PodiumAdmins"
         };
 
         foreach (var tableName in tableNames)
@@ -122,7 +122,7 @@ class Program
             "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
             "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
-            "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics"
+            "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics", "PodiumAdmins"
         };
 
         foreach (var tableName in tableNames)
