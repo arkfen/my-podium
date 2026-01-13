@@ -151,7 +151,6 @@
 
     private void EditUser()
     {
-        Navigation.NavigateTo($"/admin/users");
-        // TODO: Could pass a parameter to open edit form for this user
+        Navigation.NavigateTo($"/admin/users?editUserId={UserId}");
     }
 }
