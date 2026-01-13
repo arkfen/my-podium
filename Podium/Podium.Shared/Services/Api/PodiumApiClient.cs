@@ -34,6 +34,68 @@ public interface IPodiumApiClient
     // Leaderboard
     Task<ApiResponse<List<UserStatistics>>> GetLeaderboardAsync(string seasonId);
     Task<ApiResponse<UserStatistics>> GetUserStatisticsAsync(string seasonId, string userId);
+
+    // Admin - Season Management
+    Task<ApiResponse<MessageResponse>> SetActiveSeasonAsync(string seriesId, string seasonId);
+    Task<ApiResponse<MessageResponse>> FindDuplicateActiveSeasonsAsync();
+
+    // Admin - Admin Management
+    Task<ApiResponse<List<Admin>>> GetAllAdminsAsync();
+    Task<ApiResponse<Admin>> GetAdminAsync(string userId);
+    Task<ApiResponse<MessageResponse>> CreateAdminAsync(string userId, bool isActive, bool canManageAdmins);
+    Task<ApiResponse<MessageResponse>> UpdateAdminAsync(string userId, bool isActive, bool canManageAdmins);
+    Task<ApiResponse<MessageResponse>> RemoveAdminAsync(string userId);
+
+    // Admin - Discipline Management
+    Task<ApiResponse<List<Discipline>>> GetAllDisciplinesAdminAsync();
+    Task<ApiResponse<Discipline>> GetDisciplineAdminAsync(string disciplineId);
+    Task<ApiResponse<Discipline>> CreateDisciplineAsync(CreateDisciplineRequest request);
+    Task<ApiResponse<Discipline>> UpdateDisciplineAsync(string disciplineId, UpdateDisciplineRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteDisciplineAsync(string disciplineId);
+
+    // Admin - Series Management
+    Task<ApiResponse<List<Series>>> GetAllSeriesAdminAsync(string disciplineId);
+    Task<ApiResponse<Series>> GetSeriesAdminAsync(string seriesId);
+    Task<ApiResponse<Series>> CreateSeriesAsync(CreateSeriesRequest request);
+    Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, UpdateSeriesRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId);
+
+    // Admin - Season Management
+    Task<ApiResponse<List<Season>>> GetAllSeasonsAdminAsync(string seriesId);
+    Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId);
+    Task<ApiResponse<Season>> CreateSeasonAsync(CreateSeasonRequest request);
+    Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, UpdateSeasonRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId);
+
+    // Admin - Competitor Management
+    Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId);
+    Task<ApiResponse<Competitor>> GetCompetitorAdminAsync(string competitorId);
+    Task<ApiResponse<Competitor>> CreateCompetitorAsync(CreateCompetitorRequest request);
+    Task<ApiResponse<Competitor>> UpdateCompetitorAsync(string competitorId, UpdateCompetitorRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId);
+
+    // Admin - Season Competitor Management
+    Task<ApiResponse<List<SeasonCompetitor>>> GetSeasonCompetitorsAdminAsync(string seasonId);
+    Task<ApiResponse<MessageResponse>> AddCompetitorToSeasonAsync(string seasonId, string competitorId);
+    Task<ApiResponse<MessageResponse>> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId);
+
+    // Admin - Event Management
+    Task<ApiResponse<List<Event>>> GetAllEventsAdminAsync(string seasonId);
+    Task<ApiResponse<Event>> GetEventAdminAsync(string eventId);
+    Task<ApiResponse<Event>> CreateEventAsync(CreateEventRequest request);
+    Task<ApiResponse<Event>> UpdateEventAsync(string eventId, UpdateEventRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId);
+
+    // Admin - Event Result Management
+    Task<ApiResponse<EventResult>> GetEventResultAdminAsync(string eventId);
+    Task<ApiResponse<EventResult>> CreateOrUpdateEventResultAsync(string eventId, CreateEventResultRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteEventResultAsync(string eventId);
+
+    // Admin - User Management
+    Task<ApiResponse<List<User>>> GetAllUsersAsync();
+    Task<ApiResponse<User>> GetUserAdminAsync(string userId);
+    Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId);
 }
 
 public class PodiumApiClient : IPodiumApiClient
@@ -155,6 +217,228 @@ public class PodiumApiClient : IPodiumApiClient
         return await GetAsync<UserStatistics>($"/api/leaderboard/season/{seasonId}/user/{userId}");
     }
 
+    // Admin - Season Management
+    public async Task<ApiResponse<MessageResponse>> SetActiveSeasonAsync(string seriesId, string seasonId)
+    {
+        return await PostAsync<MessageResponse>($"/api/admin/series/{seriesId}/seasons/{seasonId}/set-active", new { });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> FindDuplicateActiveSeasonsAsync()
+    {
+        return await GetAsync<MessageResponse>("/api/admin/diagnostics/duplicate-active-seasons");
+    }
+
+    // Admin - Admin Management
+    public async Task<ApiResponse<List<Admin>>> GetAllAdminsAsync()
+    {
+        return await GetAsync<List<Admin>>("/api/admin/admins");
+    }
+
+    public async Task<ApiResponse<Admin>> GetAdminAsync(string userId)
+    {
+        return await GetAsync<Admin>($"/api/admin/admins/{userId}");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> CreateAdminAsync(string userId, bool isActive, bool canManageAdmins)
+    {
+        return await PostAsync<MessageResponse>("/api/admin/admins", 
+            new { userId, isActive, canManageAdmins });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdateAdminAsync(string userId, bool isActive, bool canManageAdmins)
+    {
+        return await PutAsync<MessageResponse>($"/api/admin/admins/{userId}", 
+            new { isActive, canManageAdmins });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> RemoveAdminAsync(string userId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/admins/{userId}");
+    }
+
+    // Admin - Discipline Management
+    public async Task<ApiResponse<List<Discipline>>> GetAllDisciplinesAdminAsync()
+    {
+        return await GetAsync<List<Discipline>>("/api/admin/disciplines");
+    }
+
+    public async Task<ApiResponse<Discipline>> GetDisciplineAdminAsync(string disciplineId)
+    {
+        return await GetAsync<Discipline>($"/api/admin/disciplines/{disciplineId}");
+    }
+
+    public async Task<ApiResponse<Discipline>> CreateDisciplineAsync(CreateDisciplineRequest request)
+    {
+        return await PostAsync<Discipline>("/api/admin/disciplines", request);
+    }
+
+    public async Task<ApiResponse<Discipline>> UpdateDisciplineAsync(string disciplineId, UpdateDisciplineRequest request)
+    {
+        return await PutAsync<Discipline>($"/api/admin/disciplines/{disciplineId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteDisciplineAsync(string disciplineId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/disciplines/{disciplineId}");
+    }
+
+    // Admin - Series Management
+    public async Task<ApiResponse<List<Series>>> GetAllSeriesAdminAsync(string disciplineId)
+    {
+        return await GetAsync<List<Series>>($"/api/admin/disciplines/{disciplineId}/series");
+    }
+
+    public async Task<ApiResponse<Series>> GetSeriesAdminAsync(string seriesId)
+    {
+        return await GetAsync<Series>($"/api/admin/series/{seriesId}");
+    }
+
+    public async Task<ApiResponse<Series>> CreateSeriesAsync(CreateSeriesRequest request)
+    {
+        return await PostAsync<Series>("/api/admin/series", request);
+    }
+
+    public async Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, UpdateSeriesRequest request)
+    {
+        return await PutAsync<Series>($"/api/admin/series/{seriesId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/series/{seriesId}");
+    }
+
+    // Admin - Season Management
+    public async Task<ApiResponse<List<Season>>> GetAllSeasonsAdminAsync(string seriesId)
+    {
+        return await GetAsync<List<Season>>($"/api/admin/series/{seriesId}/seasons");
+    }
+
+    public async Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId)
+    {
+        return await GetAsync<Season>($"/api/admin/seasons/{seasonId}");
+    }
+
+    public async Task<ApiResponse<Season>> CreateSeasonAsync(CreateSeasonRequest request)
+    {
+        return await PostAsync<Season>("/api/admin/seasons", request);
+    }
+
+    public async Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, UpdateSeasonRequest request)
+    {
+        return await PutAsync<Season>($"/api/admin/seasons/{seasonId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/seasons/{seasonId}");
+    }
+
+    // Admin - Competitor Management
+    public async Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId)
+    {
+        return await GetAsync<List<Competitor>>($"/api/admin/disciplines/{disciplineId}/competitors");
+    }
+
+    public async Task<ApiResponse<Competitor>> GetCompetitorAdminAsync(string competitorId)
+    {
+        return await GetAsync<Competitor>($"/api/admin/competitors/{competitorId}");
+    }
+
+    public async Task<ApiResponse<Competitor>> CreateCompetitorAsync(CreateCompetitorRequest request)
+    {
+        return await PostAsync<Competitor>("/api/admin/competitors", request);
+    }
+
+    public async Task<ApiResponse<Competitor>> UpdateCompetitorAsync(string competitorId, UpdateCompetitorRequest request)
+    {
+        return await PutAsync<Competitor>($"/api/admin/competitors/{competitorId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/competitors/{competitorId}");
+    }
+
+    // Admin - Season Competitor Management
+    public async Task<ApiResponse<List<SeasonCompetitor>>> GetSeasonCompetitorsAdminAsync(string seasonId)
+    {
+        return await GetAsync<List<SeasonCompetitor>>($"/api/admin/seasons/{seasonId}/competitors");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> AddCompetitorToSeasonAsync(string seasonId, string competitorId)
+    {
+        return await PostAsync<MessageResponse>($"/api/admin/seasons/{seasonId}/competitors/{competitorId}", new { });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/seasons/{seasonId}/competitors/{competitorId}");
+    }
+
+    // Admin - Event Management
+    public async Task<ApiResponse<List<Event>>> GetAllEventsAdminAsync(string seasonId)
+    {
+        return await GetAsync<List<Event>>($"/api/admin/seasons/{seasonId}/events");
+    }
+
+    public async Task<ApiResponse<Event>> GetEventAdminAsync(string eventId)
+    {
+        return await GetAsync<Event>($"/api/admin/events/{eventId}");
+    }
+
+    public async Task<ApiResponse<Event>> CreateEventAsync(CreateEventRequest request)
+    {
+        return await PostAsync<Event>("/api/admin/events", request);
+    }
+
+    public async Task<ApiResponse<Event>> UpdateEventAsync(string eventId, UpdateEventRequest request)
+    {
+        return await PutAsync<Event>($"/api/admin/events/{eventId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/events/{eventId}");
+    }
+
+    // Admin - Event Result Management
+    public async Task<ApiResponse<EventResult>> GetEventResultAdminAsync(string eventId)
+    {
+        return await GetAsync<EventResult>($"/api/admin/events/{eventId}/result");
+    }
+
+    public async Task<ApiResponse<EventResult>> CreateOrUpdateEventResultAsync(string eventId, CreateEventResultRequest request)
+    {
+        return await PostAsync<EventResult>($"/api/admin/events/{eventId}/result", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteEventResultAsync(string eventId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/events/{eventId}/result");
+    }
+
+    // Admin - User Management
+    public async Task<ApiResponse<List<User>>> GetAllUsersAsync()
+    {
+        return await GetAsync<List<User>>("/api/admin/users");
+    }
+
+    public async Task<ApiResponse<User>> GetUserAdminAsync(string userId)
+    {
+        return await GetAsync<User>($"/api/admin/users/{userId}");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request)
+    {
+        return await PutAsync<MessageResponse>($"/api/admin/users/{userId}", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/admin/users/{userId}");
+    }
+
     // Helper methods
     private async Task<ApiResponse<T>> GetAsync<T>(string url)
     {
@@ -181,6 +465,46 @@ public class PodiumApiClient : IPodiumApiClient
         try
         {
             var response = await _httpClient.PostAsJsonAsync(url, data);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<T>();
+                return new ApiResponse<T> { Success = true, Data = result };
+            }
+
+            var error = await ParseErrorResponseAsync(response);
+            return new ApiResponse<T> { Success = false, Error = error };
+        }
+        catch (Exception ex)
+        {
+            return new ApiResponse<T> { Success = false, Error = ex.Message };
+        }
+    }
+
+    private async Task<ApiResponse<T>> PutAsync<T>(string url, object data)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync(url, data);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<T>();
+                return new ApiResponse<T> { Success = true, Data = result };
+            }
+
+            var error = await ParseErrorResponseAsync(response);
+            return new ApiResponse<T> { Success = false, Error = error };
+        }
+        catch (Exception ex)
+        {
+            return new ApiResponse<T> { Success = false, Error = ex.Message };
+        }
+    }
+
+    private async Task<ApiResponse<T>> DeleteAsync<T>(string url)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync(url);
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadFromJsonAsync<T>();
@@ -244,3 +568,23 @@ public record SubmitPredictionRequest(
     string ThirdPlaceId,
     string ThirdPlaceName
 );
+
+// Admin Request DTOs
+public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
+public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
+
+public record CreateSeriesRequest(string DisciplineId, string Name, string DisplayName, string GoverningBody, string Region, string VehicleType, bool IsActive);
+public record UpdateSeriesRequest(string Name, string DisplayName, string GoverningBody, string Region, string VehicleType, bool IsActive);
+
+public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
+public record UpdateSeasonRequest(int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
+
+public record CreateCompetitorRequest(string DisciplineId, string Name, string ShortName, string Type, bool IsActive);
+public record UpdateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
+
+public record CreateEventRequest(string SeasonId, string Name, string DisplayName, int EventNumber, DateTime EventDate, string Location, string Status, bool IsActive);
+public record UpdateEventRequest(string Name, string DisplayName, int EventNumber, DateTime EventDate, string Location, string Status, bool IsActive);
+
+public record CreateEventResultRequest(string FirstPlaceId, string FirstPlaceName, string SecondPlaceId, string SecondPlaceName, string ThirdPlaceId, string ThirdPlaceName);
+
+public record UpdateUserRequest(string Username, string Email, bool IsActive);

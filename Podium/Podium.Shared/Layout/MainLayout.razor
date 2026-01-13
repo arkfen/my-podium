@@ -1,5 +1,6 @@
 ﻿@inherits LayoutComponentBase
 @inject AuthStateService AuthState
+@inject AdminStateService AdminState
 @inject NavigationManager Navigation
 
 <div class="app-container">
@@ -13,6 +14,10 @@
                     <a href="/disciplines">Make Predictions</a>
                     <a href="/my-predictions">My Predictions</a>
                     <a href="/leaderboard">Leaderboard</a>
+                    @if (AdminState.IsAdmin)
+                    {
+                        <a href="/admin" class="admin-link">⚙️ Admin</a>
+                    }
                     <button class="btn-link" @onclick="SignOut">Sign Out</button>
                 }
                 else
@@ -34,9 +39,15 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         AuthState.OnAuthStateChanged += StateHasChanged;
+        AdminState.OnAdminStateChanged += StateHasChanged;
+        
+        if (!AdminState.IsInitialized && AuthState.IsAuthenticated)
+        {
+            await AdminState.InitializeAsync();
+        }
     }
 
     private async Task SignOut()
@@ -48,6 +59,7 @@
     public void Dispose()
     {
         AuthState.OnAuthStateChanged -= StateHasChanged;
+        AdminState.OnAdminStateChanged -= StateHasChanged;
     }
 }
 

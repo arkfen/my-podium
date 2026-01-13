@@ -62,6 +62,7 @@ namespace Podium.Native
             });
 
             builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
+            builder.Services.AddScoped<AdminStateService>();
 
             return builder.Build();
         }

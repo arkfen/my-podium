@@ -21,7 +21,6 @@ var appConfig = new AppConfiguration
 
 builder.Services.AddSingleton<IAppConfiguration>(appConfig);
 
-// Add storage service and state management first (needed by message handler)
 builder.Services.AddScoped<IStorageService, BrowserStorageService>();
 builder.Services.AddScoped<AuthStateService>(sp =>
 {
@@ -43,6 +42,7 @@ builder.Services.AddScoped(sp =>
 });
 
 builder.Services.AddScoped<IPodiumApiClient, PodiumApiClient>();
+builder.Services.AddScoped<AdminStateService>();
 
 var host = builder.Build();
 

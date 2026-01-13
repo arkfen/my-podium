@@ -1,0 +1,256 @@
+@page "/admin/disciplines"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Disciplines - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>?? Manage Disciplines</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Discipline</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading disciplines...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+    else
+    {
+        @if (showForm)
+        {
+            <div class="admin-form">
+                <h3>@(editingDiscipline == null ? "Create" : "Edit") Discipline</h3>
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" class="form-control" @bind="formName" placeholder="e.g., Single-Seater Racing" />
+                </div>
+                <div class="form-group">
+                    <label>Display Name:</label>
+                    <input type="text" class="form-control" @bind="formDisplayName" placeholder="e.g., Formula Racing" />
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveDiscipline" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Display Name</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var discipline in disciplines)
+                    {
+                        <tr>
+                            <td>@discipline.Name</td>
+                            <td>@discipline.DisplayName</td>
+                            <td>
+                                <span class="badge @(discipline.IsActive ? "badge-success" : "badge-inactive")">
+                                    @(discipline.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>@discipline.CreatedDate.ToShortDateString()</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditDiscipline(discipline)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(discipline)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Discipline"
+               Message="@($"Are you sure you want to delete '{disciplineToDelete?.Name}'? This action cannot be undone.")"
+               ConfirmText="Delete"
+               OnConfirm="DeleteDiscipline"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+
+    private Discipline? editingDiscipline = null;
+    private Discipline? disciplineToDelete = null;
+    private string formName = "";
+    private string formDisplayName = "";
+    private bool formIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadDisciplines();
+    }
+
+    private async Task LoadDisciplines()
+    {
+        loading = true;
+        errorMessage = "";
+        var response = await ApiClient.GetAllDisciplinesAdminAsync();
+        
+        if (response.Success && response.Data != null)
+        {
+            disciplines = response.Data;
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to load disciplines";
+        }
+        
+        loading = false;
+    }
+
+    private void ShowCreateForm()
+    {
+        editingDiscipline = null;
+        formName = "";
+        formDisplayName = "";
+        formIsActive = true;
+        formError = "";
+        showForm = true;
+    }
+
+    private void EditDiscipline(Discipline discipline)
+    {
+        editingDiscipline = discipline;
+        formName = discipline.Name;
+        formDisplayName = discipline.DisplayName;
+        formIsActive = discipline.IsActive;
+        formError = "";
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingDiscipline = null;
+        formError = "";
+    }
+
+    private async Task SaveDiscipline()
+    {
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            formError = "Name is required";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        if (editingDiscipline == null)
+        {
+            // Create
+            var request = new CreateDisciplineRequest(formName, formDisplayName, formIsActive);
+            var response = await ApiClient.CreateDisciplineAsync(request);
+            
+            if (response.Success)
+            {
+                await LoadDisciplines();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create discipline";
+            }
+        }
+        else
+        {
+            // Update
+            var request = new UpdateDisciplineRequest(formName, formDisplayName, formIsActive);
+            var response = await ApiClient.UpdateDisciplineAsync(editingDiscipline.Id, request);
+            
+            if (response.Success)
+            {
+                await LoadDisciplines();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update discipline";
+            }
+        }
+
+        saving = false;
+    }
+
+    private void ConfirmDelete(Discipline discipline)
+    {
+        disciplineToDelete = discipline;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        disciplineToDelete = null;
+    }
+
+    private async Task DeleteDiscipline()
+    {
+        if (disciplineToDelete == null) return;
+
+        var response = await ApiClient.DeleteDisciplineAsync(disciplineToDelete.Id);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadDisciplines();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to delete discipline";
+        }
+        
+        disciplineToDelete = null;
+    }
+}

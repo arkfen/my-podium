@@ -1,0 +1,283 @@
+@page "/admin/admins"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Administrators - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>?? Manage Administrators</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Administrator</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading administrators...</div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+    else
+    {
+        @if (showForm)
+        {
+            <div class="admin-form">
+                <h3>@(editingAdmin == null ? "Create" : "Edit") Administrator</h3>
+                
+                @if (editingAdmin == null)
+                {
+                    <div class="form-group">
+                        <label>User ID:</label>
+                        <input type="text" class="form-control" @bind="formUserId" placeholder="Enter User ID" />
+                        <small>Get user ID from Users management page</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>User ID:</label>
+                        <input type="text" class="form-control" value="@editingAdmin.UserId" disabled />
+                    </div>
+                }
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active (can access admin features)
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formCanManageAdmins" />
+                        Can Manage Admins (can create/edit/remove other admins)
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAdmin" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User ID</th>
+                        <th>Status</th>
+                        <th>Can Manage Admins</th>
+                        <th>Created</th>
+                        <th>Created By</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var admin in admins)
+                    {
+                        <tr>
+                            <td>@admin.UserId</td>
+                            <td>
+                                <span class="badge @(admin.IsActive ? "badge-success" : "badge-inactive")">
+                                    @(admin.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                @if (admin.CanManageAdmins)
+                                {
+                                    <span class="badge badge-success">Yes</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-inactive">No</span>
+                                }
+                            </td>
+                            <td>@admin.CreatedDate.ToShortDateString()</td>
+                            <td>@admin.CreatedBy</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditAdmin(admin)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(admin)" 
+                                        disabled="@(admin.UserId == AuthState.UserId)">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Remove Administrator"
+               Message="@($"Are you sure you want to remove admin privileges for User ID '{adminToDelete?.UserId}'?")"
+               ConfirmText="Remove"
+               OnConfirm="DeleteAdmin"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<Admin> admins = new();
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+
+    private Admin? editingAdmin = null;
+    private Admin? adminToDelete = null;
+    private string formUserId = "";
+    private bool formIsActive = true;
+    private bool formCanManageAdmins = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.CanManageAdmins)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadAdmins();
+    }
+
+    private async Task LoadAdmins()
+    {
+        loading = true;
+        errorMessage = "";
+        var response = await ApiClient.GetAllAdminsAsync();
+        
+        if (response.Success && response.Data != null)
+        {
+            admins = response.Data;
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to load administrators";
+        }
+        
+        loading = false;
+    }
+
+    private void ShowCreateForm()
+    {
+        editingAdmin = null;
+        formUserId = "";
+        formIsActive = true;
+        formCanManageAdmins = false;
+        formError = "";
+        showForm = true;
+    }
+
+    private void EditAdmin(Admin admin)
+    {
+        editingAdmin = admin;
+        formUserId = admin.UserId;
+        formIsActive = admin.IsActive;
+        formCanManageAdmins = admin.CanManageAdmins;
+        formError = "";
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingAdmin = null;
+        formError = "";
+    }
+
+    private async Task SaveAdmin()
+    {
+        if (editingAdmin == null && string.IsNullOrWhiteSpace(formUserId))
+        {
+            formError = "User ID is required";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        if (editingAdmin == null)
+        {
+            // Create
+            var response = await ApiClient.CreateAdminAsync(formUserId, formIsActive, formCanManageAdmins);
+            
+            if (response.Success)
+            {
+                await LoadAdmins();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create administrator";
+            }
+        }
+        else
+        {
+            // Update
+            var response = await ApiClient.UpdateAdminAsync(editingAdmin.UserId, formIsActive, formCanManageAdmins);
+            
+            if (response.Success)
+            {
+                await LoadAdmins();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update administrator";
+            }
+        }
+
+        saving = false;
+    }
+
+    private void ConfirmDelete(Admin admin)
+    {
+        adminToDelete = admin;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        adminToDelete = null;
+    }
+
+    private async Task DeleteAdmin()
+    {
+        if (adminToDelete == null) return;
+
+        var response = await ApiClient.RemoveAdminAsync(adminToDelete.UserId);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadAdmins();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to remove administrator";
+        }
+        
+        adminToDelete = null;
+    }
+}

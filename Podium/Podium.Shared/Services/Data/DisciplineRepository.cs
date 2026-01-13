@@ -9,6 +9,9 @@ public interface IDisciplineRepository
     Task<List<Discipline>> GetAllDisciplinesAsync();
     Task<Discipline?> GetDisciplineByIdAsync(string disciplineId);
     Task<List<Discipline>> GetActiveDisciplinesAsync();
+    Task<Discipline?> CreateDisciplineAsync(Discipline discipline);
+    Task<Discipline?> UpdateDisciplineAsync(Discipline discipline);
+    Task<bool> DeleteDisciplineAsync(string disciplineId);
 }
 
 public class DisciplineRepository : IDisciplineRepository
@@ -88,5 +91,69 @@ public class DisciplineRepository : IDisciplineRepository
             IsActive = entity.GetBoolean("IsActive") ?? false,
             CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
         };
+    }
+
+    public async Task<Discipline?> CreateDisciplineAsync(Discipline discipline)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            discipline.Id = Guid.NewGuid().ToString();
+            discipline.CreatedDate = DateTime.UtcNow;
+
+            var entity = new TableEntity("Discipline", discipline.Id)
+            {
+                ["Name"] = discipline.Name,
+                ["DisplayName"] = discipline.DisplayName,
+                ["IsActive"] = discipline.IsActive,
+                ["CreatedDate"] = discipline.CreatedDate
+            };
+
+            await tableClient.AddEntityAsync(entity);
+            return discipline;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Discipline?> UpdateDisciplineAsync(Discipline discipline)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            var entity = new TableEntity("Discipline", discipline.Id)
+            {
+                ["Name"] = discipline.Name,
+                ["DisplayName"] = discipline.DisplayName,
+                ["IsActive"] = discipline.IsActive,
+                ["CreatedDate"] = discipline.CreatedDate
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return discipline;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteDisciplineAsync(string disciplineId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync("Discipline", disciplineId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
     }
 }
