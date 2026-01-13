@@ -113,5 +113,6 @@ app.MapAuthEndpoints();
 app.MapSportEndpoints();
 app.MapPredictionEndpoints();
 app.MapLeaderboardEndpoints();
+app.MapAdminEndpoints();
 
 app.Run();
