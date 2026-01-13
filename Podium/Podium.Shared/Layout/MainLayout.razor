@@ -6,7 +6,7 @@
 <div class="app-container">
     <header class="app-header">
         <div class="header-content">
-            <a href="/" class="logo">🏆 Podium</a>
+            <a href="/" class="logo"><span class="logo-icon">🏆</span> Podium</a>
             
             <nav class="main-nav">
                 @if (AuthState.IsAuthenticated)
@@ -16,7 +16,7 @@
                     <a href="/leaderboard">Leaderboard</a>
                     @if (AdminState.IsAdmin)
                     {
-                        <a href="/admin" class="admin-link">⚙️ Admin</a>
+                        <a href="/admin" class="admin-link">Admin</a>
                     }
                     <button class="btn-link" @onclick="SignOut">Sign Out</button>
                 }

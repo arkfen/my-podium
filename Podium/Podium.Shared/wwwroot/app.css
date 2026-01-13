@@ -1032,3 +1032,28 @@ body {
     gap: 1rem;
     flex-wrap: wrap;
 }
+
+/* Emoji and Icon Styling */
+.logo-icon, .card-icon, .event-icon, .status-icon, .medal-icon, .trophy-icon {
+    display: inline-block;
+    font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+    font-size: 1.2em;
+    margin-right: 0.3rem;
+}
+
+.medal-icon {
+    font-size: 1.5em;
+}
+
+.medal-icon.gold {
+    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+}
+
+.medal-icon.silver {
+    filter: drop-shadow(0 0 2px rgba(192, 192, 192, 0.5));
+}
+
+.medal-icon.bronze {
+    filter: drop-shadow(0 0 2px rgba(205, 127, 50, 0.5));
+}
+
