@@ -93,8 +93,10 @@ public class UserRepository : IUserRepository
                 ["PasswordSalt"] = user.PasswordSalt,
                 ["PreferredAuthMethod"] = user.PreferredAuthMethod,
                 ["IsActive"] = user.IsActive,
-                ["CreatedDate"] = user.CreatedDate,
-                ["LastLoginDate"] = user.LastLoginDate
+                ["CreatedDate"] = DateTime.SpecifyKind(user.CreatedDate, DateTimeKind.Utc),
+                ["LastLoginDate"] = user.LastLoginDate.HasValue 
+                    ? DateTime.SpecifyKind(user.LastLoginDate.Value, DateTimeKind.Utc) 
+                    : (DateTime?)null
             };
 
             await tableClient.AddEntityAsync(entity);
@@ -203,8 +205,10 @@ public class UserRepository : IUserRepository
                 ["PasswordSalt"] = user.PasswordSalt,
                 ["PreferredAuthMethod"] = user.PreferredAuthMethod,
                 ["IsActive"] = user.IsActive,
-                ["CreatedDate"] = user.CreatedDate,
-                ["LastLoginDate"] = user.LastLoginDate
+                ["CreatedDate"] = DateTime.SpecifyKind(user.CreatedDate, DateTimeKind.Utc),
+                ["LastLoginDate"] = user.LastLoginDate.HasValue 
+                    ? DateTime.SpecifyKind(user.LastLoginDate.Value, DateTimeKind.Utc) 
+                    : (DateTime?)null
             };
 
             await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
@@ -283,8 +287,8 @@ public class UserRepository : IUserRepository
             PasswordSalt = entity.GetString("PasswordSalt") ?? string.Empty,
             PreferredAuthMethod = entity.GetString("PreferredAuthMethod") ?? "Both",
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue,
-            LastLoginDate = entity.GetDateTimeOffset("LastLoginDate")?.DateTime
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
+            LastLoginDate = entity.GetDateTimeOffset("LastLoginDate")?.UtcDateTime
         };
     }
 }
