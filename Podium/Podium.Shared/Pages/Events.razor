@@ -36,11 +36,11 @@
                     <h3>@evt.DisplayName</h3>
                     <p>@evt.Location</p>
                     <p class="event-date">
-                        <span class="event-icon">??</span> @evt.EventDate.ToString("MMM dd, yyyy HH:mm") UTC
+                        <span class="event-icon">&#128197;</span> @evt.EventDate.ToString("MMM dd, yyyy HH:mm") UTC
                     </p>
                     @if (evt.CanAcceptPredictions)
                     {
-                        <span style="color: var(--success-color); font-weight: 500;"><span class="status-icon">?</span> Open for predictions</span>
+                        <span style="color: var(--success-color); font-weight: 500;"><span class="status-icon">&#10003;</span> Open for predictions</span>
                     }
                     else
                     {

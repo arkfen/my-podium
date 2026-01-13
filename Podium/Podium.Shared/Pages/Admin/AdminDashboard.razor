@@ -12,7 +12,7 @@
 {
     <div class="admin-container">
         <div class="admin-error">
-            <h2>?? Authentication Required</h2>
+            <h2>[LOCKED] Authentication Required</h2>
             <p>Please sign in to access the admin dashboard.</p>
             <button class="btn btn-primary" @onclick="@(() => Navigation.NavigateTo("/signin"))">Sign In</button>
         </div>
@@ -22,7 +22,7 @@ else if (!AdminState.IsAdmin)
 {
     <div class="admin-container">
         <div class="admin-error">
-            <h2>??? Access Denied</h2>
+            <h2>[ACCESS DENIED] Access Denied</h2>
             <p>You don't have administrator privileges.</p>
             <button class="btn btn-secondary" @onclick="@(() => Navigation.NavigateTo("/"))">Back to Home</button>
         </div>
@@ -32,49 +32,49 @@ else
 {
     <div class="admin-container">
         <div class="admin-header">
-            <h1>?? Admin Dashboard</h1>
+            <h1>[ADMIN] Dashboard</h1>
             <p>Manage disciplines, series, seasons, competitors, and more</p>
         </div>
 
         <div class="admin-cards">
             <a href="/admin/disciplines" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#127937;</div>
                 <h3>Disciplines</h3>
                 <p>Manage racing categories and disciplines</p>
             </a>
 
             <a href="/admin/series" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#127942;</div>
                 <h3>Series</h3>
                 <p>Manage racing series within disciplines</p>
             </a>
 
             <a href="/admin/seasons" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#128197;</div>
                 <h3>Seasons</h3>
                 <p>Manage seasons for each series</p>
             </a>
 
             <a href="/admin/competitors" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#128100;</div>
                 <h3>Competitors</h3>
                 <p>Manage drivers, riders, and teams</p>
             </a>
 
             <a href="/admin/events" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#127937;</div>
                 <h3>Events</h3>
                 <p>Manage races and events</p>
             </a>
 
             <a href="/admin/results" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#128202;</div>
                 <h3>Results</h3>
                 <p>Enter and manage event results</p>
             </a>
 
             <a href="/admin/users" class="admin-card">
-                <div class="card-icon">??</div>
+                <div class="card-icon">&#128101;</div>
                 <h3>Users</h3>
                 <p>Manage user accounts</p>
             </a>
@@ -82,7 +82,7 @@ else
             @if (AdminState.CanManageAdmins)
             {
                 <a href="/admin/admins" class="admin-card">
-                    <div class="card-icon">???</div>
+                    <div class="card-icon">&#128737;</div>
                     <h3>Administrators</h3>
                     <p>Manage admin privileges</p>
                 </a>
@@ -92,7 +92,7 @@ else
         @if (!string.IsNullOrEmpty(diagnosticMessage))
         {
             <div class="admin-diagnostics">
-                <h3>?? Quick Diagnostics</h3>
+                <h3>[!] Quick Diagnostics</h3>
                 <button class="btn btn-secondary" @onclick="CheckDuplicateSeasons">Check for Duplicate Active Seasons</button>
                 <div class="diagnostic-result">@diagnosticMessage</div>
             </div>
