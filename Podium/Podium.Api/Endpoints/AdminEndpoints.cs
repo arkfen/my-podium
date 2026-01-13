@@ -11,6 +11,24 @@ public static class AdminEndpoints
     {
         var group = app.MapGroup("/api/admin").WithTags("Admin");
 
+        // Get current user's admin status (no admin permission required - just authentication)
+        group.MapGet("/me", async (
+            HttpContext httpContext,
+            [FromServices] IAdminRepository adminRepo) =>
+        {
+            var userId = httpContext.GetUserId();
+            if (string.IsNullOrEmpty(userId))
+                return Results.Unauthorized();
+
+            var admin = await adminRepo.GetAdminAsync(userId);
+            if (admin == null)
+                return Results.Ok(new { isAdmin = false, canManageAdmins = false });
+            
+            return Results.Ok(new { isAdmin = admin.IsActive, canManageAdmins = admin.CanManageAdmins });
+        })
+        .RequireAuth() // Only requires authentication, not admin status
+        .WithName("GetMyAdminStatus");
+
         // Set active season (automatically deactivates other seasons in the same series)
         group.MapPost("/series/{seriesId}/seasons/{seasonId}/set-active", async (
             string seriesId,

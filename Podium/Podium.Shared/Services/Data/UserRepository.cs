@@ -28,8 +28,9 @@ public class UserRepository : IUserRepository
 
         try
         {
-            // Query by email since we can't use it as partition key directly
-            var filter = $"Email eq '{email}'";
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email.ToLowerInvariant();
+            var filter = $"Email eq '{normalizedEmail}'";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 return MapToUser(entity);
@@ -81,7 +82,7 @@ public class UserRepository : IUserRepository
             var entity = new TableEntity(partitionKey, rowKey)
             {
                 ["UserId"] = user.UserId,
-                ["Email"] = user.Email,
+                ["Email"] = user.Email.ToLowerInvariant(), // Store email in lowercase
                 ["Username"] = user.Username,
                 ["PasswordHash"] = user.PasswordHash,
                 ["PasswordSalt"] = user.PasswordSalt,

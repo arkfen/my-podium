@@ -152,12 +152,24 @@ public class AdminRepository : IAdminRepository
         return new Admin
         {
             UserId = entity.RowKey,
-            IsActive = entity.GetBoolean("IsActive") ?? false,
-            CanManageAdmins = entity.GetBoolean("CanManageAdmins") ?? false,
+            IsActive = GetBooleanValue(entity, "IsActive"),
+            CanManageAdmins = GetBooleanValue(entity, "CanManageAdmins"),
             CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.UtcNow,
             CreatedBy = entity.GetString("CreatedBy") ?? string.Empty,
             LastModifiedDate = entity.GetDateTimeOffset("LastModifiedDate")?.DateTime,
             LastModifiedBy = entity.GetString("LastModifiedBy")
         };
+    }
+
+    private static bool GetBooleanValue(TableEntity entity, string key)
+    {
+        if (entity.TryGetValue(key, out var value))
+        {
+            if (value is bool boolValue)
+                return boolValue;
+            if (value is string stringValue)
+                return bool.TryParse(stringValue, out var parsed) && parsed;
+        }
+        return false;
     }
 }

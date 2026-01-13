@@ -40,6 +40,7 @@ public interface IPodiumApiClient
     Task<ApiResponse<MessageResponse>> FindDuplicateActiveSeasonsAsync();
 
     // Admin - Admin Management
+    Task<ApiResponse<AdminStatusResponse>> GetMyAdminStatusAsync();
     Task<ApiResponse<List<Admin>>> GetAllAdminsAsync();
     Task<ApiResponse<Admin>> GetAdminAsync(string userId);
     Task<ApiResponse<MessageResponse>> CreateAdminAsync(string userId, bool isActive, bool canManageAdmins);
@@ -229,6 +230,11 @@ public class PodiumApiClient : IPodiumApiClient
     }
 
     // Admin - Admin Management
+    public async Task<ApiResponse<AdminStatusResponse>> GetMyAdminStatusAsync()
+    {
+        return await GetAsync<AdminStatusResponse>("/api/admin/me");
+    }
+
     public async Task<ApiResponse<List<Admin>>> GetAllAdminsAsync()
     {
         return await GetAsync<List<Admin>>("/api/admin/admins");
@@ -556,6 +562,7 @@ public record RegisterResponse(string UserId, string Message);
 public record MessageResponse(string Message);
 public record AuthResponse(string UserId, string Username, string SessionId, string Message);
 public record PredictionResponse(string Message, Prediction Prediction);
+public record AdminStatusResponse(bool IsAdmin, bool CanManageAdmins);
 
 public record SubmitPredictionRequest(
     string EventId,

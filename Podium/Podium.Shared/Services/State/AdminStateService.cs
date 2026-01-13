@@ -57,10 +57,10 @@ public class AdminStateService
 
         try
         {
-            var response = await _apiClient.GetAdminAsync(_authState.UserId);
+            var response = await _apiClient.GetMyAdminStatusAsync();
             if (response.Success && response.Data != null)
             {
-                _isAdmin = response.Data.IsActive;
+                _isAdmin = response.Data.IsAdmin;
                 _canManageAdmins = response.Data.CanManageAdmins;
             }
             else

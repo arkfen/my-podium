@@ -37,7 +37,9 @@ public class AuthenticationService : IAuthenticationService
 
         try
         {
-            var filter = $"Email eq '{email}'";
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email.ToLowerInvariant();
+            var filter = $"Email eq '{normalizedEmail}'";
             await foreach (var entity in userClient.QueryAsync<TableEntity>(filter: filter))
             {
                 user = MapToUser(entity);
@@ -61,7 +63,7 @@ public class AuthenticationService : IAuthenticationService
         var otpClient = _tableClientFactory.GetTableClient(OTPTable);
         var otpEntity = new TableEntity("OTP", Guid.NewGuid().ToString())
         {
-            ["Email"] = email,
+            ["Email"] = email.ToLowerInvariant(), // Store normalized email
             ["Code"] = otpCode,
             ["UserId"] = user.UserId,
             ["ExpiryTime"] = DateTime.UtcNow.AddMinutes(10),
@@ -107,7 +109,9 @@ public class AuthenticationService : IAuthenticationService
 
         try
         {
-            var filter = $"PartitionKey eq 'OTP' and Email eq '{email}' and IsUsed eq false and ExpiryTime gt datetime'{cutoffTime:yyyy-MM-ddTHH:mm:ss.fffffffZ}'";
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email.ToLowerInvariant();
+            var filter = $"PartitionKey eq 'OTP' and Email eq '{normalizedEmail}' and IsUsed eq false and ExpiryTime gt datetime'{cutoffTime:yyyy-MM-ddTHH:mm:ss.fffffffZ}'";
             
             TableEntity? validOtp = null;
             await foreach (var entity in otpClient.QueryAsync<TableEntity>(filter: filter))
@@ -137,8 +141,8 @@ public class AuthenticationService : IAuthenticationService
             var userResponse = await userClient.GetEntityAsync<TableEntity>(partitionKey, rowKey);
             var username = userResponse.Value.GetString("Username") ?? string.Empty;
 
-            // Create session
-            var sessionId = await CreateSessionAsync(userId, email, username);
+            // Create session with normalized email
+            var sessionId = await CreateSessionAsync(userId, normalizedEmail, username);
 
             return (true, userId, username, sessionId, string.Empty);
         }
@@ -155,7 +159,9 @@ public class AuthenticationService : IAuthenticationService
 
         try
         {
-            var filter = $"Email eq '{email}'";
+            // Normalize email to lowercase for case-insensitive comparison
+            var normalizedEmail = email.ToLowerInvariant();
+            var filter = $"Email eq '{normalizedEmail}'";
             await foreach (var entity in userClient.QueryAsync<TableEntity>(filter: filter))
             {
                 user = MapToUser(entity);
