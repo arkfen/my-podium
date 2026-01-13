@@ -231,7 +231,7 @@ All admin pages follow consistent design:
 - Loading states and error messages
 - Responsive grid layouts
 
-## ?? Current Working Features
+## ? Current Working Features
 
 You can currently:
 1. ? Access admin dashboard at `/admin` (if admin)

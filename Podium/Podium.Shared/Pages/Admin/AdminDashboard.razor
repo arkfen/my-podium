@@ -22,7 +22,7 @@ else if (!AdminState.IsAdmin)
 {
     <div class="admin-container">
         <div class="admin-error">
-            <h2>?? Access Denied</h2>
+            <h2>??? Access Denied</h2>
             <p>You don't have administrator privileges.</p>
             <button class="btn btn-secondary" @onclick="@(() => Navigation.NavigateTo("/"))">Back to Home</button>
         </div>
@@ -82,7 +82,7 @@ else
             @if (AdminState.CanManageAdmins)
             {
                 <a href="/admin/admins" class="admin-card">
-                    <div class="card-icon">??</div>
+                    <div class="card-icon">???</div>
                     <h3>Administrators</h3>
                     <p>Manage admin privileges</p>
                 </a>
@@ -92,7 +92,7 @@ else
         @if (!string.IsNullOrEmpty(diagnosticMessage))
         {
             <div class="admin-diagnostics">
-                <h3>? Quick Diagnostics</h3>
+                <h3>?? Quick Diagnostics</h3>
                 <button class="btn btn-secondary" @onclick="CheckDuplicateSeasons">Check for Duplicate Active Seasons</button>
                 <div class="diagnostic-result">@diagnosticMessage</div>
             </div>

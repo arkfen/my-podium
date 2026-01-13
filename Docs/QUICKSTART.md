@@ -28,8 +28,8 @@ dotnet user-secrets set "EmailSettings:SenderName" "Podium"
 
 dotnet run
 ```
-? Note the port (e.g., https://localhost:50242)
-? Look for "? Email service configured" or "? Email service not configured"
+?? Note the port (e.g., https://localhost:50242)
+?? Look for "? Email service configured" or "?? Email service not configured"
 
 ### Step 3: Update Web Config (30 sec)
 Edit `Podium/Podium.Web/wwwroot/appsettings.json`:
@@ -77,7 +77,7 @@ dotnet run
 3. Select Android Emulator from debug target
 4. Press F5
 
-## ?? Something not working?
+## ? Something not working?
 
 ### API won't start?
 - Check you set all 3 secrets (StorageUri, AccountName, AccountKey)
@@ -97,7 +97,7 @@ dotnet run
 - **With Email:** Check your inbox (and spam folder)
 - **Without Email:** OTP is logged to API console
   - Look for: `OTP Code for john@example.com: 123456`
-  - API shows: `? Email service not configured`
+  - API shows: `?? Email service not configured`
 - Code expires in 10 minutes
 - Request a new code if expired
 
@@ -135,31 +135,27 @@ Now that it's running:
 
 **Need immediate help?** Check the API console and browser console for error messages!
 
-
-
-
-
-== Monitoring & Logging ==
+## ?? Monitoring & Logging
 
 Visit the API health check: https://localhost:50242/api/health
 You will see:
 
+```json
 {
   "status": "healthy",
   "timestamp": "2024-01-15T10:30:00Z",
   "environment": "Development"
 }
+```
 
-
-
-
-
-======== FOR PRODUCTION DEPLOYMENT ========
+## ?? FOR PRODUCTION DEPLOYMENT
 When deploying to production:
 1. **Use a real database** - Update connection strings in `appsettings.json`
 2. **Configure HTTPS** - Obtain and configure SSL certificates
 3. **Set environment variables in API** - Use Azure Key Vault or similar for secrets
 4. **Enable CORS** - Allow your web app's domain in API CORS settings (Startup.cs of the API project)
+
+
 
 
 

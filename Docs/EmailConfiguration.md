@@ -154,7 +154,7 @@ If email is **not configured**:
 
 API startup will show:
 ```
-? Email service not configured - OTP codes will be logged to console only
+?? Email service not configured - OTP codes will be logged to console only
 ```
 
 ---

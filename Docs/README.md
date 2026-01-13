@@ -2,7 +2,7 @@
 
 A modern, flexible prediction platform for sports competitions built with .NET 10, Blazor, .NET MAUI, and Azure Table Storage.
 
-## ??? Architecture
+## 🏗️ Architecture
 
 ### Projects
 
@@ -32,16 +32,16 @@ A modern, flexible prediction platform for sports competitions built with .NET 1
    - Creates Azure Table Storage schema
    - Generates sample data for testing
 
-## ?? Security Model
+## 🔒 Security Model
 
 **Client apps NEVER directly access Azure Storage**. All data flows through the secure API:
 
 ```
-[Web/MAUI Apps] ? HTTPS ? [Podium.Api] ? [Azure Table Storage]
+[Web/MAUI Apps] → HTTPS → [Podium.Api] → [Azure Table Storage]
                             (Secure)         (Hidden credentials)
 ```
 
-## ?? Environment Configuration
+## ⚙️ Environment Configuration
 
 Both Web and MAUI apps use the shared `IAppConfiguration` service for environment-aware settings.
 
@@ -56,7 +56,7 @@ Both Web and MAUI apps use the shared `IAppConfiguration` service for environmen
 - Android emulator: Use `http://10.0.2.2:50242` (not localhost)
 - iOS simulator: Use `https://localhost:50242`
 
-## ?? Session Persistence
+## 💾 Session Persistence
 
 The app now includes automatic session persistence:
 
@@ -84,7 +84,7 @@ The app now includes automatic session persistence:
 - Automatically expires after 14 days
 - No sensitive data (passwords) stored
 
-## ?? Getting Started
+## 🚀 Getting Started
 
 ### 1. Initialize the Database
 
@@ -95,7 +95,7 @@ cd Tools/Podium.DbInit
 
 # Option A: User Secrets (recommended for dev)
 dotnet user-secrets set "AzureStorage:StorageUri" "https://youraccount.table.core.windows.net/"
-dotnet user-secrets set "AzureStorage:AccountName" "youraccount"
+dotting user-secrets set "AzureStorage:AccountName" "youraccount"
 dotnet user-secrets set "AzureStorage:AccountKey" "your-account-key"
 
 # Option B: appsettings.json
@@ -156,64 +156,64 @@ After running DbInit:
 - Email: `jane@example.com` | Password: `password123`
 - Email: `alex@example.com` | Password: `password123`
 
-## ? Completed Features
+## ✅ Completed Features
 
 ### Core Infrastructure
-- ? Database schema (13 Azure Tables)
-- ? Database initialization tool with sample data
-- ? Complete entity models
-- ? Repository pattern data access layer
-- ? RESTful API with authentication
-- ? Environment-aware configuration (Dev/Prod)
-- ? Shared service architecture (Web + MAUI)
+- ✅ Database schema (13 Azure Tables)
+- ✅ Database initialization tool with sample data
+- ✅ Complete entity models
+- ✅ Repository pattern data access layer
+- ✅ RESTful API with authentication
+- ✅ Environment-aware configuration (Dev/Prod)
+- ✅ Shared service architecture (Web + MAUI)
 
 ### Authentication
-- ? User registration
-- ? Sign in with password
-- ? Sign in with email OTP (code logs to console for now)
-- ? Session management
-- ? Auth state service
-- ? **Session persistence** (survives page refreshes and app restarts)
+- ✅ User registration
+- ✅ Sign in with password
+- ✅ Sign in with email OTP (code logs to console for now)
+- ✅ Session management
+- ✅ Auth state service
+- ✅ **Session persistence** (survives page refreshes and app restarts)
 
 ### User Features
-- ? Home/Landing page
-- ? Sign In page (dual auth)
-- ? Sign Up page
-- ? Sport selection
-- ? Tier/Competition selection
-- ? Event selection with dates
-- ? Prediction submission (select 3 competitors)
-- ? My Predictions view
-- ? Leaderboard
+- ✅ Home/Landing page
+- ✅ Sign In page (dual auth)
+- ✅ Sign Up page
+- ✅ Sport selection
+- ✅ Tier/Competition selection
+- ✅ Event selection with dates
+- ✅ Prediction submission (select 3 competitors)
+- ✅ My Predictions view
+- ✅ Leaderboard
 
 ### UI/UX
-- ? Responsive design (mobile & desktop)
-- ? Modern, clean CSS styling
-- ? Navigation header with auth state
-- ? Footer
-- ? Loading states
-- ? Error handling
-- ? Success messages
+- ✅ Responsive design (mobile & desktop)
+- ✅ Modern, clean CSS styling
+- ✅ Navigation header with auth state
+- ✅ Footer
+- ✅ Loading states
+- ✅ Error handling
+- ✅ Success messages
 
-## ?? Future Enhancements
+## 🚦 Future Enhancements
 
 ### High Priority
-- Email service integration (real OTP sending)
-- Session persistence (browser/device storage)
-- Points calculation engine
-- Admin panel (manage sports, events, results)
-- Results display after events
+- 📧 Email service integration (real OTP sending)
+- 💾 Session persistence (browser/device storage)
+- ⚙️ Points calculation engine
+- 🛠️ Admin panel (manage sports, events, results)
+- 📊 Results display after events
 
 ### Nice to Have
-- User profile page
-- Multiple seasons support
-- Push notifications for events
-- Social features (comments, sharing)
-- Export predictions
-- Historical data/archives
-- More sports and competitions
+- 👤 User profile page
+- 📅 Multiple seasons support
+- 🔔 Push notifications for events
+- 💬 Social features (comments, sharing)
+- 📥 Export predictions
+- 📚 Historical data/archives
+- 🏅 More sports and competitions
 
-## ?? Tech Stack
+## 🛠️ Tech Stack
 
 - **.NET 10** - Latest framework
 - **Blazor WebAssembly** - Web UI (runs in browser)
@@ -222,7 +222,7 @@ After running DbInit:
 - **ASP.NET Core Minimal API** - Secure backend
 - **Shared Razor Components** - Write once, run everywhere
 
-## ?? API Endpoints
+## 📡 API Endpoints
 
 ### Authentication
 - `POST /api/auth/register` - Create account
@@ -256,7 +256,7 @@ After running DbInit:
 ### Health
 - `GET /api/health` - Health check
 
-## ?? Development
+## 🛠️ Development
 
 ### Running Multiple Projects
 
@@ -324,40 +324,40 @@ dotnet publish -f net10.0-ios -c Release
 dotnet publish -f net10.0-windows10.0.19041.0 -c Release
 ```
 
-## ?? Project Structure
+## 📁 Project Structure
 
 ```
 MyDreamPodium/
-??? Docs/
-?   ??? DatabaseStructure.md        # Complete DB schema
-??? Tools/
-?   ??? Podium.DbInit/              # Database initialization
-??? Podium/
-?   ??? Podium.Shared/              # Shared UI & logic ?
-?   ?   ??? Models/                 # Entity classes
-?   ?   ??? Services/
-?   ?   ?   ??? Configuration/     # Environment config
-?   ?   ?   ??? Data/              # Repositories
-?   ?   ?   ??? Auth/              # Authentication
-?   ?   ?   ??? Api/               # API client
-?   ?   ?   ??? State/             # State management
-?   ?   ??? Pages/                  # Razor pages (shared!)
-?   ?   ??? Layout/                 # App layout
-?   ?   ??? wwwroot/                # CSS & static files
-?   ??? Podium.Web/                 # Blazor WebAssembly
-?   ?   ??? wwwroot/
-?   ?   ?   ??? appsettings.json   # API URL config
-?   ?   ??? Program.cs              # App setup
-?   ??? Podium.Native/              # .NET MAUI
-?   ?   ??? MauiProgram.cs          # App setup + config
-?   ??? Podium.Api/                 # Secure backend
-?       ??? Endpoints/              # API routes
-?       ??? Program.cs              # API setup
-??? MyPodiumLegacy/                 # Old app (reference)
-??? README.md
+├── Docs/
+│   └── DatabaseStructure.md        # Complete DB schema
+├── Tools/
+│   └── Podium.DbInit/              # Database initialization
+├── Podium/
+│   ├── Podium.Shared/              # Shared UI & logic ⭐
+│   │   ├── Models/                 # Entity classes
+│   │   ├── Services/
+│   │   │   ├── Configuration/     # Environment config
+│   │   │   ├── Data/              # Repositories
+│   │   │   ├── Auth/              # Authentication
+│   │   │   ├── Api/               # API client
+│   │   │   └── State/             # State management
+│   │   ├── Pages/                  # Razor pages (shared!)
+│   │   ├── Layout/                 # App layout
+│   │   └── wwwroot/                # CSS & static files
+│   ├── Podium.Web/                 # Blazor WebAssembly
+│   │   ├── wwwroot/
+│   │   │   └── appsettings.json   # API URL config
+│   │   └── Program.cs              # App setup
+│   ├── Podium.Native/              # .NET MAUI
+│   │   └── MauiProgram.cs          # App setup + config
+│   └── Podium.Api/                 # Secure backend
+│       ├── Endpoints/              # API routes
+│       └── Program.cs              # API setup
+├── MyPodiumLegacy/                 # Old app (reference)
+└── README.md
 ```
 
-## ?? Key Design Decisions
+## 💡 Key Design Decisions
 
 ### Why Shared Project?
 - **Write once, run everywhere** - Same UI for Web and Mobile
@@ -384,7 +384,7 @@ MyDreamPodium/
 - **Best practice** - Industry standard approach
 - **Safe deployment** - Production credentials never in code
 
-## ?? Troubleshooting
+## 🔧 Troubleshooting
 
 ### API won't start
 - Check Azure Storage credentials are set
@@ -420,45 +420,17 @@ MyDreamPodium/
 - Check API terminal output for the code
 - Real email service not yet implemented
 
-## ?? License
+## 📄 License
 
 [Your license here]
 
-## ?? Contributing
+## 🤝 Contributing
 
 This is a learning/portfolio project. Contributions welcome!
 
 ---
 
-**Built with ?? using .NET 10, Blazor, and MAUI**
+**Built with ❤️ using .NET 10, Blazor, and MAUI**
 
-**Status: ? MVP Complete - Ready for testing!**
-
-
-## 🔒 CORS Configuration
-
-The API uses environment-aware CORS policies:
-
-### Development (Automatic)
-- **Allows ALL origins** - Perfect for testing
-- Mobile apps on any network ✅
-- Local dev on any port ✅
-- Android emulator ✅
-- iOS simulator ✅
-- Physical devices ✅
-- No configuration needed!
-
-### Production (Secure)
-- **Allows ONLY specified domains**
-- Edit `Podium.Api/Program.cs` to add your production domains
-- Example: `https://yourdomain.com`
-- Mobile apps: Always allowed (no origin header)
-- Web apps: Must be whitelisted
-
-**Why this works:**
-- CORS is a browser security feature
-- Mobile apps don't send Origin headers
-- WebAssembly apps run in browser and need CORS
-- Development: Open for testing
-- Production: Locked down for security
+**Status: ✅ MVP Complete - Ready for testing!**
 
