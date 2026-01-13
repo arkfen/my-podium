@@ -89,7 +89,7 @@ public class DisciplineRepository : IDisciplineRepository
             Name = entity.GetString("Name") ?? string.Empty,
             DisplayName = entity.GetString("DisplayName") ?? string.Empty,
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 
@@ -107,7 +107,7 @@ public class DisciplineRepository : IDisciplineRepository
                 ["Name"] = discipline.Name,
                 ["DisplayName"] = discipline.DisplayName,
                 ["IsActive"] = discipline.IsActive,
-                ["CreatedDate"] = discipline.CreatedDate
+                ["CreatedDate"] = DateTime.SpecifyKind(discipline.CreatedDate, DateTimeKind.Utc)
             };
 
             await tableClient.AddEntityAsync(entity);
@@ -130,7 +130,7 @@ public class DisciplineRepository : IDisciplineRepository
                 ["Name"] = discipline.Name,
                 ["DisplayName"] = discipline.DisplayName,
                 ["IsActive"] = discipline.IsActive,
-                ["CreatedDate"] = discipline.CreatedDate
+                ["CreatedDate"] = DateTime.SpecifyKind(discipline.CreatedDate, DateTimeKind.Utc)
             };
 
             await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);

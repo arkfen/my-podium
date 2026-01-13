@@ -91,9 +91,11 @@ public class AdminRepository : IAdminRepository
                 ["UserId"] = admin.UserId,
                 ["IsActive"] = admin.IsActive,
                 ["CanManageAdmins"] = admin.CanManageAdmins,
-                ["CreatedDate"] = admin.CreatedDate,
+                ["CreatedDate"] = DateTime.SpecifyKind(admin.CreatedDate, DateTimeKind.Utc),
                 ["CreatedBy"] = admin.CreatedBy,
-                ["LastModifiedDate"] = admin.LastModifiedDate,
+                ["LastModifiedDate"] = admin.LastModifiedDate.HasValue 
+                    ? DateTime.SpecifyKind(admin.LastModifiedDate.Value, DateTimeKind.Utc) 
+                    : (DateTime?)null,
                 ["LastModifiedBy"] = admin.LastModifiedBy
             };
 
@@ -117,9 +119,11 @@ public class AdminRepository : IAdminRepository
                 ["UserId"] = admin.UserId,
                 ["IsActive"] = admin.IsActive,
                 ["CanManageAdmins"] = admin.CanManageAdmins,
-                ["CreatedDate"] = admin.CreatedDate,
+                ["CreatedDate"] = DateTime.SpecifyKind(admin.CreatedDate, DateTimeKind.Utc),
                 ["CreatedBy"] = admin.CreatedBy,
-                ["LastModifiedDate"] = admin.LastModifiedDate,
+                ["LastModifiedDate"] = admin.LastModifiedDate.HasValue 
+                    ? DateTime.SpecifyKind(admin.LastModifiedDate.Value, DateTimeKind.Utc) 
+                    : (DateTime?)null,
                 ["LastModifiedBy"] = admin.LastModifiedBy
             };
 
@@ -154,9 +158,9 @@ public class AdminRepository : IAdminRepository
             UserId = entity.RowKey,
             IsActive = GetBooleanValue(entity, "IsActive"),
             CanManageAdmins = GetBooleanValue(entity, "CanManageAdmins"),
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.UtcNow,
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc),
             CreatedBy = entity.GetString("CreatedBy") ?? string.Empty,
-            LastModifiedDate = entity.GetDateTimeOffset("LastModifiedDate")?.DateTime,
+            LastModifiedDate = entity.GetDateTimeOffset("LastModifiedDate")?.UtcDateTime,
             LastModifiedBy = entity.GetString("LastModifiedBy")
         };
     }

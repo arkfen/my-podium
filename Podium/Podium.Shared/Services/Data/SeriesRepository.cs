@@ -90,7 +90,7 @@ public class SeriesRepository : ISeriesRepository
             Region = entity.GetString("Region") ?? string.Empty,
             VehicleType = entity.GetString("VehicleType") ?? string.Empty,
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 }

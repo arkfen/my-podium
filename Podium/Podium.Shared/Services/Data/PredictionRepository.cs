@@ -103,8 +103,8 @@ public class PredictionRepository : IPredictionRepository
                 ["ThirdPlaceId"] = prediction.ThirdPlaceId,
                 ["ThirdPlaceName"] = prediction.ThirdPlaceName,
                 ["PointsEarned"] = prediction.PointsEarned,
-                ["SubmittedDate"] = prediction.SubmittedDate,
-                ["UpdatedDate"] = prediction.UpdatedDate
+                ["SubmittedDate"] = DateTime.SpecifyKind(prediction.SubmittedDate, DateTimeKind.Utc),
+                ["UpdatedDate"] = DateTime.SpecifyKind(prediction.UpdatedDate, DateTimeKind.Utc)
             };
 
             await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
@@ -129,8 +129,8 @@ public class PredictionRepository : IPredictionRepository
             ThirdPlaceId = entity.GetString("ThirdPlaceId") ?? string.Empty,
             ThirdPlaceName = entity.GetString("ThirdPlaceName") ?? string.Empty,
             PointsEarned = entity.GetInt32("PointsEarned"),
-            SubmittedDate = entity.GetDateTimeOffset("SubmittedDate")?.DateTime ?? DateTime.MinValue,
-            UpdatedDate = entity.GetDateTimeOffset("UpdatedDate")?.DateTime ?? DateTime.MinValue
+            SubmittedDate = entity.GetDateTimeOffset("SubmittedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
+            UpdatedDate = entity.GetDateTimeOffset("UpdatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 }

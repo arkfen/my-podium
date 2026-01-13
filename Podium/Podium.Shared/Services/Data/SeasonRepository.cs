@@ -144,9 +144,9 @@ public class SeasonRepository : ISeasonRepository
             Year = entity.GetInt32("Year") ?? 0,
             Name = entity.GetString("Name") ?? string.Empty,
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            StartDate = entity.GetDateTimeOffset("StartDate")?.DateTime ?? DateTime.MinValue,
-            EndDate = entity.GetDateTimeOffset("EndDate")?.DateTime,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
+            StartDate = entity.GetDateTimeOffset("StartDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
+            EndDate = entity.GetDateTimeOffset("EndDate")?.UtcDateTime,
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 
@@ -157,9 +157,9 @@ public class SeasonRepository : ISeasonRepository
             { "Year", season.Year },
             { "Name", season.Name },
             { "IsActive", season.IsActive },
-            { "StartDate", season.StartDate },
-            { "EndDate", season.EndDate },
-            { "CreatedDate", season.CreatedDate }
+            { "StartDate", DateTime.SpecifyKind(season.StartDate, DateTimeKind.Utc) },
+            { "EndDate", season.EndDate.HasValue ? DateTime.SpecifyKind(season.EndDate.Value, DateTimeKind.Utc) : (DateTime?)null },
+            { "CreatedDate", DateTime.SpecifyKind(season.CreatedDate, DateTimeKind.Utc) }
         };
 
         return entity;

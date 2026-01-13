@@ -109,11 +109,11 @@ public class EventRepository : IEventRepository
             Name = entity.GetString("Name") ?? string.Empty,
             DisplayName = entity.GetString("DisplayName") ?? string.Empty,
             EventNumber = entity.GetInt32("EventNumber") ?? 0,
-            EventDate = entity.GetDateTimeOffset("EventDate")?.DateTime ?? DateTime.MinValue,
+            EventDate = entity.GetDateTimeOffset("EventDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
             Location = entity.GetString("Location") ?? string.Empty,
             Status = entity.GetString("Status") ?? "Upcoming",
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 
@@ -128,7 +128,7 @@ public class EventRepository : IEventRepository
             SecondPlaceName = entity.GetString("SecondPlaceName") ?? string.Empty,
             ThirdPlaceId = entity.GetString("ThirdPlaceId") ?? string.Empty,
             ThirdPlaceName = entity.GetString("ThirdPlaceName") ?? string.Empty,
-            UpdatedDate = entity.GetDateTimeOffset("UpdatedDate")?.DateTime ?? DateTime.MinValue
+            UpdatedDate = entity.GetDateTimeOffset("UpdatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 }

@@ -68,7 +68,7 @@ public class LeaderboardRepository : ILeaderboardRepository
             ExactMatches = entity.GetInt32("ExactMatches") ?? 0,
             OneOffMatches = entity.GetInt32("OneOffMatches") ?? 0,
             TwoOffMatches = entity.GetInt32("TwoOffMatches") ?? 0,
-            LastUpdated = entity.GetDateTimeOffset("LastUpdated")?.DateTime ?? DateTime.MinValue
+            LastUpdated = entity.GetDateTimeOffset("LastUpdated")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 }

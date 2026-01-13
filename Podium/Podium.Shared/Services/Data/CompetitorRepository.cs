@@ -89,7 +89,7 @@ public class CompetitorRepository : ICompetitorRepository
             ShortName = entity.GetString("ShortName") ?? string.Empty,
             Type = entity.GetString("Type") ?? "Individual",
             IsActive = entity.GetBoolean("IsActive") ?? false,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.DateTime ?? DateTime.MinValue
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 
@@ -100,7 +100,7 @@ public class CompetitorRepository : ICompetitorRepository
             SeasonId = entity.PartitionKey,
             CompetitorId = entity.RowKey,
             CompetitorName = entity.GetString("CompetitorName") ?? string.Empty,
-            JoinDate = entity.GetDateTimeOffset("JoinDate")?.DateTime ?? DateTime.MinValue
+            JoinDate = entity.GetDateTimeOffset("JoinDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
 }
