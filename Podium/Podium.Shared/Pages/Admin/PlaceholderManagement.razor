@@ -3,7 +3,6 @@
 @page "/admin/competitors"
 @page "/admin/events"
 @page "/admin/results"
-@page "/admin/users"
 @using Podium.Shared.Services.State
 @inject AdminStateService AdminState
 @inject NavigationManager Navigation
@@ -34,7 +33,6 @@
                                 Navigation.Uri.Contains("/competitors") ? "Manage Competitors" :
                                 Navigation.Uri.Contains("/events") ? "Manage Events" :
                                 Navigation.Uri.Contains("/results") ? "Manage Results" :
-                                Navigation.Uri.Contains("/users") ? "Manage Users" :
                                 "Admin Management";
 
     private List<string> Features => Navigation.Uri.Contains("/series") ? new() { "Create, edit, and delete series", "Assign series to disciplines", "Toggle series active status" } :
@@ -42,7 +40,6 @@
                                      Navigation.Uri.Contains("/competitors") ? new() { "Create, edit, and delete competitors", "Link competitors to seasons", "Manage driver/team information" } :
                                      Navigation.Uri.Contains("/events") ? new() { "Create, edit, and delete events", "Configure event dates and locations", "Set event status" } :
                                      Navigation.Uri.Contains("/results") ? new() { "Enter event results (podium finishers)", "Update existing results", "Trigger points calculation" } :
-                                     Navigation.Uri.Contains("/users") ? new() { "View all registered users", "Edit user information", "Activate/deactivate accounts" } :
                                      new();
 
     protected override async Task OnInitializedAsync()
