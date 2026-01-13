@@ -328,19 +328,20 @@ public static class AdminEndpoints
         // Update series
         group.MapPut("/series/{seriesId}", async (
             string seriesId,
+            [FromQuery] string currentDisciplineId,
             [FromBody] UpdateSeriesRequest request,
             [FromServices] ISeriesRepository seriesRepo,
             [FromServices] IDisciplineRepository disciplineRepo) =>
         {
-            // Get existing series
-            var existing = await seriesRepo.GetSeriesByIdAsync(request.DisciplineId, seriesId);
+            // Get existing series using CURRENT disciplineId (before any changes)
+            var existing = await seriesRepo.GetSeriesByIdAsync(currentDisciplineId, seriesId);
             if (existing == null)
                 return Results.NotFound(new { error = "Series not found" });
 
-            // Verify discipline exists (in case it's being changed)
+            // Verify NEW discipline exists (in case it's being changed)
             var discipline = await disciplineRepo.GetDisciplineByIdAsync(request.DisciplineId);
             if (discipline == null)
-                return Results.BadRequest(new { error = "Discipline not found" });
+                return Results.BadRequest(new { error = "Target discipline not found" });
 
             existing.DisciplineId = request.DisciplineId;
             existing.Name = request.Name;
@@ -362,7 +363,7 @@ public static class AdminEndpoints
         // Delete series
         group.MapDelete("/series/{seriesId}", async (
             string seriesId,
-            string disciplineId,
+            [FromQuery] string disciplineId,
             [FromServices] ISeriesRepository seriesRepo,
             [FromServices] ISeasonRepository seasonRepo) =>
         {

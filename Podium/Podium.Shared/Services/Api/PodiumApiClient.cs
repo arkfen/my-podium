@@ -58,8 +58,8 @@ public interface IPodiumApiClient
     Task<ApiResponse<List<Series>>> GetAllSeriesAdminAsync(string disciplineId);
     Task<ApiResponse<Series>> GetSeriesAdminAsync(string seriesId);
     Task<ApiResponse<Series>> CreateSeriesAsync(CreateSeriesRequest request);
-    Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, UpdateSeriesRequest request);
-    Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId);
+    Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, string currentDisciplineId, UpdateSeriesRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId, string disciplineId);
 
     // Admin - Season Management
     Task<ApiResponse<List<Season>>> GetAllSeasonsAdminAsync(string seriesId);
@@ -306,14 +306,14 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<Series>("/api/admin/series", request);
     }
 
-    public async Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, UpdateSeriesRequest request)
+    public async Task<ApiResponse<Series>> UpdateSeriesAsync(string seriesId, string currentDisciplineId, UpdateSeriesRequest request)
     {
-        return await PutAsync<Series>($"/api/admin/series/{seriesId}", request);
+        return await PutAsync<Series>($"/api/admin/series/{seriesId}?currentDisciplineId={currentDisciplineId}", request);
     }
 
-    public async Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId)
+    public async Task<ApiResponse<MessageResponse>> DeleteSeriesAsync(string seriesId, string disciplineId)
     {
-        return await DeleteAsync<MessageResponse>($"/api/admin/series/{seriesId}");
+        return await DeleteAsync<MessageResponse>($"/api/admin/series/{seriesId}?disciplineId={disciplineId}");
     }
 
     // Admin - Season Management

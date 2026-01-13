@@ -20,12 +20,15 @@
     {
         <div class="loading">Loading series...</div>
     }
-    else if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-error">@errorMessage</div>
-    }
     else
     {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error">
+                @errorMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
         @if (showForm)
         {
             <div class="admin-form">
@@ -184,6 +187,7 @@
     private Series? editingSeries = null;
     private Series? seriesToDelete = null;
     private string formDisciplineId = "";
+    private string originalDisciplineId = ""; // Track original for updates
     private string formName = "";
     private string formDisplayName = "";
     private string formGoverningBody = "";
@@ -262,6 +266,7 @@
     {
         editingSeries = null;
         formDisciplineId = "";
+        originalDisciplineId = "";
         formName = "";
         formDisplayName = "";
         formGoverningBody = "";
@@ -276,6 +281,7 @@
     {
         editingSeries = series;
         formDisciplineId = series.DisciplineId;
+        originalDisciplineId = series.DisciplineId; // Store original
         formName = series.Name;
         formDisplayName = series.DisplayName;
         formGoverningBody = series.GoverningBody;
@@ -290,7 +296,13 @@
     {
         showForm = false;
         editingSeries = null;
+        originalDisciplineId = "";
         formError = "";
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
     }
 
     private async Task SaveSeries()
@@ -336,7 +348,7 @@
         }
         else
         {
-            // Update
+            // Update - use originalDisciplineId to find the series
             var request = new UpdateSeriesRequest(
                 formDisciplineId,
                 formName,
@@ -346,7 +358,7 @@
                 formRegion,
                 formVehicleType
             );
-            var response = await ApiClient.UpdateSeriesAsync(editingSeries.Id, request);
+            var response = await ApiClient.UpdateSeriesAsync(editingSeries.Id, originalDisciplineId, request);
             
             if (response.Success)
             {
@@ -379,7 +391,7 @@
     {
         if (seriesToDelete == null) return;
 
-        var response = await ApiClient.DeleteSeriesAsync(seriesToDelete.Id);
+        var response = await ApiClient.DeleteSeriesAsync(seriesToDelete.Id, seriesToDelete.DisciplineId);
         
         showDeleteConfirm = false;
         

@@ -20,12 +20,15 @@
     {
         <div class="loading">Loading disciplines...</div>
     }
-    else if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="alert alert-error">@errorMessage</div>
-    }
     else
     {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error">
+                @errorMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
         @if (showForm)
         {
             <div class="admin-form">
@@ -232,6 +235,11 @@
     {
         showDeleteConfirm = false;
         disciplineToDelete = null;
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
     }
 
     private async Task DeleteDiscipline()
