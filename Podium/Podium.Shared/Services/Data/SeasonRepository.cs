@@ -8,6 +8,7 @@ public interface ISeasonRepository
 {
     Task<List<Season>> GetSeasonsBySeriesAsync(string seriesId);
     Task<Season?> GetSeasonByIdAsync(string seriesId, string seasonId);
+    Task<Season?> GetSeasonByIdOnlyAsync(string seasonId);
     Task<Season?> GetActiveSeasonBySeriesAsync(string seriesId);
     Task<bool> SetActiveSeasonAsync(string seriesId, string seasonId);
     Task<Dictionary<string, List<Season>>> FindSeriesWithMultipleActiveSeasonsAsync();
@@ -62,6 +63,27 @@ public class SeasonRepository : ISeasonRepository
         {
             return null;
         }
+    }
+
+    public async Task<Season?> GetSeasonByIdOnlyAsync(string seasonId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            // Query across all partitions to find the season by RowKey
+            var filter = $"RowKey eq '{seasonId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                return MapToSeason(entity);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     public async Task<Season?> GetActiveSeasonBySeriesAsync(string seriesId)

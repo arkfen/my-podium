@@ -724,8 +724,8 @@ public static class AdminEndpoints
             [FromServices] ICompetitorRepository competitorRepo,
             [FromServices] ISeasonRepository seasonRepo) =>
         {
-            // Verify season exists
-            var season = await seasonRepo.GetSeasonByIdAsync(seasonId, seasonId);
+            // Verify season exists (use cross-partition query)
+            var season = await seasonRepo.GetSeasonByIdOnlyAsync(seasonId);
             if (season == null)
                 return Results.BadRequest(new { error = "Season not found" });
 

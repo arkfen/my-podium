@@ -196,7 +196,7 @@
                         <th>Type</th>
                         <th>Status</th>
                         <th>Season Assignments</th>
-                        <th>Dependencies</th>
+                        <th>Podiums</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -237,7 +237,7 @@
                                         @if (deps.ResultCount > 0)
                                         {
                                             <span style="color: #10b981;">
-                                                <strong>Results:</strong> @deps.ResultCount
+                                                <strong>@deps.ResultCount</strong> podiums
                                             </span>
                                         }
                                         else if (!deps.HasDependencies)
