@@ -17,8 +17,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.DbInit", "Tools\Podi
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{3726A50E-B73D-4B0B-ABCE-ADFFB97159E6}"
 	ProjectSection(SolutionItems) = preProject
-		Docs\AdminImplementationStatus.md = Docs\AdminImplementationStatus.md
-		Docs\AdminQuickStart.md = Docs\AdminQuickStart.md
 		Docs\DatabaseStructure.md = Docs\DatabaseStructure.md
 		Docs\EmailConfiguration.md = Docs\EmailConfiguration.md
 		Docs\QUICKSTART.md = Docs\QUICKSTART.md
