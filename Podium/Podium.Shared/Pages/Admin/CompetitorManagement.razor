@@ -13,7 +13,7 @@
 
 <div class="admin-container">
     <div class="admin-header">
-        <h1>&#127937; Manage Competitors</h1>
+        <h1>&#128101; Manage Competitors</h1>
         <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Competitor</button>
     </div>
 
@@ -658,11 +658,14 @@
             );
             var response = await ApiClient.CreateCompetitorAsync(request);
             
+            
             if (response.Success)
             {
                 successMessage = $"Competitor '{formName}' created successfully!";
+                showForm = false;
+                editingCompetitor = null;
                 await LoadData();
-                CancelForm();
+                await ScrollToTop();
             }
             else
             {
@@ -686,8 +689,10 @@
                 await ApplySeasonChanges(editingCompetitor.Id);
                 
                 successMessage = $"Competitor '{formName}' updated successfully!";
+                showForm = false;
+                editingCompetitor = null;
                 await LoadData();
-                CancelForm();
+                await ScrollToTop();
             }
             else
             {
@@ -698,17 +703,32 @@
         saving = false;
     }
 
+
     private async Task ApplySeasonChanges(string competitorId)
     {
         foreach (var seasonId in pendingAdditions)
         {
-            await ApiClient.AddCompetitorToSeasonAsync(seasonId, competitorId);
+            var result = await ApiClient.AddCompetitorToSeasonAsync(seasonId, competitorId);
+            if (!result.Success)
+            {
+                errorMessage = $"Warning: Failed to add some season assignments. Error: {result.Error}";
+            }
         }
 
         foreach (var seasonId in pendingRemovals)
         {
-            await ApiClient.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
+            var result = await ApiClient.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
+            if (!result.Success)
+            {
+                errorMessage = $"Warning: Failed to remove some season assignments. Error: {result.Error}";
+            }
         }
+    }
+
+    private async Task ScrollToTop()
+    {
+        await Task.Delay(100);
+        await JS.InvokeVoidAsync("eval", "window.scrollTo({ top: 0, behavior: 'smooth' })");
     }
 
     private void ConfirmDelete(Competitor competitor)
@@ -766,10 +786,12 @@
         {
             successMessage = $"Competitor '{name}' deleted successfully!";
             await LoadData();
+            await ScrollToTop();
         }
         else
         {
             errorMessage = response.Error ?? $"Failed to delete '{name}'";
+            await ScrollToTop();
         }
         
         competitorToDelete = null;
