@@ -70,13 +70,14 @@ public interface IPodiumApiClient
     Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId, string seriesId);
 
     // Admin - Competitor Management
-    Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId);
+    Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync();
+    Task<ApiResponse<List<Competitor>>> GetCompetitorsByTypeAsync(string type);
     Task<ApiResponse<Competitor>> GetCompetitorAdminAsync(string competitorId);
     Task<ApiResponse<CompetitorDependencies>> GetCompetitorDependenciesAsync(string competitorId);
     Task<ApiResponse<List<string>>> GetCompetitorSeasonsAsync(string competitorId);
     Task<ApiResponse<Competitor>> CreateCompetitorAsync(CreateCompetitorRequest request);
     Task<ApiResponse<Competitor>> UpdateCompetitorAsync(string competitorId, UpdateCompetitorRequest request);
-    Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string disciplineId);
+    Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string type);
 
     // Admin - Season Competitor Management
     Task<ApiResponse<List<SeasonCompetitor>>> GetSeasonCompetitorsAdminAsync(string seasonId);
@@ -351,9 +352,14 @@ public class PodiumApiClient : IPodiumApiClient
     }
 
     // Admin - Competitor Management
-    public async Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId)
+    public async Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync()
     {
-        return await GetAsync<List<Competitor>>($"/api/admin/disciplines/{disciplineId}/competitors");
+        return await GetAsync<List<Competitor>>($"/api/admin/competitors");
+    }
+
+    public async Task<ApiResponse<List<Competitor>>> GetCompetitorsByTypeAsync(string type)
+    {
+        return await GetAsync<List<Competitor>>($"/api/admin/competitors/type/{type}");
     }
 
     public async Task<ApiResponse<Competitor>> GetCompetitorAdminAsync(string competitorId)
@@ -381,9 +387,9 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<Competitor>($"/api/admin/competitors/{competitorId}", request);
     }
 
-    public async Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string disciplineId)
+    public async Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string type)
     {
-        return await DeleteAsync<MessageResponse>($"/api/admin/competitors/{competitorId}?disciplineId={disciplineId}");
+        return await DeleteAsync<MessageResponse>($"/api/admin/competitors/{competitorId}?type={type}");
     }
 
     // Admin - Season Competitor Management
@@ -613,7 +619,7 @@ public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsAc
 public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
 public record UpdateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
 
-public record CreateCompetitorRequest(string DisciplineId, string Name, string ShortName, string Type, bool IsActive);
+public record CreateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
 public record UpdateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
 
 public record CreateSeriesRequest(string DisciplineId, string Name, string DisplayName, bool IsActive, string? GoverningBody, string? Region, string? VehicleType);

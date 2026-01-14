@@ -567,16 +567,26 @@ public static class AdminEndpoints
 
         // ===== COMPETITOR MANAGEMENT =====
 
-        // Get all competitors for a discipline (admin)
-        group.MapGet("/disciplines/{disciplineId}/competitors", async (
-            string disciplineId,
+        // Get all competitors (admin)
+        group.MapGet("/competitors", async (
             [FromServices] ICompetitorRepository competitorRepo) =>
         {
-            var competitors = await competitorRepo.GetCompetitorsByDisciplineAsync(disciplineId);
+            var competitors = await competitorRepo.GetAllCompetitorsAsync();
             return Results.Ok(competitors);
         })
         .RequireAdmin()
-        .WithName("GetCompetitorsByDisciplineAdmin");
+        .WithName("GetAllCompetitorsAdmin");
+
+        // Get competitors by type (admin)
+        group.MapGet("/competitors/type/{type}", async (
+            string type,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var competitors = await competitorRepo.GetCompetitorsByTypeAsync(type);
+            return Results.Ok(competitors);
+        })
+        .RequireAdmin()
+        .WithName("GetCompetitorsByType");
 
         // Get specific competitor (admin)
         group.MapGet("/competitors/{competitorId}", async (
@@ -617,14 +627,8 @@ public static class AdminEndpoints
         // Create competitor
         group.MapPost("/competitors", async (
             [FromBody] CreateCompetitorRequest request,
-            [FromServices] ICompetitorRepository competitorRepo,
-            [FromServices] IDisciplineRepository disciplineRepo) =>
+            [FromServices] ICompetitorRepository competitorRepo) =>
         {
-            // Verify discipline exists
-            var discipline = await disciplineRepo.GetDisciplineByIdAsync(request.DisciplineId);
-            if (discipline == null)
-                return Results.BadRequest(new { error = "Discipline not found" });
-
             // Validate type
             if (request.Type != "Individual" && request.Type != "Team")
             {
@@ -633,7 +637,6 @@ public static class AdminEndpoints
 
             var competitor = new Competitor
             {
-                DisciplineId = request.DisciplineId,
                 Name = request.Name,
                 ShortName = request.ShortName,
                 Type = request.Type,
@@ -666,8 +669,6 @@ public static class AdminEndpoints
                 return Results.BadRequest(new { error = "Type must be 'Individual' or 'Team'" });
             }
 
-            // NOTE: We do NOT allow changing DisciplineId
-            // This is a business rule - competitors belong to a discipline permanently
             existing.Name = request.Name;
             existing.ShortName = request.ShortName;
             existing.Type = request.Type;
@@ -685,7 +686,7 @@ public static class AdminEndpoints
         // Delete competitor
         group.MapDelete("/competitors/{competitorId}", async (
             string competitorId,
-            [FromQuery] string disciplineId,
+            [FromQuery] string type,
             [FromServices] ICompetitorRepository competitorRepo) =>
         {
             // Check for dependencies first
@@ -707,7 +708,7 @@ public static class AdminEndpoints
                 });
             }
 
-            var success = await competitorRepo.DeleteCompetitorAsync(disciplineId, competitorId);
+            var success = await competitorRepo.DeleteCompetitorAsync(type, competitorId);
             if (!success)
                 return Results.NotFound(new { error = "Competitor not found" });
 

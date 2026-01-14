@@ -38,29 +38,6 @@
                 <h3>@(editingCompetitor == null ? "Create" : "Edit") Competitor</h3>
                 
                 <div class="form-group">
-                    <label>Discipline:</label>
-                    @if (editingCompetitor == null)
-                    {
-                        <select class="form-control" @bind="formDisciplineId" @bind:after="OnDisciplineChanged">
-                            <option value="">-- Select Discipline --</option>
-                            @foreach (var discipline in disciplines)
-                            {
-                                <option value="@discipline.Id">@discipline.DisplayName</option>
-                            }
-                        </select>
-                    }
-                    else
-                    {
-                        <div class="user-display">
-                            @GetDisciplineName(editingCompetitor.DisciplineId)
-                            <small style="display: block; color: var(--text-light); margin-top: 0.25rem;">
-                                Discipline cannot be changed after creation
-                            </small>
-                        </div>
-                    }
-                </div>
-
-                <div class="form-group">
                     <label>Type:</label>
                     <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
                         <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
@@ -76,6 +53,9 @@
                             <span>Team (Constructor)</span>
                         </label>
                     </div>
+                    <small style="display: block; color: var(--text-light); margin-top: 0.25rem;">
+                        Competitors are discipline-agnostic and assigned to seasons
+                    </small>
                 </div>
 
                 <div class="form-group">
@@ -102,9 +82,9 @@
                     <div class="form-group">
                         <label><strong>Season Assignments:</strong></label>
                         <small style="display: block; margin-bottom: 0.5rem; color: var(--text-light);">
-                            Select the seasons this competitor participates in
+                            Select the seasons this competitor participates in (across all disciplines)
                         </small>
-                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
                             @foreach (var season in availableSeasonsForAssignment)
                             {
                                 var isAssigned = assignedSeasonIds.Contains(season.Id);
@@ -113,7 +93,7 @@
                                            checked="@isAssigned"
                                            @onchange="@(e => ToggleSeasonAssignment(season.Id, (bool)e.Value))" />
                                     <span>
-                                        <strong>@season.Year</strong> - @GetSeriesName(season.SeriesId)
+                                        <strong>@season.Year</strong> - @GetSeriesName(season.SeriesId) (@GetDisciplineName(season.SeriesId))
                                         @if (season.IsActive)
                                         {
                                             <span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>
@@ -139,13 +119,11 @@
         }
 
         <div class="filter-section">
-            <label>Filter by Discipline:</label>
-            <select class="form-control" @bind="selectedDisciplineFilter" @bind:after="FilterCompetitors">
-                <option value="">All Disciplines</option>
-                @foreach (var discipline in disciplines)
-                {
-                    <option value="@discipline.Id">@discipline.DisplayName</option>
-                }
+            <label>Filter by Type:</label>
+            <select class="form-control" @bind="selectedTypeFilter" @bind:after="FilterCompetitors">
+                <option value="">All Types</option>
+                <option value="Individual">Individuals (Drivers)</option>
+                <option value="Team">Teams (Constructors)</option>
             </select>
         </div>
 
@@ -156,7 +134,6 @@
                         <th>Name</th>
                         <th>Short Name</th>
                         <th>Type</th>
-                        <th>Discipline</th>
                         <th>Status</th>
                         <th>Season Assignments</th>
                         <th>Dependencies</th>
@@ -172,11 +149,6 @@
                             <td>
                                 <span class="badge @(competitor.Type == "Individual" ? "badge-info" : "badge-secondary")">
                                     @competitor.Type
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge badge-secondary">
-                                    @GetDisciplineName(competitor.DisciplineId)
                                 </span>
                             </td>
                             <td>
@@ -226,7 +198,7 @@
             @if (!filteredCompetitors.Any())
             {
                 <div class="no-results">
-                    <p>No competitors found. @(string.IsNullOrEmpty(selectedDisciplineFilter) ? "Create one to get started!" : "Try selecting a different discipline.")</p>
+                    <p>No competitors found. @(string.IsNullOrEmpty(selectedTypeFilter) ? "Create one to get started!" : "Try selecting a different type.")</p>
                 </div>
             }
         </div>
@@ -258,12 +230,11 @@
     private bool showDeleteConfirm = false;
     private string errorMessage = "";
     private string formError = "";
-    private string selectedDisciplineFilter = "";
+    private string selectedTypeFilter = "";
     private string deleteConfirmMessage = "";
 
     private Competitor? editingCompetitor = null;
     private Competitor? competitorToDelete = null;
-    private string formDisciplineId = "";
     private string formName = "";
     private string formShortName = "";
     private string formType = "Individual";
@@ -290,17 +261,11 @@
         loading = true;
         errorMessage = "";
 
-        // Load disciplines
+        // Load disciplines (for display purposes only)
         var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
         if (disciplineResponse.Success && disciplineResponse.Data != null)
         {
             disciplines = disciplineResponse.Data;
-        }
-        else
-        {
-            errorMessage = "Failed to load disciplines";
-            loading = false;
-            return;
         }
 
         // Load all series
@@ -325,15 +290,17 @@
             }
         }
 
-        // Load all competitors
-        allCompetitors = new();
-        foreach (var discipline in disciplines)
+        // Load all competitors (no discipline filter)
+        var competitorsResponse = await ApiClient.GetAllCompetitorsAdminAsync();
+        if (competitorsResponse.Success && competitorsResponse.Data != null)
         {
-            var competitorsResponse = await ApiClient.GetAllCompetitorsAdminAsync(discipline.Id);
-            if (competitorsResponse.Success && competitorsResponse.Data != null)
-            {
-                allCompetitors.AddRange(competitorsResponse.Data);
-            }
+            allCompetitors = competitorsResponse.Data;
+        }
+        else
+        {
+            errorMessage = "Failed to load competitors";
+            loading = false;
+            return;
         }
 
         // Load dependencies and season assignments for all competitors
@@ -364,41 +331,26 @@
         }
     }
 
-    private void OnDisciplineChanged()
-    {
-        // Load seasons for the selected discipline when creating
-        if (editingCompetitor == null && !string.IsNullOrEmpty(formDisciplineId))
-        {
-            LoadSeasonsForDiscipline(formDisciplineId);
-        }
-    }
-
-    private void LoadSeasonsForDiscipline(string disciplineId)
-    {
-        var seriesInDiscipline = allSeries.Where(s => s.DisciplineId == disciplineId).Select(s => s.Id).ToList();
-        availableSeasonsForAssignment = allSeasons
-            .Where(season => seriesInDiscipline.Contains(season.SeriesId))
-            .OrderByDescending(s => s.Year)
-            .ToList();
-    }
-
     private void FilterCompetitors()
     {
-        if (string.IsNullOrEmpty(selectedDisciplineFilter))
+        if (string.IsNullOrEmpty(selectedTypeFilter))
         {
             filteredCompetitors = allCompetitors.ToList();
         }
         else
         {
-            filteredCompetitors = allCompetitors.Where(c => c.DisciplineId == selectedDisciplineFilter).ToList();
+            filteredCompetitors = allCompetitors.Where(c => c.Type == selectedTypeFilter).ToList();
         }
 
         filteredCompetitors = filteredCompetitors.OrderBy(c => c.Name).ToList();
     }
 
-    private string GetDisciplineName(string disciplineId)
+    private string GetDisciplineName(string seriesId)
     {
-        var discipline = disciplines.FirstOrDefault(d => d.Id == disciplineId);
+        var series = allSeries.FirstOrDefault(s => s.Id == seriesId);
+        if (series == null) return "Unknown";
+        
+        var discipline = disciplines.FirstOrDefault(d => d.Id == series.DisciplineId);
         return discipline?.DisplayName ?? "Unknown";
     }
 
@@ -411,7 +363,6 @@
     private void ShowCreateForm()
     {
         editingCompetitor = null;
-        formDisciplineId = "";
         formName = "";
         formShortName = "";
         formType = "Individual";
@@ -426,7 +377,6 @@
     private async Task EditCompetitor(Competitor competitor)
     {
         editingCompetitor = competitor;
-        formDisciplineId = competitor.DisciplineId;
         formName = competitor.Name;
         formShortName = competitor.ShortName;
         formType = competitor.Type;
@@ -434,8 +384,8 @@
         formError = "";
         pendingSeasonChanges = new();
 
-        // Load seasons for this discipline
-        LoadSeasonsForDiscipline(competitor.DisciplineId);
+        // Load ALL seasons (no discipline filter)
+        availableSeasonsForAssignment = allSeasons.OrderByDescending(s => s.Year).ToList();
 
         // Load current season assignments
         assignedSeasonIds = new HashSet<string>();
@@ -481,12 +431,6 @@
 
     private async Task SaveCompetitor()
     {
-        if (string.IsNullOrWhiteSpace(formDisciplineId))
-        {
-            formError = "Please select a discipline";
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(formName))
         {
             formError = "Name is required";
@@ -512,7 +456,6 @@
         {
             // Create
             var request = new CreateCompetitorRequest(
-                formDisciplineId,
                 formName,
                 formShortName,
                 formType,
@@ -624,7 +567,7 @@
             return;
         }
 
-        var response = await ApiClient.DeleteCompetitorAsync(competitorToDelete.Id, competitorToDelete.DisciplineId);
+        var response = await ApiClient.DeleteCompetitorAsync(competitorToDelete.Id, competitorToDelete.Type);
         
         showDeleteConfirm = false;
         

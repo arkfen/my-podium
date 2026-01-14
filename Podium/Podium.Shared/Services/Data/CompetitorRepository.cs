@@ -6,13 +6,14 @@ namespace Podium.Shared.Services.Data;
 
 public interface ICompetitorRepository
 {
-    Task<List<Competitor>> GetCompetitorsByDisciplineAsync(string disciplineId);
+    Task<List<Competitor>> GetAllCompetitorsAsync();
+    Task<List<Competitor>> GetCompetitorsByTypeAsync(string type);
     Task<List<SeasonCompetitor>> GetCompetitorsBySeasonAsync(string seasonId);
-    Task<Competitor?> GetCompetitorByIdAsync(string disciplineId, string competitorId);
+    Task<Competitor?> GetCompetitorByIdAsync(string type, string competitorId);
     Task<Competitor?> GetCompetitorByIdOnlyAsync(string competitorId);
     Task<Competitor?> CreateCompetitorAsync(Competitor competitor);
     Task<Competitor?> UpdateCompetitorAsync(Competitor competitor);
-    Task<bool> DeleteCompetitorAsync(string disciplineId, string competitorId);
+    Task<bool> DeleteCompetitorAsync(string type, string competitorId);
     Task<bool> AddCompetitorToSeasonAsync(string seasonId, string competitorId, string competitorName);
     Task<bool> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId);
     Task<List<string>> GetCompetitorSeasonIdsAsync(string competitorId);
@@ -30,14 +31,35 @@ public class CompetitorRepository : ICompetitorRepository
         _tableClientFactory = tableClientFactory;
     }
 
-    public async Task<List<Competitor>> GetCompetitorsByDisciplineAsync(string disciplineId)
+    public async Task<List<Competitor>> GetAllCompetitorsAsync()
     {
         var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
         var competitors = new List<Competitor>();
 
         try
         {
-            var filter = $"PartitionKey eq '{disciplineId}' and IsActive eq true";
+            // Query all competitors (both Individual and Team)
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>())
+            {
+                competitors.Add(MapToCompetitor(entity));
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return competitors;
+        }
+
+        return competitors.OrderBy(c => c.Name).ToList();
+    }
+
+    public async Task<List<Competitor>> GetCompetitorsByTypeAsync(string type)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
+        var competitors = new List<Competitor>();
+
+        try
+        {
+            var filter = $"PartitionKey eq '{type}' and IsActive eq true";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 competitors.Add(MapToCompetitor(entity));
@@ -72,13 +94,13 @@ public class CompetitorRepository : ICompetitorRepository
         return seasonCompetitors.OrderBy(sc => sc.CompetitorName).ToList();
     }
 
-    public async Task<Competitor?> GetCompetitorByIdAsync(string disciplineId, string competitorId)
+    public async Task<Competitor?> GetCompetitorByIdAsync(string type, string competitorId)
     {
         var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
 
         try
         {
-            var response = await tableClient.GetEntityAsync<TableEntity>(disciplineId, competitorId);
+            var response = await tableClient.GetEntityAsync<TableEntity>(type, competitorId);
             return MapToCompetitor(response.Value);
         }
         catch (RequestFailedException)
@@ -92,10 +114,9 @@ public class CompetitorRepository : ICompetitorRepository
         return new Competitor
         {
             Id = entity.RowKey,
-            DisciplineId = entity.PartitionKey,
+            Type = entity.PartitionKey, // PartitionKey is now Type ("Individual" or "Team")
             Name = entity.GetString("Name") ?? string.Empty,
             ShortName = entity.GetString("ShortName") ?? string.Empty,
-            Type = entity.GetString("Type") ?? "Individual",
             IsActive = entity.GetBoolean("IsActive") ?? false,
             CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
@@ -142,11 +163,11 @@ public class CompetitorRepository : ICompetitorRepository
             competitor.Id = Guid.NewGuid().ToString();
             competitor.CreatedDate = DateTime.UtcNow;
 
-            var entity = new TableEntity(competitor.DisciplineId, competitor.Id)
+            // PartitionKey = Type ("Individual" or "Team")
+            var entity = new TableEntity(competitor.Type, competitor.Id)
             {
                 ["Name"] = competitor.Name,
                 ["ShortName"] = competitor.ShortName,
-                ["Type"] = competitor.Type,
                 ["IsActive"] = competitor.IsActive,
                 ["CreatedDate"] = DateTime.SpecifyKind(competitor.CreatedDate, DateTimeKind.Utc)
             };
@@ -166,13 +187,11 @@ public class CompetitorRepository : ICompetitorRepository
 
         try
         {
-            // Note: We do NOT allow changing DisciplineId for competitors
-            // This is different from Series/Seasons which can be moved
-            var entity = new TableEntity(competitor.DisciplineId, competitor.Id)
+            // PartitionKey = Type ("Individual" or "Team")
+            var entity = new TableEntity(competitor.Type, competitor.Id)
             {
                 ["Name"] = competitor.Name,
                 ["ShortName"] = competitor.ShortName,
-                ["Type"] = competitor.Type,
                 ["IsActive"] = competitor.IsActive,
                 ["CreatedDate"] = DateTime.SpecifyKind(competitor.CreatedDate, DateTimeKind.Utc)
             };
@@ -186,13 +205,13 @@ public class CompetitorRepository : ICompetitorRepository
         }
     }
 
-    public async Task<bool> DeleteCompetitorAsync(string disciplineId, string competitorId)
+    public async Task<bool> DeleteCompetitorAsync(string type, string competitorId)
     {
         var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
 
         try
         {
-            await tableClient.DeleteEntityAsync(disciplineId, competitorId);
+            await tableClient.DeleteEntityAsync(type, competitorId);
             return true;
         }
         catch (RequestFailedException)
