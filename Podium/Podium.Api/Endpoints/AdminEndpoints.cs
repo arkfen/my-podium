@@ -436,7 +436,7 @@ public static class AdminEndpoints
             [FromServices] ISeriesRepository seriesRepo) =>
         {
             // Verify series exists
-            var series = await seriesRepo.GetSeriesByIdAsync(request.SeriesId, request.SeriesId);
+            var series = await seriesRepo.GetSeriesByIdOnlyAsync(request.SeriesId);
             if (series == null)
                 return Results.BadRequest(new { error = "Series not found" });
 
@@ -485,7 +485,7 @@ public static class AdminEndpoints
                 return Results.NotFound(new { error = "Season not found" });
 
             // Verify NEW series exists (in case it's being changed)
-            var series = await seriesRepo.GetSeriesByIdAsync(request.SeriesId, request.SeriesId);
+            var series = await seriesRepo.GetSeriesByIdOnlyAsync(request.SeriesId);
             if (series == null)
                 return Results.BadRequest(new { error = "Target series not found" });
 
@@ -501,10 +501,24 @@ public static class AdminEndpoints
                 return Results.BadRequest(new { error = "Year must match the start date year" });
             }
 
+            // IMPORTANT: If moving to a different series AND the season is active,
+            // deactivate it to prevent duplicate active seasons in the new series
+            bool seriesChanged = currentSeriesId != request.SeriesId;
+            bool wasActive = existing.IsActive;
+            
+            if (seriesChanged && wasActive)
+            {
+                // Deactivate the season when moving to prevent duplicate active seasons
+                existing.IsActive = false;
+            }
+            else
+            {
+                existing.IsActive = request.IsActive;
+            }
+
             existing.SeriesId = request.SeriesId;
             existing.Year = request.Year;
             existing.Name = request.Name;
-            existing.IsActive = request.IsActive;
             existing.StartDate = request.StartDate;
             existing.EndDate = request.EndDate;
 

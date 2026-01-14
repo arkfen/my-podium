@@ -8,6 +8,7 @@ public interface ISeriesRepository
 {
     Task<List<Series>> GetSeriesByDisciplineAsync(string disciplineId);
     Task<Series?> GetSeriesByIdAsync(string disciplineId, string seriesId);
+    Task<Series?> GetSeriesByIdOnlyAsync(string seriesId);
     Task<List<Series>> GetActiveSeriesByDisciplineAsync(string disciplineId);
     Task<Series?> CreateSeriesAsync(Series series);
     Task<Series?> UpdateSeriesAsync(Series series, string? oldDisciplineId = null);
@@ -58,6 +59,27 @@ public class SeriesRepository : ISeriesRepository
         {
             return null;
         }
+    }
+
+    public async Task<Series?> GetSeriesByIdOnlyAsync(string seriesId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            // Query across all partitions to find the series by RowKey
+            var filter = $"RowKey eq '{seriesId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                return MapToSeries(entity);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+
+        return null;
     }
 
     public async Task<List<Series>> GetActiveSeriesByDisciplineAsync(string disciplineId)

@@ -24,7 +24,9 @@
     {
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="alert alert-error">
+            var isInfoMessage = errorMessage.StartsWith("?");
+            var alertClass = isInfoMessage ? "alert alert-info" : "alert alert-error";
+            <div class="@alertClass">
                 @errorMessage
                 <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
             </div>
@@ -171,9 +173,23 @@
                                 {
                                     var deps = seasonDependencies[season.Id];
                                     <small>
-                                        @if (deps.EventCount > 0) { <span>?? @deps.EventCount events</span> }
-                                        @if (deps.CompetitorCount > 0) { <span>?? @deps.CompetitorCount competitors</span> }
-                                        @if (!deps.HasDependencies) { <span>None</span> }
+                                        @if (deps.EventCount > 0) 
+                                        { 
+                                            <span style="color: #2563eb;">
+                                                <strong>Events:</strong> @deps.EventCount
+                                            </span>
+                                        }
+                                        @if (deps.CompetitorCount > 0) 
+                                        { 
+                                            @if (deps.EventCount > 0) { <span> | </span> }
+                                            <span style="color: #10b981;">
+                                                <strong>Competitors:</strong> @deps.CompetitorCount
+                                            </span>
+                                        }
+                                        @if (!deps.HasDependencies) 
+                                        { 
+                                            <span style="color: #6b7280;">None</span> 
+                                        }
                                     </small>
                                 }
                             </td>
@@ -320,7 +336,12 @@
 
     private void OnDisciplineChanged()
     {
-        formSeriesId = "";
+        // Only clear series selection if creating new (not editing)
+        if (editingSeason == null)
+        {
+            formSeriesId = "";
+        }
+        
         filteredSeriesForForm = string.IsNullOrEmpty(formDisciplineId)
             ? new List<Series>()
             : allSeries.Where(s => s.DisciplineId == formDisciplineId).ToList();
@@ -401,7 +422,9 @@
         formIsActive = season.IsActive;
         formError = "";
         
+        // Populate series dropdown after setting values
         OnDisciplineChanged();
+        
         showForm = true;
     }
 
@@ -491,8 +514,18 @@
             
             if (response.Success)
             {
+                // IMPORTANT: Capture these values BEFORE calling CancelForm() which nullifies editingSeason
+                bool seriesChanged = originalSeriesId != formSeriesId;
+                bool wasActive = editingSeason.IsActive;
+                
                 await LoadData();
                 CancelForm();
+                
+                // Check if series changed and season was active - show info message
+                if (seriesChanged && wasActive && !formIsActive)
+                {
+                    errorMessage = "? Season moved successfully but was deactivated to prevent duplicate active seasons. You can manually activate it using the 'Set Active' button.";
+                }
             }
             else
             {

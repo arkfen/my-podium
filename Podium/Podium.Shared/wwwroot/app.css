@@ -183,6 +183,21 @@ body {
     border-radius: 8px;
     font-size: 1rem;
     transition: border-color 0.2s;
+    width: 100%;
+    background-color: white;
+}
+
+input[type="date"].form-control,
+input[type="date"] {
+    padding: 0.65rem 0.75rem;
+    min-height: 2.75rem;
+    border: 2px solid #d1d5db !important;
+    border-radius: 8px !important;
+    background-color: white !important;
+}
+
+input[type="number"].form-control {
+    padding: 0.65rem 0.75rem;
 }
 
 .form-control:focus {
