@@ -764,6 +764,27 @@ input[type="number"].form-control {
     font-size: 0.85rem;
 }
 
+.filter-section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-section label {
+    font-weight: 500;
+    margin: 0;
+}
+
+.filter-section .form-control {
+    max-width: 300px;
+}
+
 .form-actions {
     display: flex;
     gap: 1rem;
@@ -814,6 +835,16 @@ input[type="number"].form-control {
 .badge-success {
     background: #d1fae5;
     color: #065f46;
+}
+
+.badge-info {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.badge-secondary {
+    background: #f3f4f6;
+    color: #4b5563;
 }
 
 .badge-inactive {

@@ -1,0 +1,642 @@
+@page "/admin/competitors"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Competitors - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1><span style="font-size: 1.2em;">??</span> Manage Competitors</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Competitor</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading competitors...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            var isInfoMessage = errorMessage.StartsWith("?");
+            var alertClass = isInfoMessage ? "alert alert-info" : "alert alert-error";
+            <div class="@alertClass">
+                @errorMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
+
+        @if (showForm)
+        {
+            <div class="admin-form">
+                <h3>@(editingCompetitor == null ? "Create" : "Edit") Competitor</h3>
+                
+                <div class="form-group">
+                    <label>Discipline:</label>
+                    @if (editingCompetitor == null)
+                    {
+                        <select class="form-control" @bind="formDisciplineId" @bind:after="OnDisciplineChanged">
+                            <option value="">-- Select Discipline --</option>
+                            @foreach (var discipline in disciplines)
+                            {
+                                <option value="@discipline.Id">@discipline.DisplayName</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="user-display">
+                            @GetDisciplineName(editingCompetitor.DisciplineId)
+                            <small style="display: block; color: var(--text-light); margin-top: 0.25rem;">
+                                Discipline cannot be changed after creation
+                            </small>
+                        </div>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Type:</label>
+                    <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="competitorType" value="Individual" 
+                                   checked="@(formType == "Individual")"
+                                   @onchange="@(() => formType = "Individual")" />
+                            <span>Individual (Driver)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="radio" name="competitorType" value="Team" 
+                                   checked="@(formType == "Team")"
+                                   @onchange="@(() => formType = "Team")" />
+                            <span>Team (Constructor)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Full Name:</label>
+                    <input type="text" class="form-control" @bind="formName" 
+                           placeholder="e.g., Lewis Hamilton or Red Bull Racing" />
+                </div>
+
+                <div class="form-group">
+                    <label>Short Name:</label>
+                    <input type="text" class="form-control" @bind="formShortName" 
+                           placeholder="e.g., HAM or RBR (for display)" />
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active
+                    </label>
+                </div>
+
+                @if (editingCompetitor != null && availableSeasonsForAssignment.Any())
+                {
+                    <div class="form-group">
+                        <label><strong>Season Assignments:</strong></label>
+                        <small style="display: block; margin-bottom: 0.5rem; color: var(--text-light);">
+                            Select the seasons this competitor participates in
+                        </small>
+                        <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
+                            @foreach (var season in availableSeasonsForAssignment)
+                            {
+                                var isAssigned = assignedSeasonIds.Contains(season.Id);
+                                <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">
+                                    <input type="checkbox" 
+                                           checked="@isAssigned"
+                                           @onchange="@(e => ToggleSeasonAssignment(season.Id, (bool)e.Value))" />
+                                    <span>
+                                        <strong>@season.Year</strong> - @GetSeriesName(season.SeriesId)
+                                        @if (season.IsActive)
+                                        {
+                                            <span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>
+                                        }
+                                    </span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveCompetitor" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="filter-section">
+            <label>Filter by Discipline:</label>
+            <select class="form-control" @bind="selectedDisciplineFilter" @bind:after="FilterCompetitors">
+                <option value="">All Disciplines</option>
+                @foreach (var discipline in disciplines)
+                {
+                    <option value="@discipline.Id">@discipline.DisplayName</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Short Name</th>
+                        <th>Type</th>
+                        <th>Discipline</th>
+                        <th>Status</th>
+                        <th>Season Assignments</th>
+                        <th>Dependencies</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var competitor in filteredCompetitors)
+                    {
+                        <tr>
+                            <td><strong>@competitor.Name</strong></td>
+                            <td>@competitor.ShortName</td>
+                            <td>
+                                <span class="badge @(competitor.Type == "Individual" ? "badge-info" : "badge-secondary")">
+                                    @competitor.Type
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-secondary">
+                                    @GetDisciplineName(competitor.DisciplineId)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge @(competitor.IsActive ? "badge-success" : "badge-inactive")">
+                                    @(competitor.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>
+                                @if (competitorSeasonAssignments.ContainsKey(competitor.Id))
+                                {
+                                    var count = competitorSeasonAssignments[competitor.Id].Count;
+                                    <small style="color: #2563eb;">
+                                        <strong>Seasons:</strong> @count
+                                    </small>
+                                }
+                                else
+                                {
+                                    <small style="color: #6b7280;">None</small>
+                                }
+                            </td>
+                            <td>
+                                @if (competitorDependencies.ContainsKey(competitor.Id))
+                                {
+                                    var deps = competitorDependencies[competitor.Id];
+                                    <small>
+                                        @if (deps.ResultCount > 0)
+                                        {
+                                            <span style="color: #10b981;">
+                                                <strong>Results:</strong> @deps.ResultCount
+                                            </span>
+                                        }
+                                        else if (!deps.HasDependencies)
+                                        {
+                                            <span style="color: #6b7280;">None</span>
+                                        }
+                                    </small>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditCompetitor(competitor)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(competitor)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!filteredCompetitors.Any())
+            {
+                <div class="no-results">
+                    <p>No competitors found. @(string.IsNullOrEmpty(selectedDisciplineFilter) ? "Create one to get started!" : "Try selecting a different discipline.")</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Competitor"
+               Message="@deleteConfirmMessage"
+               ConfirmText="Delete"
+               OnConfirm="DeleteCompetitor"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private List<Series> allSeries = new();
+    private List<Season> allSeasons = new();
+    private List<Competitor> allCompetitors = new();
+    private List<Competitor> filteredCompetitors = new();
+    private List<Season> availableSeasonsForAssignment = new();
+    private Dictionary<string, CompetitorDependencies> competitorDependencies = new();
+    private Dictionary<string, List<string>> competitorSeasonAssignments = new();
+    private HashSet<string> assignedSeasonIds = new();
+    private HashSet<string> pendingSeasonChanges = new();
+
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+    private string selectedDisciplineFilter = "";
+    private string deleteConfirmMessage = "";
+
+    private Competitor? editingCompetitor = null;
+    private Competitor? competitorToDelete = null;
+    private string formDisciplineId = "";
+    private string formName = "";
+    private string formShortName = "";
+    private string formType = "Individual";
+    private bool formIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMessage = "";
+
+        // Load disciplines
+        var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
+        if (disciplineResponse.Success && disciplineResponse.Data != null)
+        {
+            disciplines = disciplineResponse.Data;
+        }
+        else
+        {
+            errorMessage = "Failed to load disciplines";
+            loading = false;
+            return;
+        }
+
+        // Load all series
+        allSeries = new();
+        foreach (var discipline in disciplines)
+        {
+            var seriesResponse = await ApiClient.GetAllSeriesAdminAsync(discipline.Id);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                allSeries.AddRange(seriesResponse.Data);
+            }
+        }
+
+        // Load all seasons
+        allSeasons = new();
+        foreach (var series in allSeries)
+        {
+            var seasonsResponse = await ApiClient.GetAllSeasonsAdminAsync(series.Id);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                allSeasons.AddRange(seasonsResponse.Data);
+            }
+        }
+
+        // Load all competitors
+        allCompetitors = new();
+        foreach (var discipline in disciplines)
+        {
+            var competitorsResponse = await ApiClient.GetAllCompetitorsAdminAsync(discipline.Id);
+            if (competitorsResponse.Success && competitorsResponse.Data != null)
+            {
+                allCompetitors.AddRange(competitorsResponse.Data);
+            }
+        }
+
+        // Load dependencies and season assignments for all competitors
+        await LoadDependenciesAndAssignments();
+
+        FilterCompetitors();
+        loading = false;
+    }
+
+    private async Task LoadDependenciesAndAssignments()
+    {
+        competitorDependencies.Clear();
+        competitorSeasonAssignments.Clear();
+
+        foreach (var competitor in allCompetitors)
+        {
+            var depsResponse = await ApiClient.GetCompetitorDependenciesAsync(competitor.Id);
+            if (depsResponse.Success && depsResponse.Data != null)
+            {
+                competitorDependencies[competitor.Id] = depsResponse.Data;
+            }
+
+            var seasonsResponse = await ApiClient.GetCompetitorSeasonsAsync(competitor.Id);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                competitorSeasonAssignments[competitor.Id] = seasonsResponse.Data;
+            }
+        }
+    }
+
+    private void OnDisciplineChanged()
+    {
+        // Load seasons for the selected discipline when creating
+        if (editingCompetitor == null && !string.IsNullOrEmpty(formDisciplineId))
+        {
+            LoadSeasonsForDiscipline(formDisciplineId);
+        }
+    }
+
+    private void LoadSeasonsForDiscipline(string disciplineId)
+    {
+        var seriesInDiscipline = allSeries.Where(s => s.DisciplineId == disciplineId).Select(s => s.Id).ToList();
+        availableSeasonsForAssignment = allSeasons
+            .Where(season => seriesInDiscipline.Contains(season.SeriesId))
+            .OrderByDescending(s => s.Year)
+            .ToList();
+    }
+
+    private void FilterCompetitors()
+    {
+        if (string.IsNullOrEmpty(selectedDisciplineFilter))
+        {
+            filteredCompetitors = allCompetitors.ToList();
+        }
+        else
+        {
+            filteredCompetitors = allCompetitors.Where(c => c.DisciplineId == selectedDisciplineFilter).ToList();
+        }
+
+        filteredCompetitors = filteredCompetitors.OrderBy(c => c.Name).ToList();
+    }
+
+    private string GetDisciplineName(string disciplineId)
+    {
+        var discipline = disciplines.FirstOrDefault(d => d.Id == disciplineId);
+        return discipline?.DisplayName ?? "Unknown";
+    }
+
+    private string GetSeriesName(string seriesId)
+    {
+        var series = allSeries.FirstOrDefault(s => s.Id == seriesId);
+        return series?.DisplayName ?? "Unknown";
+    }
+
+    private void ShowCreateForm()
+    {
+        editingCompetitor = null;
+        formDisciplineId = "";
+        formName = "";
+        formShortName = "";
+        formType = "Individual";
+        formIsActive = true;
+        formError = "";
+        availableSeasonsForAssignment = new();
+        assignedSeasonIds = new();
+        pendingSeasonChanges = new();
+        showForm = true;
+    }
+
+    private async Task EditCompetitor(Competitor competitor)
+    {
+        editingCompetitor = competitor;
+        formDisciplineId = competitor.DisciplineId;
+        formName = competitor.Name;
+        formShortName = competitor.ShortName;
+        formType = competitor.Type;
+        formIsActive = competitor.IsActive;
+        formError = "";
+        pendingSeasonChanges = new();
+
+        // Load seasons for this discipline
+        LoadSeasonsForDiscipline(competitor.DisciplineId);
+
+        // Load current season assignments
+        assignedSeasonIds = new HashSet<string>();
+        if (competitorSeasonAssignments.ContainsKey(competitor.Id))
+        {
+            foreach (var seasonId in competitorSeasonAssignments[competitor.Id])
+            {
+                assignedSeasonIds.Add(seasonId);
+            }
+        }
+
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingCompetitor = null;
+        formError = "";
+        pendingSeasonChanges.Clear();
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+    }
+
+    private void ToggleSeasonAssignment(string seasonId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            assignedSeasonIds.Add(seasonId);
+            pendingSeasonChanges.Add($"add:{seasonId}");
+            pendingSeasonChanges.Remove($"remove:{seasonId}");
+        }
+        else
+        {
+            assignedSeasonIds.Remove(seasonId);
+            pendingSeasonChanges.Add($"remove:{seasonId}");
+            pendingSeasonChanges.Remove($"add:{seasonId}");
+        }
+    }
+
+    private async Task SaveCompetitor()
+    {
+        if (string.IsNullOrWhiteSpace(formDisciplineId))
+        {
+            formError = "Please select a discipline";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            formError = "Name is required";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formShortName))
+        {
+            formError = "Short name is required";
+            return;
+        }
+
+        if (formType != "Individual" && formType != "Team")
+        {
+            formError = "Type must be Individual or Team";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        if (editingCompetitor == null)
+        {
+            // Create
+            var request = new CreateCompetitorRequest(
+                formDisciplineId,
+                formName,
+                formShortName,
+                formType,
+                formIsActive
+            );
+            var response = await ApiClient.CreateCompetitorAsync(request);
+            
+            if (response.Success)
+            {
+                await LoadData();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create competitor";
+            }
+        }
+        else
+        {
+            // Update competitor details
+            var request = new UpdateCompetitorRequest(
+                formName,
+                formShortName,
+                formType,
+                formIsActive
+            );
+            var response = await ApiClient.UpdateCompetitorAsync(editingCompetitor.Id, request);
+            
+            if (response.Success)
+            {
+                // Update season assignments
+                await ApplySeasonChanges(editingCompetitor.Id);
+                
+                await LoadData();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update competitor";
+            }
+        }
+
+        saving = false;
+    }
+
+    private async Task ApplySeasonChanges(string competitorId)
+    {
+        foreach (var change in pendingSeasonChanges)
+        {
+            var parts = change.Split(':');
+            var action = parts[0];
+            var seasonId = parts[1];
+
+            if (action == "add")
+            {
+                await ApiClient.AddCompetitorToSeasonAsync(seasonId, competitorId);
+            }
+            else if (action == "remove")
+            {
+                await ApiClient.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
+            }
+        }
+    }
+
+    private void ConfirmDelete(Competitor competitor)
+    {
+        competitorToDelete = competitor;
+        
+        var deps = competitorDependencies.ContainsKey(competitor.Id) 
+            ? competitorDependencies[competitor.Id] 
+            : new CompetitorDependencies();
+        
+        if (deps.HasDependencies)
+        {
+            var reasons = new List<string>();
+            if (deps.SeasonCount > 0) reasons.Add($"{deps.SeasonCount} season(s)");
+            if (deps.ResultCount > 0) reasons.Add($"{deps.ResultCount} event result(s)");
+            
+            deleteConfirmMessage = $"Cannot delete '{competitor.Name}' because it is assigned to {string.Join(" and ", reasons)}. Please remove those assignments first.";
+        }
+        else
+        {
+            deleteConfirmMessage = $"Are you sure you want to delete '{competitor.Name}'? This action cannot be undone.";
+        }
+        
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        competitorToDelete = null;
+    }
+
+    private async Task DeleteCompetitor()
+    {
+        if (competitorToDelete == null) return;
+
+        // Check dependencies one more time
+        var deps = competitorDependencies.ContainsKey(competitorToDelete.Id) 
+            ? competitorDependencies[competitorToDelete.Id] 
+            : new CompetitorDependencies();
+
+        if (deps.HasDependencies)
+        {
+            showDeleteConfirm = false;
+            errorMessage = $"Cannot delete competitor because it has dependencies. Please remove those assignments first.";
+            competitorToDelete = null;
+            return;
+        }
+
+        var response = await ApiClient.DeleteCompetitorAsync(competitorToDelete.Id, competitorToDelete.DisciplineId);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to delete competitor";
+        }
+        
+        competitorToDelete = null;
+    }
+}

@@ -565,6 +565,198 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("DeleteSeason");
 
+        // ===== COMPETITOR MANAGEMENT =====
+
+        // Get all competitors for a discipline (admin)
+        group.MapGet("/disciplines/{disciplineId}/competitors", async (
+            string disciplineId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var competitors = await competitorRepo.GetCompetitorsByDisciplineAsync(disciplineId);
+            return Results.Ok(competitors);
+        })
+        .RequireAdmin()
+        .WithName("GetCompetitorsByDisciplineAdmin");
+
+        // Get specific competitor (admin)
+        group.MapGet("/competitors/{competitorId}", async (
+            string competitorId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var competitor = await competitorRepo.GetCompetitorByIdOnlyAsync(competitorId);
+            if (competitor == null)
+                return Results.NotFound(new { error = "Competitor not found" });
+            
+            return Results.Ok(competitor);
+        })
+        .RequireAdmin()
+        .WithName("GetCompetitorAdmin");
+
+        // Get competitor dependencies
+        group.MapGet("/competitors/{competitorId}/dependencies", async (
+            string competitorId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var dependencies = await competitorRepo.GetCompetitorDependenciesAsync(competitorId);
+            return Results.Ok(dependencies);
+        })
+        .RequireAdmin()
+        .WithName("GetCompetitorDependencies");
+
+        // Get competitor's assigned seasons
+        group.MapGet("/competitors/{competitorId}/seasons", async (
+            string competitorId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var seasonIds = await competitorRepo.GetCompetitorSeasonIdsAsync(competitorId);
+            return Results.Ok(seasonIds);
+        })
+        .RequireAdmin()
+        .WithName("GetCompetitorSeasons");
+
+        // Create competitor
+        group.MapPost("/competitors", async (
+            [FromBody] CreateCompetitorRequest request,
+            [FromServices] ICompetitorRepository competitorRepo,
+            [FromServices] IDisciplineRepository disciplineRepo) =>
+        {
+            // Verify discipline exists
+            var discipline = await disciplineRepo.GetDisciplineByIdAsync(request.DisciplineId);
+            if (discipline == null)
+                return Results.BadRequest(new { error = "Discipline not found" });
+
+            // Validate type
+            if (request.Type != "Individual" && request.Type != "Team")
+            {
+                return Results.BadRequest(new { error = "Type must be 'Individual' or 'Team'" });
+            }
+
+            var competitor = new Competitor
+            {
+                DisciplineId = request.DisciplineId,
+                Name = request.Name,
+                ShortName = request.ShortName,
+                Type = request.Type,
+                IsActive = request.IsActive
+            };
+
+            var created = await competitorRepo.CreateCompetitorAsync(competitor);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateCompetitor");
+
+        // Update competitor
+        group.MapPut("/competitors/{competitorId}", async (
+            string competitorId,
+            [FromBody] UpdateCompetitorRequest request,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            // Get existing competitor
+            var existing = await competitorRepo.GetCompetitorByIdOnlyAsync(competitorId);
+            if (existing == null)
+                return Results.NotFound(new { error = "Competitor not found" });
+
+            // Validate type
+            if (request.Type != "Individual" && request.Type != "Team")
+            {
+                return Results.BadRequest(new { error = "Type must be 'Individual' or 'Team'" });
+            }
+
+            // NOTE: We do NOT allow changing DisciplineId
+            // This is a business rule - competitors belong to a discipline permanently
+            existing.Name = request.Name;
+            existing.ShortName = request.ShortName;
+            existing.Type = request.Type;
+            existing.IsActive = request.IsActive;
+
+            var updated = await competitorRepo.UpdateCompetitorAsync(existing);
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(updated);
+        })
+        .RequireAdmin()
+        .WithName("UpdateCompetitor");
+
+        // Delete competitor
+        group.MapDelete("/competitors/{competitorId}", async (
+            string competitorId,
+            [FromQuery] string disciplineId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            // Check for dependencies first
+            var dependencies = await competitorRepo.GetCompetitorDependenciesAsync(competitorId);
+            if (dependencies.HasDependencies)
+            {
+                var reasons = new List<string>();
+                if (dependencies.SeasonCount > 0)
+                    reasons.Add($"{dependencies.SeasonCount} season(s)");
+                if (dependencies.ResultCount > 0)
+                    reasons.Add($"{dependencies.ResultCount} event result(s)");
+
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete competitor with existing data",
+                    message = $"This competitor is assigned to {string.Join(" and ", reasons)}. Please remove those assignments first.",
+                    dependencies = dependencies,
+                    canDelete = false
+                });
+            }
+
+            var success = await competitorRepo.DeleteCompetitorAsync(disciplineId, competitorId);
+            if (!success)
+                return Results.NotFound(new { error = "Competitor not found" });
+
+            return Results.Ok(new { message = "Competitor deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteCompetitor");
+
+        // Add competitor to season
+        group.MapPost("/seasons/{seasonId}/competitors/{competitorId}", async (
+            string seasonId,
+            string competitorId,
+            [FromServices] ICompetitorRepository competitorRepo,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Verify season exists
+            var season = await seasonRepo.GetSeasonByIdAsync(seasonId, seasonId);
+            if (season == null)
+                return Results.BadRequest(new { error = "Season not found" });
+
+            // Verify competitor exists
+            var competitor = await competitorRepo.GetCompetitorByIdOnlyAsync(competitorId);
+            if (competitor == null)
+                return Results.BadRequest(new { error = "Competitor not found" });
+
+            var success = await competitorRepo.AddCompetitorToSeasonAsync(seasonId, competitorId, competitor.Name);
+            if (!success)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new { message = "Competitor added to season successfully" });
+        })
+        .RequireAdmin()
+        .WithName("AddCompetitorToSeason");
+
+        // Remove competitor from season
+        group.MapDelete("/seasons/{seasonId}/competitors/{competitorId}", async (
+            string seasonId,
+            string competitorId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var success = await competitorRepo.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
+            if (!success)
+                return Results.NotFound(new { error = "Assignment not found" });
+
+            return Results.Ok(new { message = "Competitor removed from season successfully" });
+        })
+        .RequireAdmin()
+        .WithName("RemoveCompetitorFromSeason");
+
         // ===== USER MANAGEMENT =====
 
         // Get all users (admin)

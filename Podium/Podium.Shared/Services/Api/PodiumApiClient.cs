@@ -72,9 +72,11 @@ public interface IPodiumApiClient
     // Admin - Competitor Management
     Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId);
     Task<ApiResponse<Competitor>> GetCompetitorAdminAsync(string competitorId);
+    Task<ApiResponse<CompetitorDependencies>> GetCompetitorDependenciesAsync(string competitorId);
+    Task<ApiResponse<List<string>>> GetCompetitorSeasonsAsync(string competitorId);
     Task<ApiResponse<Competitor>> CreateCompetitorAsync(CreateCompetitorRequest request);
     Task<ApiResponse<Competitor>> UpdateCompetitorAsync(string competitorId, UpdateCompetitorRequest request);
-    Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId);
+    Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string disciplineId);
 
     // Admin - Season Competitor Management
     Task<ApiResponse<List<SeasonCompetitor>>> GetSeasonCompetitorsAdminAsync(string seasonId);
@@ -359,6 +361,16 @@ public class PodiumApiClient : IPodiumApiClient
         return await GetAsync<Competitor>($"/api/admin/competitors/{competitorId}");
     }
 
+    public async Task<ApiResponse<CompetitorDependencies>> GetCompetitorDependenciesAsync(string competitorId)
+    {
+        return await GetAsync<CompetitorDependencies>($"/api/admin/competitors/{competitorId}/dependencies");
+    }
+
+    public async Task<ApiResponse<List<string>>> GetCompetitorSeasonsAsync(string competitorId)
+    {
+        return await GetAsync<List<string>>($"/api/admin/competitors/{competitorId}/seasons");
+    }
+
     public async Task<ApiResponse<Competitor>> CreateCompetitorAsync(CreateCompetitorRequest request)
     {
         return await PostAsync<Competitor>("/api/admin/competitors", request);
@@ -369,9 +381,9 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<Competitor>($"/api/admin/competitors/{competitorId}", request);
     }
 
-    public async Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId)
+    public async Task<ApiResponse<MessageResponse>> DeleteCompetitorAsync(string competitorId, string disciplineId)
     {
-        return await DeleteAsync<MessageResponse>($"/api/admin/competitors/{competitorId}");
+        return await DeleteAsync<MessageResponse>($"/api/admin/competitors/{competitorId}?disciplineId={disciplineId}");
     }
 
     // Admin - Season Competitor Management

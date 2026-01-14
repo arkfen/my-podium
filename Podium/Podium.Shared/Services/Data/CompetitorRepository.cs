@@ -9,6 +9,14 @@ public interface ICompetitorRepository
     Task<List<Competitor>> GetCompetitorsByDisciplineAsync(string disciplineId);
     Task<List<SeasonCompetitor>> GetCompetitorsBySeasonAsync(string seasonId);
     Task<Competitor?> GetCompetitorByIdAsync(string disciplineId, string competitorId);
+    Task<Competitor?> GetCompetitorByIdOnlyAsync(string competitorId);
+    Task<Competitor?> CreateCompetitorAsync(Competitor competitor);
+    Task<Competitor?> UpdateCompetitorAsync(Competitor competitor);
+    Task<bool> DeleteCompetitorAsync(string disciplineId, string competitorId);
+    Task<bool> AddCompetitorToSeasonAsync(string seasonId, string competitorId, string competitorName);
+    Task<bool> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId);
+    Task<List<string>> GetCompetitorSeasonIdsAsync(string competitorId);
+    Task<CompetitorDependencies> GetCompetitorDependenciesAsync(string competitorId);
 }
 
 public class CompetitorRepository : ICompetitorRepository
@@ -103,4 +111,196 @@ public class CompetitorRepository : ICompetitorRepository
             JoinDate = entity.GetDateTimeOffset("JoinDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
+
+    public async Task<Competitor?> GetCompetitorByIdOnlyAsync(string competitorId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
+
+        try
+        {
+            // Query across all partitions to find the competitor by RowKey
+            var filter = $"RowKey eq '{competitorId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                return MapToCompetitor(entity);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    public async Task<Competitor?> CreateCompetitorAsync(Competitor competitor)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
+
+        try
+        {
+            competitor.Id = Guid.NewGuid().ToString();
+            competitor.CreatedDate = DateTime.UtcNow;
+
+            var entity = new TableEntity(competitor.DisciplineId, competitor.Id)
+            {
+                ["Name"] = competitor.Name,
+                ["ShortName"] = competitor.ShortName,
+                ["Type"] = competitor.Type,
+                ["IsActive"] = competitor.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(competitor.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.AddEntityAsync(entity);
+            return competitor;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Competitor?> UpdateCompetitorAsync(Competitor competitor)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
+
+        try
+        {
+            // Note: We do NOT allow changing DisciplineId for competitors
+            // This is different from Series/Seasons which can be moved
+            var entity = new TableEntity(competitor.DisciplineId, competitor.Id)
+            {
+                ["Name"] = competitor.Name,
+                ["ShortName"] = competitor.ShortName,
+                ["Type"] = competitor.Type,
+                ["IsActive"] = competitor.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(competitor.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return competitor;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteCompetitorAsync(string disciplineId, string competitorId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(CompetitorsTableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(disciplineId, competitorId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> AddCompetitorToSeasonAsync(string seasonId, string competitorId, string competitorName)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(SeasonCompetitorsTableName);
+
+        try
+        {
+            var entity = new TableEntity(seasonId, competitorId)
+            {
+                ["CompetitorName"] = competitorName,
+                ["JoinDate"] = DateTime.UtcNow
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(SeasonCompetitorsTableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(seasonId, competitorId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<List<string>> GetCompetitorSeasonIdsAsync(string competitorId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(SeasonCompetitorsTableName);
+        var seasonIds = new List<string>();
+
+        try
+        {
+            // Query across all partitions where RowKey (competitorId) matches
+            var filter = $"RowKey eq '{competitorId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                seasonIds.Add(entity.PartitionKey); // PartitionKey is the seasonId
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return seasonIds;
+        }
+
+        return seasonIds;
+    }
+
+    public async Task<CompetitorDependencies> GetCompetitorDependenciesAsync(string competitorId)
+    {
+        var dependencies = new CompetitorDependencies();
+
+        try
+        {
+            // Count season assignments
+            var seasonTableClient = _tableClientFactory.GetTableClient(SeasonCompetitorsTableName);
+            var seasonFilter = $"RowKey eq '{competitorId}'";
+            await foreach (var _ in seasonTableClient.QueryAsync<TableEntity>(filter: seasonFilter))
+            {
+                dependencies.SeasonCount++;
+            }
+
+            // Count event results (check both first, second, and third place)
+            var resultsTableClient = _tableClientFactory.GetTableClient("PodiumEventResults");
+            var firstPlaceFilter = $"FirstPlaceId eq '{competitorId}'";
+            var secondPlaceFilter = $"SecondPlaceId eq '{competitorId}'";
+            var thirdPlaceFilter = $"ThirdPlaceId eq '{competitorId}'";
+
+            await foreach (var _ in resultsTableClient.QueryAsync<TableEntity>(filter: firstPlaceFilter))
+            {
+                dependencies.ResultCount++;
+            }
+            await foreach (var _ in resultsTableClient.QueryAsync<TableEntity>(filter: secondPlaceFilter))
+            {
+                dependencies.ResultCount++;
+            }
+            await foreach (var _ in resultsTableClient.QueryAsync<TableEntity>(filter: thirdPlaceFilter))
+            {
+                dependencies.ResultCount++;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Tables don't exist or error - return 0s
+        }
+
+        return dependencies;
+    }
 }
+
+
+
+
