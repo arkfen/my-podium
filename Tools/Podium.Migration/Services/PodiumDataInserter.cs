@@ -158,7 +158,7 @@ public class PodiumDataInserter
     /// <summary>
     /// Insert competitor (driver)
     /// </summary>
-    public async Task InsertCompetitorAsync(string disciplineId, string competitorId, 
+    public async Task InsertCompetitorAsync(string competitorId, 
         string name, string shortName)
     {
         if (_dryRun)
@@ -168,9 +168,8 @@ public class PodiumDataInserter
         }
 
         var client = await GetTableClientAsync("PodiumCompetitors");
-        var entity = new TableEntity(disciplineId, competitorId)
+        var entity = new TableEntity("Individual", competitorId)
         {
-            ["DisciplineId"] = disciplineId,
             ["Name"] = name,
             ["ShortName"] = shortName,
             ["Type"] = "Individual",

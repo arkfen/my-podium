@@ -147,7 +147,6 @@ public class MigrationOrchestrator
                 var shortName = _transformer.GenerateShortName(driverName);
                 
                 await _inserter.InsertCompetitorAsync(
-                    _transformer.DisciplineId,
                     driverId,
                     driverName,
                     shortName
