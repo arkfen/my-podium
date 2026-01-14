@@ -351,7 +351,8 @@ public static class AdminEndpoints
             existing.VehicleType = request.VehicleType ?? string.Empty;
             existing.IsActive = request.IsActive;
 
-            var updated = await seriesRepo.UpdateSeriesAsync(existing);
+            // Pass the old discipline ID if it changed
+            var updated = await seriesRepo.UpdateSeriesAsync(existing, currentDisciplineId);
             if (updated == null)
                 return Results.StatusCode(500);
 
