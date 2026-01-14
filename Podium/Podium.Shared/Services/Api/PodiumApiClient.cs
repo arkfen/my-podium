@@ -63,10 +63,11 @@ public interface IPodiumApiClient
 
     // Admin - Season Management
     Task<ApiResponse<List<Season>>> GetAllSeasonsAdminAsync(string seriesId);
-    Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId);
+    Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId, string seriesId);
+    Task<ApiResponse<SeasonDependencies>> GetSeasonDependenciesAsync(string seasonId);
     Task<ApiResponse<Season>> CreateSeasonAsync(CreateSeasonRequest request);
-    Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, UpdateSeasonRequest request);
-    Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId);
+    Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, string currentSeriesId, UpdateSeasonRequest request);
+    Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId, string seriesId);
 
     // Admin - Competitor Management
     Task<ApiResponse<List<Competitor>>> GetAllCompetitorsAdminAsync(string disciplineId);
@@ -322,9 +323,14 @@ public class PodiumApiClient : IPodiumApiClient
         return await GetAsync<List<Season>>($"/api/admin/series/{seriesId}/seasons");
     }
 
-    public async Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId)
+    public async Task<ApiResponse<Season>> GetSeasonAdminAsync(string seasonId, string seriesId)
     {
-        return await GetAsync<Season>($"/api/admin/seasons/{seasonId}");
+        return await GetAsync<Season>($"/api/admin/seasons/{seasonId}?seriesId={seriesId}");
+    }
+
+    public async Task<ApiResponse<SeasonDependencies>> GetSeasonDependenciesAsync(string seasonId)
+    {
+        return await GetAsync<SeasonDependencies>($"/api/admin/seasons/{seasonId}/dependencies");
     }
 
     public async Task<ApiResponse<Season>> CreateSeasonAsync(CreateSeasonRequest request)
@@ -332,14 +338,14 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<Season>("/api/admin/seasons", request);
     }
 
-    public async Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, UpdateSeasonRequest request)
+    public async Task<ApiResponse<Season>> UpdateSeasonAsync(string seasonId, string currentSeriesId, UpdateSeasonRequest request)
     {
-        return await PutAsync<Season>($"/api/admin/seasons/{seasonId}", request);
+        return await PutAsync<Season>($"/api/admin/seasons/{seasonId}?currentSeriesId={currentSeriesId}", request);
     }
 
-    public async Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId)
+    public async Task<ApiResponse<MessageResponse>> DeleteSeasonAsync(string seasonId, string seriesId)
     {
-        return await DeleteAsync<MessageResponse>($"/api/admin/seasons/{seasonId}");
+        return await DeleteAsync<MessageResponse>($"/api/admin/seasons/{seasonId}?seriesId={seriesId}");
     }
 
     // Admin - Competitor Management
@@ -593,7 +599,7 @@ public record CreateDisciplineRequest(string Name, string DisplayName, bool IsAc
 public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 
 public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
-public record UpdateSeasonRequest(int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
+public record UpdateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
 
 public record CreateCompetitorRequest(string DisciplineId, string Name, string ShortName, string Type, bool IsActive);
 public record UpdateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);

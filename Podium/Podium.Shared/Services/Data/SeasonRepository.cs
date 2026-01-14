@@ -12,6 +12,10 @@ public interface ISeasonRepository
     Task<bool> SetActiveSeasonAsync(string seriesId, string seasonId);
     Task<Dictionary<string, List<Season>>> FindSeriesWithMultipleActiveSeasonsAsync();
     Task<int> GetSeasonCountBySeriesAsync(string seriesId);
+    Task<Season?> CreateSeasonAsync(Season season);
+    Task<Season?> UpdateSeasonAsync(Season season, string? oldSeriesId = null);
+    Task<bool> DeleteSeasonAsync(string seriesId, string seasonId);
+    Task<SeasonDependencies> GetSeasonDependenciesAsync(string seasonId);
 }
 
 public class SeasonRepository : ISeasonRepository
@@ -185,5 +189,95 @@ public class SeasonRepository : ISeasonRepository
         }
 
         return count;
+    }
+
+    public async Task<Season?> CreateSeasonAsync(Season season)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            season.Id = Guid.NewGuid().ToString();
+            season.CreatedDate = DateTime.UtcNow;
+
+            var entity = MapToTableEntity(season);
+            await tableClient.AddEntityAsync(entity);
+            return season;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Season?> UpdateSeasonAsync(Season season, string? oldSeriesId = null)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            // Check if series is changing (PartitionKey change required)
+            bool seriesChanged = !string.IsNullOrEmpty(oldSeriesId) && oldSeriesId != season.SeriesId;
+
+            if (seriesChanged)
+            {
+                // Delete from old partition
+                await tableClient.DeleteEntityAsync(oldSeriesId, season.Id);
+            }
+
+            // Create/Update in the (new or same) partition
+            var entity = MapToTableEntity(season);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return season;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteSeasonAsync(string seriesId, string seasonId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(seriesId, seasonId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<SeasonDependencies> GetSeasonDependenciesAsync(string seasonId)
+    {
+        var dependencies = new SeasonDependencies();
+
+        try
+        {
+            // Count events
+            var eventsTableClient = _tableClientFactory.GetTableClient("PodiumEvents");
+            var eventFilter = $"PartitionKey eq '{seasonId}'";
+            await foreach (var _ in eventsTableClient.QueryAsync<TableEntity>(filter: eventFilter))
+            {
+                dependencies.EventCount++;
+            }
+
+            // Count competitors
+            var competitorsTableClient = _tableClientFactory.GetTableClient("PodiumSeasonCompetitors");
+            var competitorFilter = $"PartitionKey eq '{seasonId}'";
+            await foreach (var _ in competitorsTableClient.QueryAsync<TableEntity>(filter: competitorFilter))
+            {
+                dependencies.CompetitorCount++;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Tables don't exist or error - return 0s
+        }
+
+        return dependencies;
     }
 }

@@ -390,6 +390,167 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("DeleteSeries");
 
+        // ===== SEASON MANAGEMENT =====
+
+        // Get all seasons for a series (admin)
+        group.MapGet("/series/{seriesId}/seasons", async (
+            string seriesId,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            var seasons = await seasonRepo.GetSeasonsBySeriesAsync(seriesId);
+            return Results.Ok(seasons);
+        })
+        .RequireAdmin()
+        .WithName("GetSeasonsBySeriesAdmin");
+
+        // Get specific season (admin)
+        group.MapGet("/seasons/{seasonId}", async (
+            string seasonId,
+            [FromQuery] string seriesId,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            var season = await seasonRepo.GetSeasonByIdAsync(seriesId, seasonId);
+            if (season == null)
+                return Results.NotFound(new { error = "Season not found" });
+            
+            return Results.Ok(season);
+        })
+        .RequireAdmin()
+        .WithName("GetSeasonAdmin");
+
+        // Get season dependencies
+        group.MapGet("/seasons/{seasonId}/dependencies", async (
+            string seasonId,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            var dependencies = await seasonRepo.GetSeasonDependenciesAsync(seasonId);
+            return Results.Ok(dependencies);
+        })
+        .RequireAdmin()
+        .WithName("GetSeasonDependencies");
+
+        // Create season
+        group.MapPost("/seasons", async (
+            [FromBody] CreateSeasonRequest request,
+            [FromServices] ISeasonRepository seasonRepo,
+            [FromServices] ISeriesRepository seriesRepo) =>
+        {
+            // Verify series exists
+            var series = await seriesRepo.GetSeriesByIdAsync(request.SeriesId, request.SeriesId);
+            if (series == null)
+                return Results.BadRequest(new { error = "Series not found" });
+
+            // Validate dates
+            if (request.EndDate.HasValue && request.StartDate >= request.EndDate.Value)
+            {
+                return Results.BadRequest(new { error = "Start date must be before end date" });
+            }
+
+            // Validate year matches date range
+            if (request.StartDate.Year != request.Year)
+            {
+                return Results.BadRequest(new { error = "Year must match the start date year" });
+            }
+
+            var season = new Season
+            {
+                SeriesId = request.SeriesId,
+                Year = request.Year,
+                Name = request.Name,
+                IsActive = request.IsActive,
+                StartDate = request.StartDate,
+                EndDate = request.EndDate
+            };
+
+            var created = await seasonRepo.CreateSeasonAsync(season);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateSeason");
+
+        // Update season
+        group.MapPut("/seasons/{seasonId}", async (
+            string seasonId,
+            [FromQuery] string currentSeriesId,
+            [FromBody] UpdateSeasonRequest request,
+            [FromServices] ISeasonRepository seasonRepo,
+            [FromServices] ISeriesRepository seriesRepo) =>
+        {
+            // Get existing season using CURRENT seriesId
+            var existing = await seasonRepo.GetSeasonByIdAsync(currentSeriesId, seasonId);
+            if (existing == null)
+                return Results.NotFound(new { error = "Season not found" });
+
+            // Verify NEW series exists (in case it's being changed)
+            var series = await seriesRepo.GetSeriesByIdAsync(request.SeriesId, request.SeriesId);
+            if (series == null)
+                return Results.BadRequest(new { error = "Target series not found" });
+
+            // Validate dates
+            if (request.EndDate.HasValue && request.StartDate >= request.EndDate.Value)
+            {
+                return Results.BadRequest(new { error = "Start date must be before end date" });
+            }
+
+            // Validate year matches date range
+            if (request.StartDate.Year != request.Year)
+            {
+                return Results.BadRequest(new { error = "Year must match the start date year" });
+            }
+
+            existing.SeriesId = request.SeriesId;
+            existing.Year = request.Year;
+            existing.Name = request.Name;
+            existing.IsActive = request.IsActive;
+            existing.StartDate = request.StartDate;
+            existing.EndDate = request.EndDate;
+
+            var updated = await seasonRepo.UpdateSeasonAsync(existing, currentSeriesId);
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(updated);
+        })
+        .RequireAdmin()
+        .WithName("UpdateSeason");
+
+        // Delete season
+        group.MapDelete("/seasons/{seasonId}", async (
+            string seasonId,
+            [FromQuery] string seriesId,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Check for dependencies first
+            var dependencies = await seasonRepo.GetSeasonDependenciesAsync(seasonId);
+            if (dependencies.HasDependencies)
+            {
+                var reasons = new List<string>();
+                if (dependencies.EventCount > 0)
+                    reasons.Add($"{dependencies.EventCount} event(s)");
+                if (dependencies.CompetitorCount > 0)
+                    reasons.Add($"{dependencies.CompetitorCount} competitor(s)");
+
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete season with existing data",
+                    message = $"This season has {string.Join(" and ", reasons)}. Please delete those first.",
+                    dependencies = dependencies,
+                    canDelete = false
+                });
+            }
+
+            var success = await seasonRepo.DeleteSeasonAsync(seriesId, seasonId);
+            if (!success)
+                return Results.NotFound(new { error = "Season not found" });
+
+            return Results.Ok(new { message = "Season deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteSeason");
+
         // ===== USER MANAGEMENT =====
 
         // Get all users (admin)
