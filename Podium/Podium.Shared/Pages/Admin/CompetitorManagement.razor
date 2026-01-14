@@ -7,12 +7,13 @@
 @inject AdminStateService AdminState
 @inject NavigationManager Navigation
 @inject IPodiumApiClient ApiClient
+@inject IJSRuntime JS
 
 <PageTitle>Manage Competitors - Admin</PageTitle>
 
 <div class="admin-container">
     <div class="admin-header">
-        <h1><span style="font-size: 1.2em;">??</span> Manage Competitors</h1>
+        <h1>&#127937; Manage Competitors</h1>
         <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Competitor</button>
     </div>
 
@@ -22,19 +23,25 @@
     }
     else
     {
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>&#10004; @successMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearSuccess">Clear &times;</button>
+            </div>
+        }
+
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            var isInfoMessage = errorMessage.StartsWith("?");
-            var alertClass = isInfoMessage ? "alert alert-info" : "alert alert-error";
-            <div class="@alertClass">
-                @errorMessage
-                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            <div class="alert alert-error" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>@errorMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError">Clear &times;</button>
             </div>
         }
 
         @if (showForm)
         {
-            <div class="admin-form">
+            <div class="admin-form" id="competitorForm">
                 <h3>@(editingCompetitor == null ? "Create" : "Edit") Competitor</h3>
                 
                 <div class="form-group">
@@ -53,9 +60,6 @@
                             <span>Team (Constructor)</span>
                         </label>
                     </div>
-                    <small style="display: block; color: var(--text-light); margin-top: 0.25rem;">
-                        Competitors are discipline-agnostic and assigned to seasons
-                    </small>
                 </div>
 
                 <div class="form-group">
@@ -77,30 +81,79 @@
                     </label>
                 </div>
 
-                @if (editingCompetitor != null && availableSeasonsForAssignment.Any())
+                @if (editingCompetitor != null)
                 {
                     <div class="form-group">
-                        <label><strong>Season Assignments:</strong></label>
-                        <small style="display: block; margin-bottom: 0.5rem; color: var(--text-light);">
-                            Select the seasons this competitor participates in (across all disciplines)
-                        </small>
-                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;">
-                            @foreach (var season in availableSeasonsForAssignment)
-                            {
-                                var isAssigned = assignedSeasonIds.Contains(season.Id);
-                                <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">
-                                    <input type="checkbox" 
-                                           checked="@isAssigned"
-                                           @onchange="@(e => ToggleSeasonAssignment(season.Id, (bool)e.Value))" />
-                                    <span>
-                                        <strong>@season.Year</strong> - @GetSeriesName(season.SeriesId) (@GetDisciplineName(season.SeriesId))
-                                        @if (season.IsActive)
-                                        {
-                                            <span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>
-                                        }
-                                    </span>
-                                </label>
-                            }
+                        <label><strong>Current Season Assignments:</strong></label>
+                        @if (assignedSeasonIds.Any())
+                        {
+                            <div style="border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                @foreach (var seasonId in assignedSeasonIds.ToList())
+                                {
+                                    var season = allSeasons.FirstOrDefault(s => s.Id == seasonId);
+                                    if (season != null)
+                                    {
+                                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">
+                                            <span>
+                                                <strong>@season.Year</strong> - @GetSeriesName(season.SeriesId) (@GetDisciplineName(season.SeriesId))
+                                                @if (season.IsActive)
+                                                {
+                                                    <span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>
+                                                }
+                                            </span>
+                                            <button class="btn btn-sm btn-danger" @onclick="() => RemoveSeasonAssignment(seasonId)">
+                                                Remove
+                                            </button>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <p style="color: var(--text-light); margin-bottom: 1rem;">No season assignments yet.</p>
+                        }
+
+                        <label><strong>Add New Season Assignment:</strong></label>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Discipline:</label>
+                                <select class="form-control" @bind="selectedDisciplineForAssignment" @bind:after="OnAssignmentDisciplineChanged">
+                                    <option value="">-- Select Discipline --</option>
+                                    @foreach (var discipline in disciplines)
+                                    {
+                                        <option value="@discipline.Id">@discipline.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Series:</label>
+                                <select class="form-control" @bind="selectedSeriesForAssignment" @bind:after="OnAssignmentSeriesChanged" 
+                                        disabled="@string.IsNullOrEmpty(selectedDisciplineForAssignment)">
+                                    <option value="">-- Select Series --</option>
+                                    @foreach (var series in availableSeriesForAssignment)
+                                    {
+                                        <option value="@series.Id">@series.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Season:</label>
+                                <select class="form-control" @bind="selectedSeasonForAssignment" 
+                                        disabled="@string.IsNullOrEmpty(selectedSeriesForAssignment)">
+                                    <option value="">-- Select Season --</option>
+                                    @foreach (var season in availableSeasonsForAssignment)
+                                    {
+                                        <option value="@season.Id">@season.Year - @season.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: flex-end;">
+                                <button class="btn btn-sm btn-primary" @onclick="AddSeasonAssignment" 
+                                        disabled="@string.IsNullOrEmpty(selectedSeasonForAssignment)">
+                                    Add Season
+                                </button>
+                            </div>
                         </div>
                     </div>
                 }
@@ -119,12 +172,19 @@
         }
 
         <div class="filter-section">
-            <label>Filter by Type:</label>
-            <select class="form-control" @bind="selectedTypeFilter" @bind:after="FilterCompetitors">
-                <option value="">All Types</option>
-                <option value="Individual">Individuals (Drivers)</option>
-                <option value="Team">Teams (Constructors)</option>
-            </select>
+            <div style="flex: 1; max-width: 400px;">
+                <label>Search:</label>
+                <input type="text" class="form-control" @bind="searchQuery" @bind:after="FilterCompetitors" 
+                       placeholder="Search by name..." />
+            </div>
+            <div style="flex: 1; max-width: 300px;">
+                <label>Filter by Type:</label>
+                <select class="form-control" @bind="selectedTypeFilter" @bind:after="FilterCompetitors">
+                    <option value="">All Types</option>
+                    <option value="Individual">Individuals (Drivers)</option>
+                    <option value="Team">Teams (Constructors)</option>
+                </select>
+            </div>
         </div>
 
         <div class="admin-table">
@@ -141,7 +201,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var competitor in filteredCompetitors)
+                    @foreach (var competitor in paginatedCompetitors)
                     {
                         <tr>
                             <td><strong>@competitor.Name</strong></td>
@@ -198,10 +258,25 @@
             @if (!filteredCompetitors.Any())
             {
                 <div class="no-results">
-                    <p>No competitors found. @(string.IsNullOrEmpty(selectedTypeFilter) ? "Create one to get started!" : "Try selecting a different type.")</p>
+                    <p>No competitors found. @(string.IsNullOrEmpty(searchQuery) && string.IsNullOrEmpty(selectedTypeFilter) ? "Create one to get started!" : "Try adjusting your filters.")</p>
                 </div>
             }
         </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                    &laquo; Previous
+                </button>
+                <span style="margin: 0 1rem;">
+                    Page @currentPage of @totalPages (@filteredCompetitors.Count total)
+                </span>
+                <button class="btn btn-secondary" @onclick="NextPage" disabled="@(currentPage == totalPages)">
+                    Next &raquo;
+                </button>
+            </div>
+        }
     }
 </div>
 
@@ -218,20 +293,28 @@
     private List<Season> allSeasons = new();
     private List<Competitor> allCompetitors = new();
     private List<Competitor> filteredCompetitors = new();
+    private List<Competitor> paginatedCompetitors = new();
+    private List<Series> availableSeriesForAssignment = new();
     private List<Season> availableSeasonsForAssignment = new();
     private Dictionary<string, CompetitorDependencies> competitorDependencies = new();
     private Dictionary<string, List<string>> competitorSeasonAssignments = new();
     private HashSet<string> assignedSeasonIds = new();
-    private HashSet<string> pendingSeasonChanges = new();
+    private HashSet<string> pendingAdditions = new();
+    private HashSet<string> pendingRemovals = new();
 
     private bool loading = true;
     private bool saving = false;
     private bool showForm = false;
     private bool showDeleteConfirm = false;
     private string errorMessage = "";
+    private string successMessage = "";
     private string formError = "";
     private string selectedTypeFilter = "";
+    private string searchQuery = "";
     private string deleteConfirmMessage = "";
+    private string selectedDisciplineForAssignment = "";
+    private string selectedSeriesForAssignment = "";
+    private string selectedSeasonForAssignment = "";
 
     private Competitor? editingCompetitor = null;
     private Competitor? competitorToDelete = null;
@@ -239,6 +322,11 @@
     private string formShortName = "";
     private string formType = "Individual";
     private bool formIsActive = true;
+
+    // Pagination
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int totalPages = 1;
 
     protected override async Task OnInitializedAsync()
     {
@@ -261,7 +349,7 @@
         loading = true;
         errorMessage = "";
 
-        // Load disciplines (for display purposes only)
+        // Load disciplines
         var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
         if (disciplineResponse.Success && disciplineResponse.Data != null)
         {
@@ -290,7 +378,7 @@
             }
         }
 
-        // Load all competitors (no discipline filter)
+        // Load all competitors
         var competitorsResponse = await ApiClient.GetAllCompetitorsAdminAsync();
         if (competitorsResponse.Success && competitorsResponse.Data != null)
         {
@@ -303,7 +391,7 @@
             return;
         }
 
-        // Load dependencies and season assignments for all competitors
+        // Load dependencies and season assignments
         await LoadDependenciesAndAssignments();
 
         FilterCompetitors();
@@ -333,16 +421,57 @@
 
     private void FilterCompetitors()
     {
-        if (string.IsNullOrEmpty(selectedTypeFilter))
+        filteredCompetitors = allCompetitors;
+
+        // Apply type filter
+        if (!string.IsNullOrEmpty(selectedTypeFilter))
         {
-            filteredCompetitors = allCompetitors.ToList();
+            filteredCompetitors = filteredCompetitors.Where(c => c.Type == selectedTypeFilter).ToList();
         }
-        else
+
+        // Apply search
+        if (!string.IsNullOrEmpty(searchQuery))
         {
-            filteredCompetitors = allCompetitors.Where(c => c.Type == selectedTypeFilter).ToList();
+            var search = searchQuery.ToLower();
+            filteredCompetitors = filteredCompetitors.Where(c => 
+                c.Name.ToLower().Contains(search) || 
+                c.ShortName.ToLower().Contains(search)
+            ).ToList();
         }
 
         filteredCompetitors = filteredCompetitors.OrderBy(c => c.Name).ToList();
+        
+        // Reset to first page when filtering
+        currentPage = 1;
+        UpdatePagination();
+    }
+
+    private void UpdatePagination()
+    {
+        totalPages = (int)Math.Ceiling(filteredCompetitors.Count / (double)pageSize);
+        if (totalPages == 0) totalPages = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var skip = (currentPage - 1) * pageSize;
+        paginatedCompetitors = filteredCompetitors.Skip(skip).Take(pageSize).ToList();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            UpdatePagination();
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            UpdatePagination();
+        }
     }
 
     private string GetDisciplineName(string seriesId)
@@ -360,7 +489,7 @@
         return series?.DisplayName ?? "Unknown";
     }
 
-    private void ShowCreateForm()
+    private async Task ShowCreateForm()
     {
         editingCompetitor = null;
         formName = "";
@@ -368,10 +497,12 @@
         formType = "Individual";
         formIsActive = true;
         formError = "";
-        availableSeasonsForAssignment = new();
         assignedSeasonIds = new();
-        pendingSeasonChanges = new();
+        pendingAdditions = new();
+        pendingRemovals = new();
         showForm = true;
+        
+        await ScrollToForm();
     }
 
     private async Task EditCompetitor(Competitor competitor)
@@ -382,10 +513,8 @@
         formType = competitor.Type;
         formIsActive = competitor.IsActive;
         formError = "";
-        pendingSeasonChanges = new();
-
-        // Load ALL seasons (no discipline filter)
-        availableSeasonsForAssignment = allSeasons.OrderByDescending(s => s.Year).ToList();
+        pendingAdditions = new();
+        pendingRemovals = new();
 
         // Load current season assignments
         assignedSeasonIds = new HashSet<string>();
@@ -397,7 +526,81 @@
             }
         }
 
+        // Reset assignment selectors
+        selectedDisciplineForAssignment = "";
+        selectedSeriesForAssignment = "";
+        selectedSeasonForAssignment = "";
+        availableSeriesForAssignment = new();
+        availableSeasonsForAssignment = new();
+
         showForm = true;
+        await ScrollToForm();
+    }
+
+    private async Task ScrollToForm()
+    {
+        await Task.Delay(100);
+        await JS.InvokeVoidAsync("eval", "document.getElementById('competitorForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' })");
+    }
+
+    private void OnAssignmentDisciplineChanged()
+    {
+        selectedSeriesForAssignment = "";
+        selectedSeasonForAssignment = "";
+        availableSeasonsForAssignment = new();
+
+        if (!string.IsNullOrEmpty(selectedDisciplineForAssignment))
+        {
+            availableSeriesForAssignment = allSeries
+                .Where(s => s.DisciplineId == selectedDisciplineForAssignment)
+                .OrderBy(s => s.DisplayName)
+                .ToList();
+        }
+        else
+        {
+            availableSeriesForAssignment = new();
+        }
+    }
+
+    private void OnAssignmentSeriesChanged()
+    {
+        selectedSeasonForAssignment = "";
+
+        if (!string.IsNullOrEmpty(selectedSeriesForAssignment))
+        {
+            availableSeasonsForAssignment = allSeasons
+                .Where(s => s.SeriesId == selectedSeriesForAssignment && !assignedSeasonIds.Contains(s.Id))
+                .OrderByDescending(s => s.Year)
+                .ToList();
+        }
+        else
+        {
+            availableSeasonsForAssignment = new();
+        }
+    }
+
+    private void AddSeasonAssignment()
+    {
+        if (!string.IsNullOrEmpty(selectedSeasonForAssignment))
+        {
+            assignedSeasonIds.Add(selectedSeasonForAssignment);
+            pendingAdditions.Add(selectedSeasonForAssignment);
+            pendingRemovals.Remove(selectedSeasonForAssignment);
+
+            // Reset selectors
+            selectedDisciplineForAssignment = "";
+            selectedSeriesForAssignment = "";
+            selectedSeasonForAssignment = "";
+            availableSeriesForAssignment = new();
+            availableSeasonsForAssignment = new();
+        }
+    }
+
+    private void RemoveSeasonAssignment(string seasonId)
+    {
+        assignedSeasonIds.Remove(seasonId);
+        pendingRemovals.Add(seasonId);
+        pendingAdditions.Remove(seasonId);
     }
 
     private void CancelForm()
@@ -405,7 +608,8 @@
         showForm = false;
         editingCompetitor = null;
         formError = "";
-        pendingSeasonChanges.Clear();
+        pendingAdditions.Clear();
+        pendingRemovals.Clear();
     }
 
     private void ClearError()
@@ -413,20 +617,9 @@
         errorMessage = "";
     }
 
-    private void ToggleSeasonAssignment(string seasonId, bool isChecked)
+    private void ClearSuccess()
     {
-        if (isChecked)
-        {
-            assignedSeasonIds.Add(seasonId);
-            pendingSeasonChanges.Add($"add:{seasonId}");
-            pendingSeasonChanges.Remove($"remove:{seasonId}");
-        }
-        else
-        {
-            assignedSeasonIds.Remove(seasonId);
-            pendingSeasonChanges.Add($"remove:{seasonId}");
-            pendingSeasonChanges.Remove($"add:{seasonId}");
-        }
+        successMessage = "";
     }
 
     private async Task SaveCompetitor()
@@ -451,6 +644,8 @@
 
         saving = true;
         formError = "";
+        errorMessage = "";
+        successMessage = "";
 
         if (editingCompetitor == null)
         {
@@ -465,6 +660,7 @@
             
             if (response.Success)
             {
+                successMessage = $"Competitor '{formName}' created successfully!";
                 await LoadData();
                 CancelForm();
             }
@@ -486,9 +682,10 @@
             
             if (response.Success)
             {
-                // Update season assignments
+                // Apply season assignment changes
                 await ApplySeasonChanges(editingCompetitor.Id);
                 
+                successMessage = $"Competitor '{formName}' updated successfully!";
                 await LoadData();
                 CancelForm();
             }
@@ -503,20 +700,14 @@
 
     private async Task ApplySeasonChanges(string competitorId)
     {
-        foreach (var change in pendingSeasonChanges)
+        foreach (var seasonId in pendingAdditions)
         {
-            var parts = change.Split(':');
-            var action = parts[0];
-            var seasonId = parts[1];
+            await ApiClient.AddCompetitorToSeasonAsync(seasonId, competitorId);
+        }
 
-            if (action == "add")
-            {
-                await ApiClient.AddCompetitorToSeasonAsync(seasonId, competitorId);
-            }
-            else if (action == "remove")
-            {
-                await ApiClient.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
-            }
+        foreach (var seasonId in pendingRemovals)
+        {
+            await ApiClient.RemoveCompetitorFromSeasonAsync(seasonId, competitorId);
         }
     }
 
@@ -554,7 +745,6 @@
     {
         if (competitorToDelete == null) return;
 
-        // Check dependencies one more time
         var deps = competitorDependencies.ContainsKey(competitorToDelete.Id) 
             ? competitorDependencies[competitorToDelete.Id] 
             : new CompetitorDependencies();
@@ -562,22 +752,24 @@
         if (deps.HasDependencies)
         {
             showDeleteConfirm = false;
-            errorMessage = $"Cannot delete competitor because it has dependencies. Please remove those assignments first.";
+            errorMessage = $"Cannot delete '{competitorToDelete.Name}' because it has dependencies.";
             competitorToDelete = null;
             return;
         }
 
+        var name = competitorToDelete.Name;
         var response = await ApiClient.DeleteCompetitorAsync(competitorToDelete.Id, competitorToDelete.Type);
         
         showDeleteConfirm = false;
         
         if (response.Success)
         {
+            successMessage = $"Competitor '{name}' deleted successfully!";
             await LoadData();
         }
         else
         {
-            errorMessage = response.Error ?? "Failed to delete competitor";
+            errorMessage = response.Error ?? $"Failed to delete '{name}'";
         }
         
         competitorToDelete = null;

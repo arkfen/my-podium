@@ -495,7 +495,8 @@ input[type="number"].form-control {
     border: 1px solid #6ee7b7;
 }
 
-.alert-danger {
+.alert-danger,
+.alert-error {
     background: #fee2e2;
     color: #991b1b;
     border: 1px solid #fca5a5;
@@ -1023,6 +1024,18 @@ input[type="number"].form-control {
     text-align: center;
     padding: 3rem;
     color: var(--text-light);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem 1rem;
+    gap: 1rem;
+}
+
+.pagination button {
+    min-width: 100px;
 }
 
 /* User Details Page */
