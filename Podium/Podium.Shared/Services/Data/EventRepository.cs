@@ -7,9 +7,16 @@ namespace Podium.Shared.Services.Data;
 public interface IEventRepository
 {
     Task<List<Event>> GetEventsBySeasonAsync(string seasonId);
+    Task<List<Event>> GetAllEventsAsync();
     Task<Event?> GetEventByIdAsync(string seasonId, string eventId);
+    Task<Event?> GetEventByIdOnlyAsync(string eventId);
     Task<List<Event>> GetUpcomingEventsBySeasonAsync(string seasonId);
     Task<EventResult?> GetEventResultAsync(string eventId);
+    Task<Event?> CreateEventAsync(Event evt);
+    Task<Event?> UpdateEventAsync(Event evt);
+    Task<bool> DeleteEventAsync(string seasonId, string eventId);
+    Task<EventDependencies> GetEventDependenciesAsync(string eventId);
+    Task<int> GetNextEventNumberAsync(string seasonId);
 }
 
 public class EventRepository : IEventRepository
@@ -131,4 +138,162 @@ public class EventRepository : IEventRepository
             UpdatedDate = entity.GetDateTimeOffset("UpdatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
         };
     }
+
+    public async Task<List<Event>> GetAllEventsAsync()
+    {
+        var tableClient = _tableClientFactory.GetTableClient(EventsTableName);
+        var events = new List<Event>();
+
+        try
+        {
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>())
+            {
+                events.Add(MapToEvent(entity));
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return events;
+        }
+
+        return events.OrderByDescending(e => e.EventDate).ToList();
+    }
+
+    public async Task<Event?> GetEventByIdOnlyAsync(string eventId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(EventsTableName);
+
+        try
+        {
+            var filter = $"RowKey eq '{eventId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                return MapToEvent(entity);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    public async Task<Event?> CreateEventAsync(Event evt)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(EventsTableName);
+
+        try
+        {
+            evt.Id = Guid.NewGuid().ToString();
+            evt.CreatedDate = DateTime.UtcNow;
+
+            var entity = new TableEntity(evt.SeasonId, evt.Id)
+            {
+                ["Name"] = evt.Name,
+                ["DisplayName"] = evt.DisplayName,
+                ["EventNumber"] = evt.EventNumber,
+                ["EventDate"] = DateTime.SpecifyKind(evt.EventDate, DateTimeKind.Utc),
+                ["Location"] = evt.Location,
+                ["Status"] = evt.Status,
+                ["IsActive"] = evt.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(evt.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.AddEntityAsync(entity);
+            return evt;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<Event?> UpdateEventAsync(Event evt)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(EventsTableName);
+
+        try
+        {
+            var entity = new TableEntity(evt.SeasonId, evt.Id)
+            {
+                ["Name"] = evt.Name,
+                ["DisplayName"] = evt.DisplayName,
+                ["EventNumber"] = evt.EventNumber,
+                ["EventDate"] = DateTime.SpecifyKind(evt.EventDate, DateTimeKind.Utc),
+                ["Location"] = evt.Location,
+                ["Status"] = evt.Status,
+                ["IsActive"] = evt.IsActive,
+                ["CreatedDate"] = DateTime.SpecifyKind(evt.CreatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return evt;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteEventAsync(string seasonId, string eventId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(EventsTableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(seasonId, eventId);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<EventDependencies> GetEventDependenciesAsync(string eventId)
+    {
+        var dependencies = new EventDependencies();
+
+        try
+        {
+            // Check for predictions
+            var predictionsTableClient = _tableClientFactory.GetTableClient("PodiumPredictions");
+            var predictionsFilter = $"PartitionKey eq '{eventId}'";
+            await foreach (var _ in predictionsTableClient.QueryAsync<TableEntity>(filter: predictionsFilter))
+            {
+                dependencies.PredictionCount++;
+            }
+
+            // Check for results
+            var resultsTableClient = _tableClientFactory.GetTableClient(ResultsTableName);
+            try
+            {
+                var response = await resultsTableClient.GetEntityAsync<TableEntity>(eventId, "Result");
+                dependencies.HasResult = response.Value != null;
+            }
+            catch (RequestFailedException)
+            {
+                dependencies.HasResult = false;
+            }
+        }
+        catch (RequestFailedException)
+        {
+            // Tables don't exist or error
+        }
+
+        return dependencies;
+    }
+
+    public async Task<int> GetNextEventNumberAsync(string seasonId)
+    {
+        var events = await GetEventsBySeasonAsync(seasonId);
+        if (!events.Any())
+        {
+            return 1;
+        }
+        return events.Max(e => e.EventNumber) + 1;
+    }
 }
+
+

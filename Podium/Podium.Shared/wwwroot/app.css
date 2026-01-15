@@ -843,6 +843,11 @@ input[type="number"].form-control {
     color: #1e40af;
 }
 
+.badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
 .badge-secondary {
     background: #f3f4f6;
     color: #4b5563;

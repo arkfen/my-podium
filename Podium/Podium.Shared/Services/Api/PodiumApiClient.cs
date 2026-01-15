@@ -85,11 +85,14 @@ public interface IPodiumApiClient
     Task<ApiResponse<MessageResponse>> RemoveCompetitorFromSeasonAsync(string seasonId, string competitorId);
 
     // Admin - Event Management
-    Task<ApiResponse<List<Event>>> GetAllEventsAdminAsync(string seasonId);
+    Task<ApiResponse<List<Event>>> GetAllEventsAsync();
+    Task<ApiResponse<List<Event>>> GetEventsBySeasonAdminAsync(string seasonId);
     Task<ApiResponse<Event>> GetEventAdminAsync(string eventId);
+    Task<ApiResponse<EventDependencies>> GetEventDependenciesAsync(string eventId);
+    Task<ApiResponse<object>> GetNextEventNumberAsync(string seasonId);
     Task<ApiResponse<Event>> CreateEventAsync(CreateEventRequest request);
     Task<ApiResponse<Event>> UpdateEventAsync(string eventId, UpdateEventRequest request);
-    Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId);
+    Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId, string seasonId);
 
     // Admin - Event Result Management
     Task<ApiResponse<EventResult>> GetEventResultAdminAsync(string eventId);
@@ -409,7 +412,12 @@ public class PodiumApiClient : IPodiumApiClient
     }
 
     // Admin - Event Management
-    public async Task<ApiResponse<List<Event>>> GetAllEventsAdminAsync(string seasonId)
+    public async Task<ApiResponse<List<Event>>> GetAllEventsAsync()
+    {
+        return await GetAsync<List<Event>>("/api/admin/events");
+    }
+
+    public async Task<ApiResponse<List<Event>>> GetEventsBySeasonAdminAsync(string seasonId)
     {
         return await GetAsync<List<Event>>($"/api/admin/seasons/{seasonId}/events");
     }
@@ -417,6 +425,16 @@ public class PodiumApiClient : IPodiumApiClient
     public async Task<ApiResponse<Event>> GetEventAdminAsync(string eventId)
     {
         return await GetAsync<Event>($"/api/admin/events/{eventId}");
+    }
+
+    public async Task<ApiResponse<EventDependencies>> GetEventDependenciesAsync(string eventId)
+    {
+        return await GetAsync<EventDependencies>($"/api/admin/events/{eventId}/dependencies");
+    }
+
+    public async Task<ApiResponse<object>> GetNextEventNumberAsync(string seasonId)
+    {
+        return await GetAsync<object>($"/api/admin/seasons/{seasonId}/events/next-number");
     }
 
     public async Task<ApiResponse<Event>> CreateEventAsync(CreateEventRequest request)
@@ -429,9 +447,9 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<Event>($"/api/admin/events/{eventId}", request);
     }
 
-    public async Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId)
+    public async Task<ApiResponse<MessageResponse>> DeleteEventAsync(string eventId, string seasonId)
     {
-        return await DeleteAsync<MessageResponse>($"/api/admin/events/{eventId}");
+        return await DeleteAsync<MessageResponse>($"/api/admin/events/{eventId}?seasonId={seasonId}");
     }
 
     // Admin - Event Result Management

@@ -1,0 +1,764 @@
+@page "/admin/events"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+@inject IJSRuntime JS
+
+<PageTitle>Manage Events - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>&#128197; Manage Events</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Event</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading events...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>&#10004; @successMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearSuccess">Clear &times;</button>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>@errorMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError">Clear &times;</button>
+            </div>
+        }
+
+        @if (showForm)
+        {
+            <div class="admin-form" id="eventForm">
+                <h3>@(editingEvent == null ? "Create" : "Edit") Event</h3>
+                
+                @if (editingEvent == null)
+                {
+                    <div class="form-group">
+                        <label><strong>Select Season:</strong></label>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Discipline:</label>
+                                <select class="form-control" @bind="selectedDiscipline" @bind:after="OnDisciplineChanged">
+                                    <option value="">-- Select Discipline --</option>
+                                    @foreach (var discipline in disciplines)
+                                    {
+                                        <option value="@discipline.Id">@discipline.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Series:</label>
+                                <select class="form-control" @bind="selectedSeries" @bind:after="OnSeriesChanged" 
+                                        disabled="@string.IsNullOrEmpty(selectedDiscipline)">
+                                    <option value="">-- Select Series --</option>
+                                    @foreach (var series in availableSeries)
+                                    {
+                                        <option value="@series.Id">@series.DisplayName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div style="flex: 1; min-width: 200px;">
+                                <label>Season:</label>
+                                <select class="form-control" @bind="formSeasonId" @bind:after="OnSeasonSelectedForCreate"
+                                        disabled="@string.IsNullOrEmpty(selectedSeries)">
+                                    <option value="">-- Select Season --</option>
+                                    @foreach (var season in availableSeasons)
+                                    {
+                                        <option value="@season.Id">@season.Year - @season.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>Season:</label>
+                        <div class="user-display">
+                            @GetSeasonDisplay(editingEvent.SeasonId)
+                            <small style="display: block; color: var(--text-light); margin-top: 0.25rem;">
+                                Season cannot be changed after creation
+                            </small>
+                        </div>
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>Event Number:</label>
+                    <input type="number" class="form-control" @bind="formEventNumber" 
+                           placeholder="e.g., 1, 2, 3..." min="1" />
+                    @if (suggestedEventNumber > 0 && editingEvent == null)
+                    {
+                        <small style="color: var(--text-light);">Suggested: @suggestedEventNumber</small>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Event Name:</label>
+                    <input type="text" class="form-control" @bind="formName" 
+                           placeholder="e.g., Australian Grand Prix" />
+                </div>
+
+                <div class="form-group">
+                    <label>Display Name:</label>
+                    <input type="text" class="form-control" @bind="formDisplayName" 
+                           placeholder="e.g., Australia - Melbourne" />
+                </div>
+
+                <div class="form-group">
+                    <label>Event Date (UTC):</label>
+                    <input type="datetime-local" class="form-control" @bind="formEventDate" />
+                </div>
+
+                <div class="form-group">
+                    <label>Location:</label>
+                    <input type="text" class="form-control" @bind="formLocation" 
+                           placeholder="e.g., Albert Park Circuit, Melbourne" />
+                </div>
+
+                <div class="form-group">
+                    <label>Status:</label>
+                    <select class="form-control" @bind="formStatus">
+                        <option value="Upcoming">Upcoming</option>
+                        <option value="InProgress">In Progress</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active (accepts predictions)
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEvent" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="filter-section">
+            <div style="flex: 1; max-width: 300px;">
+                <label>Search:</label>
+                <input type="text" class="form-control" @bind="searchQuery" @bind:after="FilterEvents" 
+                       placeholder="Search by name or location..." />
+            </div>
+            <div style="flex: 1; max-width: 400px;">
+                <label>Filter by Status:</label>
+                <select class="form-control" @bind="selectedStatusFilter" @bind:after="FilterEvents">
+                    <option value="">All Statuses</option>
+                    <option value="Upcoming">Upcoming</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Event</th>
+                        <th>Season</th>
+                        <th>Date</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Predictions</th>
+                        <th>Result</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var evt in paginatedEvents)
+                    {
+                        <tr>
+                            <td><strong>@evt.EventNumber</strong></td>
+                            <td>
+                                <strong>@evt.DisplayName</strong>
+                                <br />
+                                <small style="color: var(--text-light);">@evt.Name</small>
+                            </td>
+                            <td>
+                                <small>@GetSeasonDisplay(evt.SeasonId)</small>
+                            </td>
+                            <td>
+                                <small>@evt.EventDate.ToString("MMM dd, yyyy HH:mm") UTC</small>
+                            </td>
+                            <td><small>@evt.Location</small></td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(evt.Status)">
+                                    @evt.Status
+                                </span>
+                                @if (!evt.IsActive)
+                                {
+                                    <br />
+                                    <span class="badge badge-inactive" style="margin-top: 0.25rem;">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                @if (eventDependencies.ContainsKey(evt.Id))
+                                {
+                                    var deps = eventDependencies[evt.Id];
+                                    @if (deps.PredictionCount > 0)
+                                    {
+                                        <small style="color: #2563eb;">
+                                            <strong>@deps.PredictionCount</strong>
+                                        </small>
+                                    }
+                                    else
+                                    {
+                                        <small style="color: #6b7280;">0</small>
+                                    }
+                                }
+                            </td>
+                            <td>
+                                @if (eventDependencies.ContainsKey(evt.Id))
+                                {
+                                    var deps = eventDependencies[evt.Id];
+                                    @if (deps.HasResult)
+                                    {
+                                        <span style="color: #10b981;">&#10004;</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: #6b7280;">-</span>
+                                    }
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditEvent(evt)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(evt)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!filteredEvents.Any())
+            {
+                <div class="no-results">
+                    <p>No events found. @(string.IsNullOrEmpty(searchQuery) && string.IsNullOrEmpty(selectedStatusFilter) ? "Create one to get started!" : "Try adjusting your filters.")</p>
+                </div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                    &laquo; Previous
+                </button>
+                <span style="margin: 0 1rem;">
+                    Page @currentPage of @totalPages (@filteredEvents.Count total)
+                </span>
+                <button class="btn btn-secondary" @onclick="NextPage" disabled="@(currentPage == totalPages)">
+                    Next &raquo;
+                </button>
+            </div>
+        }
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Event"
+               Message="@deleteConfirmMessage"
+               ConfirmText="Delete"
+               OnConfirm="DeleteEvent"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private List<Series> allSeries = new();
+    private List<Season> allSeasons = new();
+    private List<Event> allEvents = new();
+    private List<Event> filteredEvents = new();
+    private List<Event> paginatedEvents = new();
+    private List<Series> availableSeries = new();
+    private List<Season> availableSeasons = new();
+    private Dictionary<string, EventDependencies> eventDependencies = new();
+
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+    private string formError = "";
+    private string selectedStatusFilter = "";
+    private string searchQuery = "";
+    private string deleteConfirmMessage = "";
+    private string selectedDiscipline = "";
+    private string selectedSeries = "";
+
+    private Event? editingEvent = null;
+    private Event? eventToDelete = null;
+    private string formSeasonId = "";
+    private string formName = "";
+    private string formDisplayName = "";
+    private int formEventNumber = 1;
+    private DateTime formEventDate = DateTime.UtcNow.AddDays(7);
+    private string formLocation = "";
+    private string formStatus = "Upcoming";
+    private bool formIsActive = true;
+    private int suggestedEventNumber = 0;
+
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMessage = "";
+
+        var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
+        if (disciplineResponse.Success && disciplineResponse.Data != null)
+        {
+            disciplines = disciplineResponse.Data;
+        }
+
+        allSeries = new();
+        foreach (var discipline in disciplines)
+        {
+            var seriesResponse = await ApiClient.GetAllSeriesAdminAsync(discipline.Id);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                allSeries.AddRange(seriesResponse.Data);
+            }
+        }
+
+        allSeasons = new();
+        foreach (var series in allSeries)
+        {
+            var seasonsResponse = await ApiClient.GetAllSeasonsAdminAsync(series.Id);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                allSeasons.AddRange(seasonsResponse.Data);
+            }
+        }
+
+        var eventsResponse = await ApiClient.GetAllEventsAsync();
+        if (eventsResponse.Success && eventsResponse.Data != null)
+        {
+            allEvents = eventsResponse.Data;
+        }
+        else
+        {
+            errorMessage = "Failed to load events";
+            loading = false;
+            return;
+        }
+
+        await LoadDependencies();
+
+        FilterEvents();
+        loading = false;
+    }
+
+    private async Task LoadDependencies()
+    {
+        eventDependencies.Clear();
+
+        foreach (var evt in allEvents)
+        {
+            var depsResponse = await ApiClient.GetEventDependenciesAsync(evt.Id);
+            if (depsResponse.Success && depsResponse.Data != null)
+            {
+                eventDependencies[evt.Id] = depsResponse.Data;
+            }
+        }
+    }
+
+    private void FilterEvents()
+    {
+        filteredEvents = allEvents;
+
+        if (!string.IsNullOrEmpty(selectedStatusFilter))
+        {
+            filteredEvents = filteredEvents.Where(e => e.Status == selectedStatusFilter).ToList();
+        }
+
+        if (!string.IsNullOrEmpty(searchQuery))
+        {
+            var search = searchQuery.ToLower();
+            filteredEvents = filteredEvents.Where(e => 
+                e.Name.ToLower().Contains(search) || 
+                e.DisplayName.ToLower().Contains(search) ||
+                e.Location.ToLower().Contains(search)
+            ).ToList();
+        }
+
+        filteredEvents = filteredEvents.OrderByDescending(e => e.EventDate).ToList();
+        
+        currentPage = 1;
+        UpdatePagination();
+    }
+
+    private void UpdatePagination()
+    {
+        totalPages = (int)Math.Ceiling(filteredEvents.Count / (double)pageSize);
+        if (totalPages == 0) totalPages = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var skip = (currentPage - 1) * pageSize;
+        paginatedEvents = filteredEvents.Skip(skip).Take(pageSize).ToList();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            UpdatePagination();
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            UpdatePagination();
+        }
+    }
+
+    private string GetSeasonDisplay(string seasonId)
+    {
+        var season = allSeasons.FirstOrDefault(s => s.Id == seasonId);
+        if (season == null) return "Unknown";
+
+        var series = allSeries.FirstOrDefault(s => s.Id == season.SeriesId);
+        if (series == null) return $"{season.Year} Season";
+
+        var discipline = disciplines.FirstOrDefault(d => d.Id == series.DisciplineId);
+        return $"{season.Year} {series.DisplayName} ({discipline?.DisplayName ?? "Unknown"})";
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Upcoming" => "badge-info",
+            "InProgress" => "badge-warning",
+            "Completed" => "badge-success",
+            _ => "badge-secondary"
+        };
+    }
+
+    private async Task ShowCreateForm()
+    {
+        editingEvent = null;
+        formSeasonId = "";
+        formName = "";
+        formDisplayName = "";
+        formEventNumber = 1;
+        formEventDate = DateTime.UtcNow.AddDays(7);
+        formLocation = "";
+        formStatus = "Upcoming";
+        formIsActive = true;
+        formError = "";
+        selectedDiscipline = "";
+        selectedSeries = "";
+        availableSeries = new();
+        availableSeasons = new();
+        suggestedEventNumber = 0;
+        showForm = true;
+        
+        await ScrollToForm();
+    }
+
+    private async Task EditEvent(Event evt)
+    {
+        editingEvent = evt;
+        formSeasonId = evt.SeasonId;
+        formName = evt.Name;
+        formDisplayName = evt.DisplayName;
+        formEventNumber = evt.EventNumber;
+        formEventDate = evt.EventDate;
+        formLocation = evt.Location;
+        formStatus = evt.Status;
+        formIsActive = evt.IsActive;
+        formError = "";
+
+        showForm = true;
+        await ScrollToForm();
+    }
+
+    private void OnDisciplineChanged()
+    {
+        selectedSeries = "";
+        formSeasonId = "";
+        availableSeasons = new();
+        suggestedEventNumber = 0;
+
+        if (!string.IsNullOrEmpty(selectedDiscipline))
+        {
+            availableSeries = allSeries.Where(s => s.DisciplineId == selectedDiscipline).ToList();
+        }
+        else
+        {
+            availableSeries = new();
+        }
+    }
+
+    private void OnSeriesChanged()
+    {
+        formSeasonId = "";
+        suggestedEventNumber = 0;
+
+        if (!string.IsNullOrEmpty(selectedSeries))
+        {
+            availableSeasons = allSeasons.Where(s => s.SeriesId == selectedSeries).OrderByDescending(s => s.Year).ToList();
+        }
+        else
+        {
+            availableSeasons = new();
+        }
+    }
+
+    private async Task OnSeasonSelectedForCreate()
+    {
+        if (!string.IsNullOrEmpty(formSeasonId))
+        {
+            var response = await ApiClient.GetNextEventNumberAsync(formSeasonId);
+            if (response.Success && response.Data != null)
+            {
+                var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(
+                    System.Text.Json.JsonSerializer.Serialize(response.Data));
+                if (data.TryGetProperty("nextNumber", out var nextNumber))
+                {
+                    suggestedEventNumber = nextNumber.GetInt32();
+                    formEventNumber = suggestedEventNumber;
+                }
+            }
+        }
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingEvent = null;
+        formError = "";
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+    }
+
+    private void ClearSuccess()
+    {
+        successMessage = "";
+    }
+
+    private async Task ScrollToForm()
+    {
+        await Task.Delay(100);
+        await JS.InvokeVoidAsync("eval", "document.getElementById('eventForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' })");
+    }
+
+    private async Task ScrollToTop()
+    {
+        await Task.Delay(100);
+        await JS.InvokeVoidAsync("eval", "window.scrollTo({ top: 0, behavior: 'smooth' })");
+    }
+
+    private async Task SaveEvent()
+    {
+        if (editingEvent == null && string.IsNullOrWhiteSpace(formSeasonId))
+        {
+            formError = "Please select a season";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            formError = "Event name is required";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formDisplayName))
+        {
+            formError = "Display name is required";
+            return;
+        }
+
+        if (formEventNumber < 1)
+        {
+            formError = "Event number must be at least 1";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formLocation))
+        {
+            formError = "Location is required";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+        errorMessage = "";
+        successMessage = "";
+
+        if (editingEvent == null)
+        {
+            var request = new CreateEventRequest(
+                formSeasonId,
+                formName,
+                formDisplayName,
+                formEventNumber,
+                formEventDate,
+                formLocation,
+                formStatus,
+                formIsActive
+            );
+            var response = await ApiClient.CreateEventAsync(request);
+            
+            if (response.Success)
+            {
+                successMessage = $"Event '{formDisplayName}' created successfully!";
+                showForm = false;
+                editingEvent = null;
+                await LoadData();
+                await ScrollToTop();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create event";
+            }
+        }
+        else
+        {
+            var request = new UpdateEventRequest(
+                formName,
+                formDisplayName,
+                formEventNumber,
+                formEventDate,
+                formLocation,
+                formStatus,
+                formIsActive
+            );
+            var response = await ApiClient.UpdateEventAsync(editingEvent.Id, request);
+            
+            if (response.Success)
+            {
+                successMessage = $"Event '{formDisplayName}' updated successfully!";
+                showForm = false;
+                editingEvent = null;
+                await LoadData();
+                await ScrollToTop();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update event";
+            }
+        }
+
+        saving = false;
+    }
+
+    private void ConfirmDelete(Event evt)
+    {
+        eventToDelete = evt;
+        
+        var deps = eventDependencies.ContainsKey(evt.Id) 
+            ? eventDependencies[evt.Id] 
+            : new EventDependencies();
+        
+        if (deps.HasDependencies)
+        {
+            var reasons = new List<string>();
+            if (deps.PredictionCount > 0) reasons.Add($"{deps.PredictionCount} prediction(s)");
+            if (deps.HasResult) reasons.Add("event result");
+            
+            deleteConfirmMessage = $"Cannot delete '{evt.DisplayName}' because it has {string.Join(" and ", reasons)}. Please delete those first.";
+        }
+        else
+        {
+            deleteConfirmMessage = $"Are you sure you want to delete '{evt.DisplayName}'? This action cannot be undone.";
+        }
+        
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        eventToDelete = null;
+    }
+
+    private async Task DeleteEvent()
+    {
+        if (eventToDelete == null) return;
+
+        var deps = eventDependencies.ContainsKey(eventToDelete.Id) 
+            ? eventDependencies[eventToDelete.Id] 
+            : new EventDependencies();
+
+        if (deps.HasDependencies)
+        {
+            showDeleteConfirm = false;
+            errorMessage = $"Cannot delete event because it has dependencies.";
+            eventToDelete = null;
+            await ScrollToTop();
+            return;
+        }
+
+        var name = eventToDelete.DisplayName;
+        var response = await ApiClient.DeleteEventAsync(eventToDelete.Id, eventToDelete.SeasonId);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            successMessage = $"Event '{name}' deleted successfully!";
+            await LoadData();
+            await ScrollToTop();
+        }
+        else
+        {
+            errorMessage = response.Error ?? $"Failed to delete '{name}'";
+            await ScrollToTop();
+        }
+        
+        eventToDelete = null;
+    }
+}

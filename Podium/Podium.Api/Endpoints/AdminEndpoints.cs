@@ -758,6 +758,201 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("RemoveCompetitorFromSeason");
 
+        // ===== EVENT MANAGEMENT =====
+
+        // Get all events (admin)
+        group.MapGet("/events", async (
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var events = await eventRepo.GetAllEventsAsync();
+            return Results.Ok(events);
+        })
+        .RequireAdmin()
+        .WithName("GetAllEventsAdmin");
+
+        // Get events by season
+        group.MapGet("/seasons/{seasonId}/events", async (
+            string seasonId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var events = await eventRepo.GetEventsBySeasonAsync(seasonId);
+            return Results.Ok(events);
+        })
+        .RequireAdmin()
+        .WithName("GetEventsBySeasonAdmin");
+
+        // Get specific event
+        group.MapGet("/events/{eventId}", async (
+            string eventId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var evt = await eventRepo.GetEventByIdOnlyAsync(eventId);
+            if (evt == null)
+                return Results.NotFound(new { error = "Event not found" });
+            
+            return Results.Ok(evt);
+        })
+        .RequireAdmin()
+        .WithName("GetEventAdmin");
+
+        // Get event dependencies
+        group.MapGet("/events/{eventId}/dependencies", async (
+            string eventId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var dependencies = await eventRepo.GetEventDependenciesAsync(eventId);
+            return Results.Ok(dependencies);
+        })
+        .RequireAdmin()
+        .WithName("GetEventDependencies");
+
+        // Get next event number for season
+        group.MapGet("/seasons/{seasonId}/events/next-number", async (
+            string seasonId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var nextNumber = await eventRepo.GetNextEventNumberAsync(seasonId);
+            return Results.Ok(new { nextNumber });
+        })
+        .RequireAdmin()
+        .WithName("GetNextEventNumber");
+
+        // Create event
+        group.MapPost("/events", async (
+            [FromBody] CreateEventRequest request,
+            [FromServices] IEventRepository eventRepo,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Verify season exists
+            var season = await seasonRepo.GetSeasonByIdOnlyAsync(request.SeasonId);
+            if (season == null)
+                return Results.BadRequest(new { error = "Season not found" });
+
+            // Validate status
+            var validStatuses = new[] { "Upcoming", "InProgress", "Completed" };
+            if (!validStatuses.Contains(request.Status))
+            {
+                return Results.BadRequest(new { error = "Status must be 'Upcoming', 'InProgress', or 'Completed'" });
+            }
+
+            // Validate event date within season range
+            if (request.EventDate < season.StartDate)
+            {
+                return Results.BadRequest(new { error = "Event date must be within season date range" });
+            }
+
+            if (season.EndDate.HasValue && request.EventDate > season.EndDate.Value)
+            {
+                return Results.BadRequest(new { error = "Event date must be within season date range" });
+            }
+
+            var evt = new Event
+            {
+                SeasonId = request.SeasonId,
+                Name = request.Name,
+                DisplayName = request.DisplayName,
+                EventNumber = request.EventNumber,
+                EventDate = request.EventDate,
+                Location = request.Location,
+                Status = request.Status,
+                IsActive = request.IsActive
+            };
+
+            var created = await eventRepo.CreateEventAsync(evt);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateEvent");
+
+        // Update event
+        group.MapPut("/events/{eventId}", async (
+            string eventId,
+            [FromBody] UpdateEventRequest request,
+            [FromServices] IEventRepository eventRepo,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Get existing event
+            var existing = await eventRepo.GetEventByIdOnlyAsync(eventId);
+            if (existing == null)
+                return Results.NotFound(new { error = "Event not found" });
+
+            // Verify season exists (in case it's being changed)
+            var season = await seasonRepo.GetSeasonByIdOnlyAsync(existing.SeasonId);
+            if (season == null)
+                return Results.BadRequest(new { error = "Season not found" });
+
+            // Validate status
+            var validStatuses = new[] { "Upcoming", "InProgress", "Completed" };
+            if (!validStatuses.Contains(request.Status))
+            {
+                return Results.BadRequest(new { error = "Status must be 'Upcoming', 'InProgress', or 'Completed'" });
+            }
+
+            // Validate event date within season range
+            if (request.EventDate < season.StartDate)
+            {
+                return Results.BadRequest(new { error = "Event date must be within season date range" });
+            }
+
+            if (season.EndDate.HasValue && request.EventDate > season.EndDate.Value)
+            {
+                return Results.BadRequest(new { error = "Event date must be within season date range" });
+            }
+
+            existing.Name = request.Name;
+            existing.DisplayName = request.DisplayName;
+            existing.EventNumber = request.EventNumber;
+            existing.EventDate = request.EventDate;
+            existing.Location = request.Location;
+            existing.Status = request.Status;
+            existing.IsActive = request.IsActive;
+
+            var updated = await eventRepo.UpdateEventAsync(existing);
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(updated);
+        })
+        .RequireAdmin()
+        .WithName("UpdateEvent");
+
+        // Delete event
+        group.MapDelete("/events/{eventId}", async (
+            string eventId,
+            [FromQuery] string seasonId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            // Check for dependencies first
+            var dependencies = await eventRepo.GetEventDependenciesAsync(eventId);
+            if (dependencies.HasDependencies)
+            {
+                var reasons = new List<string>();
+                if (dependencies.PredictionCount > 0)
+                    reasons.Add($"{dependencies.PredictionCount} prediction(s)");
+                if (dependencies.HasResult)
+                    reasons.Add("event result");
+
+                return Results.BadRequest(new 
+                { 
+                    error = "Cannot delete event with existing data",
+                    message = $"This event has {string.Join(" and ", reasons)}. Please delete those first.",
+                    dependencies = dependencies,
+                    canDelete = false
+                });
+            }
+
+            var success = await eventRepo.DeleteEventAsync(seasonId, eventId);
+            if (!success)
+                return Results.NotFound(new { error = "Event not found" });
+
+            return Results.Ok(new { message = "Event deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteEvent");
+
         // ===== USER MANAGEMENT =====
 
         // Get all users (admin)
