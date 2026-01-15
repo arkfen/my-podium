@@ -116,5 +116,24 @@ public static class SportEndpoints
         })
         .RequireAuth()
         .WithName("GetEventResult");
+
+        // Get scoring rules for a season
+        group.MapGet("/scoring/{seasonId}", async (
+            string seasonId) =>
+        {
+            // For now, return default scoring rules
+            // TODO: Create ScoringRulesRepository and load from database
+            var scoringRules = new Podium.Shared.Models.ScoringRules
+            {
+                SeasonId = seasonId,
+                ExactMatchPoints = 25,
+                OneOffPoints = 18,
+                TwoOffPoints = 15
+            };
+            
+            return Results.Ok(scoringRules);
+        })
+        .RequireAuth()
+        .WithName("GetScoringRules");
     }
 }

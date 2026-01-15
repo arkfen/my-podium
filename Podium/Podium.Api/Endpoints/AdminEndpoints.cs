@@ -758,6 +758,17 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("RemoveCompetitorFromSeason");
 
+        // Get competitors for a season
+        group.MapGet("/seasons/{seasonId}/competitors", async (
+            string seasonId,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            var competitors = await competitorRepo.GetCompetitorsBySeasonAsync(seasonId);
+            return Results.Ok(competitors);
+        })
+        .RequireAdmin()
+        .WithName("GetSeasonCompetitorsAdmin");
+
         // ===== EVENT MANAGEMENT =====
 
         // Get all events (admin)
@@ -952,6 +963,119 @@ public static class AdminEndpoints
         })
         .RequireAdmin()
         .WithName("DeleteEvent");
+
+        // ===== EVENT RESULT MANAGEMENT =====
+
+        // Get event result
+        group.MapGet("/events/{eventId}/result", async (
+            string eventId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var result = await eventRepo.GetEventResultAsync(eventId);
+            if (result == null)
+                return Results.NotFound(new { error = "Result not found" });
+            
+            return Results.Ok(result);
+        })
+        .RequireAdmin()
+        .WithName("GetEventResultAdmin");
+
+        // Create or update event result
+        group.MapPost("/events/{eventId}/result", async (
+            string eventId,
+            [FromBody] CreateEventResultRequest request,
+            [FromServices] IEventRepository eventRepo,
+            [FromServices] ICompetitorRepository competitorRepo) =>
+        {
+            // Verify event exists
+            var evt = await eventRepo.GetEventByIdOnlyAsync(eventId);
+            if (evt == null)
+                return Results.BadRequest(new { error = "Event not found" });
+
+            // Validate event status - should be Completed
+            if (evt.Status != "Completed")
+            {
+                return Results.BadRequest(new { error = "Results can only be entered for completed events. Change event status to 'Completed' first." });
+            }
+
+            // Verify all three competitors exist
+            var first = await competitorRepo.GetCompetitorByIdOnlyAsync(request.FirstPlaceId);
+            if (first == null)
+                return Results.BadRequest(new { error = "First place competitor not found" });
+
+            var second = await competitorRepo.GetCompetitorByIdOnlyAsync(request.SecondPlaceId);
+            if (second == null)
+                return Results.BadRequest(new { error = "Second place competitor not found" });
+
+            var third = await competitorRepo.GetCompetitorByIdOnlyAsync(request.ThirdPlaceId);
+            if (third == null)
+                return Results.BadRequest(new { error = "Third place competitor not found" });
+
+            // Ensure all three competitors are different
+            if (request.FirstPlaceId == request.SecondPlaceId || 
+                request.FirstPlaceId == request.ThirdPlaceId || 
+                request.SecondPlaceId == request.ThirdPlaceId)
+            {
+                return Results.BadRequest(new { error = "All three podium positions must be different competitors" });
+            }
+
+            var result = new EventResult
+            {
+                EventId = eventId,
+                FirstPlaceId = request.FirstPlaceId,
+                FirstPlaceName = request.FirstPlaceName,
+                SecondPlaceId = request.SecondPlaceId,
+                SecondPlaceName = request.SecondPlaceName,
+                ThirdPlaceId = request.ThirdPlaceId,
+                ThirdPlaceName = request.ThirdPlaceName
+            };
+
+            var created = await eventRepo.CreateOrUpdateEventResultAsync(eventId, result);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(created);
+        })
+        .RequireAdmin()
+        .WithName("CreateOrUpdateEventResult");
+
+        // Delete event result
+        group.MapDelete("/events/{eventId}/result", async (
+            string eventId,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            var success = await eventRepo.DeleteEventResultAsync(eventId);
+            if (!success)
+                return Results.NotFound(new { error = "Result not found" });
+
+            return Results.Ok(new { message = "Result deleted successfully" });
+        })
+        .RequireAdmin()
+        .WithName("DeleteEventResult");
+
+        // ===== PREDICTION MANAGEMENT =====
+
+        // Update prediction points (for recalculation after result changes)
+        group.MapPut("/predictions/{eventId}/{userId}/points", async (
+            string eventId,
+            string userId,
+            [FromBody] UpdatePointsRequest request,
+            [FromServices] IPredictionRepository predictionRepo) =>
+        {
+            var prediction = await predictionRepo.GetPredictionAsync(eventId, userId);
+            if (prediction == null)
+                return Results.NotFound(new { error = "Prediction not found" });
+
+            prediction.PointsEarned = request.Points;
+            var updated = await predictionRepo.UpdatePredictionAsync(prediction);
+            
+            if (updated == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new { message = "Points updated successfully" });
+        })
+        .RequireAdmin()
+        .WithName("UpdatePredictionPoints");
 
         // ===== USER MANAGEMENT =====
 

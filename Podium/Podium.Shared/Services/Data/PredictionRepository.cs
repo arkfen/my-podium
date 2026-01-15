@@ -10,6 +10,7 @@ public interface IPredictionRepository
     Task<List<Prediction>> GetPredictionsByEventAsync(string eventId);
     Task<List<Prediction>> GetPredictionsByUserAndSeasonAsync(string userId, string seasonId, List<string> eventIds);
     Task<bool> SavePredictionAsync(Prediction prediction);
+    Task<Prediction?> UpdatePredictionAsync(Prediction prediction);
 }
 
 public class PredictionRepository : IPredictionRepository
@@ -113,6 +114,39 @@ public class PredictionRepository : IPredictionRepository
         catch (RequestFailedException)
         {
             return false;
+        }
+    }
+
+    public async Task<Prediction?> UpdatePredictionAsync(Prediction prediction)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            prediction.UpdatedDate = DateTime.UtcNow;
+
+            // CRITICAL: Use Merge mode to only update specific fields
+            // This preserves PartitionKey (EventId) and RowKey (UserId)
+            var entity = new TableEntity(prediction.EventId, prediction.UserId)
+            {
+                ["FirstPlaceId"] = prediction.FirstPlaceId,
+                ["FirstPlaceName"] = prediction.FirstPlaceName,
+                ["SecondPlaceId"] = prediction.SecondPlaceId,
+                ["SecondPlaceName"] = prediction.SecondPlaceName,
+                ["ThirdPlaceId"] = prediction.ThirdPlaceId,
+                ["ThirdPlaceName"] = prediction.ThirdPlaceName,
+                ["PointsEarned"] = prediction.PointsEarned,
+                ["SubmittedDate"] = DateTime.SpecifyKind(prediction.SubmittedDate, DateTimeKind.Utc),
+                ["UpdatedDate"] = DateTime.SpecifyKind(prediction.UpdatedDate, DateTimeKind.Utc)
+            };
+
+            // IMPORTANT: Use Merge instead of Replace to preserve all fields
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
+            return prediction;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
         }
     }
 

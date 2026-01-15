@@ -99,6 +99,10 @@ public interface IPodiumApiClient
     Task<ApiResponse<EventResult>> CreateOrUpdateEventResultAsync(string eventId, CreateEventResultRequest request);
     Task<ApiResponse<MessageResponse>> DeleteEventResultAsync(string eventId);
 
+    // Admin - Scoring & Predictions
+    Task<ApiResponse<ScoringRules>> GetScoringRulesAsync(string seasonId);
+    Task<ApiResponse<MessageResponse>> UpdatePredictionPointsAsync(string eventId, string userId, int points);
+
     // Admin - User Management
     Task<ApiResponse<List<User>>> GetAllUsersAsync();
     Task<ApiResponse<List<UserSearchResult>>> SearchUsersAsync(string searchTerm);
@@ -468,6 +472,17 @@ public class PodiumApiClient : IPodiumApiClient
         return await DeleteAsync<MessageResponse>($"/api/admin/events/{eventId}/result");
     }
 
+    // Admin - Scoring & Predictions
+    public async Task<ApiResponse<ScoringRules>> GetScoringRulesAsync(string seasonId)
+    {
+        return await GetAsync<ScoringRules>($"/api/scoring/{seasonId}");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdatePredictionPointsAsync(string eventId, string userId, int points)
+    {
+        return await PutAsync<MessageResponse>($"/api/admin/predictions/{eventId}/{userId}/points", new { points });
+    }
+
     // Admin - User Management
     public async Task<ApiResponse<List<User>>> GetAllUsersAsync()
     {
@@ -647,6 +662,8 @@ public record CreateEventRequest(string SeasonId, string Name, string DisplayNam
 public record UpdateEventRequest(string Name, string DisplayName, int EventNumber, DateTime EventDate, string Location, string Status, bool IsActive);
 
 public record CreateEventResultRequest(string FirstPlaceId, string FirstPlaceName, string SecondPlaceId, string SecondPlaceName, string ThirdPlaceId, string ThirdPlaceName);
+
+public record UpdatePointsRequest(int Points);
 
 public record UpdateUserRequest(string Username, string Email, bool IsActive);
 

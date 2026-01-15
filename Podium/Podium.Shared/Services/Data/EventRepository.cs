@@ -12,6 +12,8 @@ public interface IEventRepository
     Task<Event?> GetEventByIdOnlyAsync(string eventId);
     Task<List<Event>> GetUpcomingEventsBySeasonAsync(string seasonId);
     Task<EventResult?> GetEventResultAsync(string eventId);
+    Task<EventResult?> CreateOrUpdateEventResultAsync(string eventId, EventResult result);
+    Task<bool> DeleteEventResultAsync(string eventId);
     Task<Event?> CreateEventAsync(Event evt);
     Task<Event?> UpdateEventAsync(Event evt);
     Task<bool> DeleteEventAsync(string seasonId, string eventId);
@@ -104,6 +106,51 @@ public class EventRepository : IEventRepository
         catch (RequestFailedException)
         {
             return null;
+        }
+    }
+
+    public async Task<EventResult?> CreateOrUpdateEventResultAsync(string eventId, EventResult result)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(ResultsTableName);
+
+        try
+        {
+            result.EventId = eventId;
+            result.UpdatedDate = DateTime.UtcNow;
+
+            var entity = new TableEntity(eventId, "Result")
+            {
+                ["EventId"] = eventId,
+                ["FirstPlaceId"] = result.FirstPlaceId,
+                ["FirstPlaceName"] = result.FirstPlaceName,
+                ["SecondPlaceId"] = result.SecondPlaceId,
+                ["SecondPlaceName"] = result.SecondPlaceName,
+                ["ThirdPlaceId"] = result.ThirdPlaceId,
+                ["ThirdPlaceName"] = result.ThirdPlaceName,
+                ["UpdatedDate"] = DateTime.SpecifyKind(result.UpdatedDate, DateTimeKind.Utc)
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            return result;
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteEventResultAsync(string eventId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(ResultsTableName);
+
+        try
+        {
+            await tableClient.DeleteEntityAsync(eventId, "Result");
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
         }
     }
 
