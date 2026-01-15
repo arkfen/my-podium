@@ -26,9 +26,7 @@ public static class PredictionEndpoints
             }
 
             var prediction = await predictionRepo.GetPredictionAsync(eventId, userId);
-            if (prediction == null)
-                return Results.NotFound(new { error = "No prediction found" });
-            
+            // Return 200 with null data if no prediction found (not an error, just no data)
             return Results.Ok(prediction);
         })
         .RequireAuth()
@@ -70,6 +68,56 @@ public static class PredictionEndpoints
         })
         .RequireAuth()
         .WithName("GetUserSeasonPredictions");
+
+        // Get user's predictions for all active seasons (optimized bulk endpoint)
+        group.MapGet("/user/{userId}/active-seasons", async (
+            string userId,
+            HttpContext httpContext,
+            [FromServices] IPredictionRepository predictionRepo,
+            [FromServices] ISeasonRepository seasonRepo,
+            [FromServices] ISeriesRepository seriesRepo,
+            [FromServices] IDisciplineRepository disciplineRepo,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            // Ensure user can only access their own predictions
+            var authenticatedUserId = httpContext.GetUserId();
+            if (authenticatedUserId != userId)
+            {
+                return Results.Forbid();
+            }
+
+            var allPredictions = new List<Prediction>();
+
+            // Get all active disciplines
+            var disciplines = await disciplineRepo.GetActiveDisciplinesAsync();
+            
+            foreach (var discipline in disciplines)
+            {
+                // Get active series for this discipline
+                var seriesList = await seriesRepo.GetActiveSeriesByDisciplineAsync(discipline.Id);
+                
+                foreach (var series in seriesList)
+                {
+                    // Get active season for this series
+                    var season = await seasonRepo.GetActiveSeasonBySeriesAsync(series.Id);
+                    
+                    if (season != null)
+                    {
+                        // Get all events in the season
+                        var events = await eventRepo.GetEventsBySeasonAsync(season.Id);
+                        var eventIds = events.Select(e => e.Id).ToList();
+
+                        // Get predictions for those events
+                        var predictions = await predictionRepo.GetPredictionsByUserAndSeasonAsync(userId, season.Id, eventIds);
+                        allPredictions.AddRange(predictions);
+                    }
+                }
+            }
+
+            return Results.Ok(allPredictions);
+        })
+        .RequireAuth()
+        .WithName("GetUserActiveSeasonsPredictions");
 
         // Submit/update a prediction
         group.MapPost("/", async (

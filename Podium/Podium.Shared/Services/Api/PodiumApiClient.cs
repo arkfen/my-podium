@@ -29,6 +29,7 @@ public interface IPodiumApiClient
     Task<ApiResponse<Prediction>> GetPredictionAsync(string eventId, string userId);
     Task<ApiResponse<List<Prediction>>> GetEventPredictionsAsync(string eventId);
     Task<ApiResponse<List<Prediction>>> GetUserSeasonPredictionsAsync(string userId, string seasonId);
+    Task<ApiResponse<List<Prediction>>> GetUserActiveSeasonsPredictionsAsync(string userId);
     Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request);
 
     // Leaderboard
@@ -213,6 +214,11 @@ public class PodiumApiClient : IPodiumApiClient
     public async Task<ApiResponse<List<Prediction>>> GetUserSeasonPredictionsAsync(string userId, string seasonId)
     {
         return await GetAsync<List<Prediction>>($"/api/predictions/user/{userId}/season/{seasonId}");
+    }
+
+    public async Task<ApiResponse<List<Prediction>>> GetUserActiveSeasonsPredictionsAsync(string userId)
+    {
+        return await GetAsync<List<Prediction>>($"/api/predictions/user/{userId}/active-seasons");
     }
 
     public async Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request)

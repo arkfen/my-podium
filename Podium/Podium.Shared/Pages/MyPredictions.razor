@@ -166,37 +166,17 @@
 
         try
         {
-            // For now, we'll need to get all seasons and load predictions
-            // In a real app, you'd have a "GetUserPredictions" endpoint
-            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
-            if (disciplinesResponse.Success && disciplinesResponse.Data != null)
+            // Use the new optimized bulk endpoint to get all predictions for active seasons in one call
+            var predsResponse = await ApiClient.GetUserActiveSeasonsPredictionsAsync(AuthState.UserId!);
+            
+            if (predsResponse.Success && predsResponse.Data != null)
             {
-                foreach (var discipline in disciplinesResponse.Data)
-                {
-                    var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
-                    if (seriesResponse.Success && seriesResponse.Data != null)
-                    {
-                        foreach (var series in seriesResponse.Data)
-                        {
-                            var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
-                            if (seasonResponse.Success && seasonResponse.Data != null)
-                            {
-                                var predsResponse = await ApiClient.GetUserSeasonPredictionsAsync(
-                                    AuthState.UserId!, 
-                                    seasonResponse.Data.Id);
-                                
-                                if (predsResponse.Success && predsResponse.Data != null)
-                                {
-                                    predictions.AddRange(predsResponse.Data);
-                                }
-                            }
-                        }
-                    }
-                }
+                predictions = predsResponse.Data.OrderByDescending(p => p.SubmittedDate).ToList();
             }
-
-            // Sort by submitted date, newest first
-            predictions = predictions.OrderByDescending(p => p.SubmittedDate).ToList();
+            else if (!predsResponse.Success)
+            {
+                errorMessage = $"Error loading predictions: {predsResponse.Error}";
+            }
         }
         catch (Exception ex)
         {

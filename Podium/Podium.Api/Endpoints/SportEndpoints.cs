@@ -47,9 +47,7 @@ public static class SportEndpoints
             [FromServices] ISeasonRepository seasonRepo) =>
         {
             var season = await seasonRepo.GetActiveSeasonBySeriesAsync(seriesId);
-            if (season == null)
-                return Results.NotFound(new { error = "No active season found" });
-            
+            // Return 200 with null data if no active season (not an error, just no active season)
             return Results.Ok(season);
         })
         .RequireAuth()
@@ -109,9 +107,7 @@ public static class SportEndpoints
             [FromServices] IEventRepository eventRepo) =>
         {
             var result = await eventRepo.GetEventResultAsync(eventId);
-            if (result == null)
-                return Results.NotFound(new { error = "Result not available yet" });
-            
+            // Return 200 with null data if no result available yet (not an error, just pending)
             return Results.Ok(result);
         })
         .RequireAuth()

@@ -21,6 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{3726A50E-B
 		Docs\EmailConfiguration.md = Docs\EmailConfiguration.md
 		Docs\QUICKSTART.md = Docs\QUICKSTART.md
 		Docs\README.md = Docs\README.md
+		Docs\ScoringRulesImplementation.md = Docs\ScoringRulesImplementation.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Podium.Migration", "Tools\Podium.Migration\Podium.Migration.csproj", "{DCEB8886-7019-AEE1-554C-66D8D49A5A18}"
