@@ -100,6 +100,11 @@
     }
 
 
+
+    // LEGACY CODE - HARDCODED POINTS CALCULATION
+    // NOTE: This is legacy Counter.razor from MyPodiumLegacy
+    // The main Podium app now uses ScoringService with database-driven scoring rules
+    // This legacy code remains with hardcoded values (25/18/15) for backward compatibility
     private int GetPoints(string[] results, string[] dreams)
     {
         var p = 0;
@@ -109,12 +114,13 @@
             {
                 if (dreams[i] == results[j])
                 {
-                    if (i == j) p += 25;
-                    else if (i + 1 == j || i - 1 == j || i == j + 1 || i == j - 1) p += 18;
-                    else if (i + 2 == j || i - 2 == j || i == j + 2 || i == j - 2) p += 15;
+                    if (i == j) p += 25;  // HARDCODED: Exact match
+                    else if (i + 1 == j || i - 1 == j || i == j + 1 || i == j - 1) p += 18;  // HARDCODED: One off
+                    else if (i + 2 == j || i - 2 == j || i == j + 2 || i == j - 2) p += 15;  // HARDCODED: Two off
                 }
             }
         }
         return p;
     }
+
 }

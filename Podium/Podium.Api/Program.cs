@@ -1,5 +1,6 @@
 using Podium.Shared.Services.Data;
 using Podium.Shared.Services.Auth;
+using Podium.Shared.Services.Business;
 using Podium.Api.Endpoints;
 using Podium.Api.Services;
 
@@ -78,6 +79,10 @@ builder.Services.AddScoped<IPredictionRepository, PredictionRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ILeaderboardRepository, LeaderboardRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IScoringRulesRepository, ScoringRulesRepository>();
+
+// Register business services
+builder.Services.AddScoped<IScoringService, ScoringService>();
 
 // Register authentication services with email callback
 builder.Services.AddScoped<IAuthenticationService>(sp =>

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Services.Data;
+using Podium.Shared.Services.Business;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Api;
 using Podium.Api.Middleware;
@@ -984,7 +985,8 @@ public static class AdminEndpoints
             string eventId,
             [FromBody] CreateEventResultRequest request,
             [FromServices] IEventRepository eventRepo,
-            [FromServices] ICompetitorRepository competitorRepo) =>
+            [FromServices] ICompetitorRepository competitorRepo,
+            [FromServices] IScoringService scoringService) =>
         {
             // Verify event exists
             var evt = await eventRepo.GetEventByIdOnlyAsync(eventId);
@@ -1033,7 +1035,18 @@ public static class AdminEndpoints
             if (created == null)
                 return Results.StatusCode(500);
 
-            return Results.Ok(created);
+            // Automatically recalculate points for all predictions for this event
+            // Get the event's seasonId from the evt object we already have
+            var recalculationSuccess = await scoringService.RecalculateEventPredictionsAsync(eventId, evt.SeasonId);
+
+            return Results.Ok(new 
+            { 
+                result = created,
+                pointsRecalculated = recalculationSuccess,
+                message = recalculationSuccess 
+                    ? "Event result saved and all prediction points recalculated successfully" 
+                    : "Event result saved, but some predictions may not have been recalculated"
+            });
         })
         .RequireAdmin()
         .WithName("CreateOrUpdateEventResult");
@@ -1217,6 +1230,92 @@ public static class AdminEndpoints
         })
         .RequireAdmin()
         .WithName("DeleteUserAdmin");
+
+        // ===== SCORING RULES MANAGEMENT =====
+
+        // Get scoring rules for a season
+        group.MapGet("/seasons/{seasonId}/scoring-rules", async (
+            string seasonId,
+            [FromServices] IScoringRulesRepository scoringRulesRepo) =>
+        {
+            var scoringRules = await scoringRulesRepo.GetScoringRulesBySeasonAsync(seasonId);
+            if (scoringRules == null)
+            {
+                // Return default values if not configured
+                return Results.Ok(new 
+                { 
+                    seasonId = seasonId,
+                    exactMatchPoints = 25,
+                    oneOffPoints = 18,
+                    twoOffPoints = 15,
+                    isDefault = true,
+                    message = "No custom scoring rules configured. Showing default values."
+                });
+            }
+            
+            return Results.Ok(scoringRules);
+        })
+        .RequireAdmin()
+        .WithName("GetScoringRules");
+
+        // Create or update scoring rules for a season
+        group.MapPost("/seasons/{seasonId}/scoring-rules", async (
+            string seasonId,
+            [FromBody] CreateOrUpdateScoringRulesRequest request,
+            [FromServices] IScoringRulesRepository scoringRulesRepo,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Verify season exists
+            var season = await seasonRepo.GetSeasonByIdOnlyAsync(seasonId);
+            if (season == null)
+                return Results.BadRequest(new { error = "Season not found" });
+
+            // Validate points are positive
+            if (request.ExactMatchPoints < 0 || request.OneOffPoints < 0 || request.TwoOffPoints < 0)
+            {
+                return Results.BadRequest(new { error = "Points values must be non-negative" });
+            }
+
+            // Validate logical order (exact match should be highest)
+            if (request.ExactMatchPoints < request.OneOffPoints || request.ExactMatchPoints < request.TwoOffPoints)
+            {
+                return Results.BadRequest(new { error = "ExactMatchPoints should be the highest value" });
+            }
+
+            var scoringRules = new ScoringRules
+            {
+                SeasonId = seasonId,
+                ExactMatchPoints = request.ExactMatchPoints,
+                OneOffPoints = request.OneOffPoints,
+                TwoOffPoints = request.TwoOffPoints
+            };
+
+            var created = await scoringRulesRepo.CreateOrUpdateScoringRulesAsync(scoringRules);
+            if (created == null)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new 
+            { 
+                message = "Scoring rules saved successfully",
+                scoringRules = created 
+            });
+        })
+        .RequireAdmin()
+        .WithName("CreateOrUpdateScoringRules");
+
+        // Delete scoring rules for a season (will revert to defaults)
+        group.MapDelete("/seasons/{seasonId}/scoring-rules", async (
+            string seasonId,
+            [FromServices] IScoringRulesRepository scoringRulesRepo) =>
+        {
+            var success = await scoringRulesRepo.DeleteScoringRulesAsync(seasonId);
+            if (!success)
+                return Results.NotFound(new { error = "Scoring rules not found" });
+
+            return Results.Ok(new { message = "Scoring rules deleted. Season will use default scoring rules." });
+        })
+        .RequireAdmin()
+        .WithName("DeleteScoringRules");
     }
 }
 
@@ -1226,3 +1325,4 @@ public record UpdateAdminRequest(bool IsActive, bool CanManageAdmins);
 public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateUserRequest(string Username, string Email, bool IsActive);
+public record CreateOrUpdateScoringRulesRequest(int ExactMatchPoints, int OneOffPoints, int TwoOffPoints);
