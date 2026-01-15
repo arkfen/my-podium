@@ -1233,7 +1233,7 @@ public static class AdminEndpoints
 
         // ===== SCORING RULES MANAGEMENT =====
 
-        // Get scoring rules for a season
+        // Get scoring rules for a season (admin view)
         group.MapGet("/seasons/{seasonId}/scoring-rules", async (
             string seasonId,
             [FromServices] IScoringRulesRepository scoringRulesRepo) =>
@@ -1256,7 +1256,7 @@ public static class AdminEndpoints
             return Results.Ok(scoringRules);
         })
         .RequireAdmin()
-        .WithName("GetScoringRules");
+        .WithName("GetScoringRulesAdmin");
 
         // Create or update scoring rules for a season
         group.MapPost("/seasons/{seasonId}/scoring-rules", async (

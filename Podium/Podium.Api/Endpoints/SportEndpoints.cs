@@ -119,17 +119,23 @@ public static class SportEndpoints
 
         // Get scoring rules for a season
         group.MapGet("/scoring/{seasonId}", async (
-            string seasonId) =>
+            string seasonId,
+            [FromServices] IScoringRulesRepository scoringRulesRepo) =>
         {
-            // For now, return default scoring rules
-            // TODO: Create ScoringRulesRepository and load from database
-            var scoringRules = new Podium.Shared.Models.ScoringRules
+            var scoringRules = await scoringRulesRepo.GetScoringRulesBySeasonAsync(seasonId);
+            
+            if (scoringRules == null)
             {
-                SeasonId = seasonId,
-                ExactMatchPoints = 25,
-                OneOffPoints = 18,
-                TwoOffPoints = 15
-            };
+                // Return default scoring rules if not configured
+                scoringRules = new Podium.Shared.Models.ScoringRules
+                {
+                    SeasonId = seasonId,
+                    ExactMatchPoints = 25,
+                    OneOffPoints = 18,
+                    TwoOffPoints = 15,
+                    CreatedDate = DateTime.UtcNow
+                };
+            }
             
             return Results.Ok(scoringRules);
         })
