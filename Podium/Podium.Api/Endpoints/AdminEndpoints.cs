@@ -972,9 +972,8 @@ public static class AdminEndpoints
             [FromServices] IEventRepository eventRepo) =>
         {
             var result = await eventRepo.GetEventResultAsync(eventId);
-            if (result == null)
-                return Results.NotFound(new { error = "Result not found" });
-            
+            // Return 200 with null if no result exists (event hasn't happened yet)
+            // This is NOT an error - it's a normal state for future events
             return Results.Ok(result);
         })
         .RequireAdmin()

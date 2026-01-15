@@ -630,7 +630,6 @@
         catch (Exception ex)
         {
             formError = $"Error: {ex.Message}";
-            Console.WriteLine($"Error in PerformSaveAndCalculate: {ex}");
         }
         finally
         {
@@ -645,24 +644,15 @@
         {
             // Get the event and season
             var evt = allEvents.FirstOrDefault(e => e.Id == eventId);
-            if (evt == null)
-            {
-                Console.WriteLine($"Event {eventId} not found");
-                return;
-            }
+            if (evt == null) return;
 
             var season = allSeasons.FirstOrDefault(s => s.Id == evt.SeasonId);
-            if (season == null)
-            {
-                Console.WriteLine($"Season {evt.SeasonId} not found");
-                return;
-            }
+            if (season == null) return;
 
             // Get scoring rules for this season
             var rulesResponse = await ApiClient.GetScoringRulesAsync(season.Id);
             if (!rulesResponse.Success || rulesResponse.Data == null)
             {
-                Console.WriteLine($"Failed to get scoring rules: {rulesResponse.Error}");
                 // Use default scoring rules if not found
                 var defaultRules = new ScoringRules
                 {
@@ -677,10 +667,9 @@
 
             await CalculateWithRules(eventId, evt, rulesResponse.Data);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Error in CalculatePointsForEvent: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            // Silently fail - don't block the save operation
         }
     }
 
@@ -690,48 +679,24 @@
         {
             // Get the actual result
             var resultResponse = await ApiClient.GetEventResultAdminAsync(eventId);
-            if (!resultResponse.Success || resultResponse.Data == null)
-            {
-                Console.WriteLine($"Failed to get event result: {resultResponse.Error}");
-                return;
-            }
+            if (!resultResponse.Success || resultResponse.Data == null) return;
             var result = resultResponse.Data;
 
             // Get all predictions for this event
             var predictionsResponse = await ApiClient.GetEventPredictionsAsync(eventId);
-            if (!predictionsResponse.Success || predictionsResponse.Data == null)
-            {
-                Console.WriteLine($"Failed to get predictions: {predictionsResponse.Error}");
-                return;
-            }
+            if (!predictionsResponse.Success || predictionsResponse.Data == null) return;
             var predictions = predictionsResponse.Data;
 
-            Console.WriteLine($"Calculating points for {predictions.Count} predictions");
-
             // Calculate points for each prediction
-            int successCount = 0;
             foreach (var prediction in predictions)
             {
                 int points = CalculatePredictionPoints(prediction, result, rules);
-                Console.WriteLine($"User {prediction.UserId}: {points} points");
-                
-                // Update prediction with calculated points
-                var updateResponse = await ApiClient.UpdatePredictionPointsAsync(prediction.EventId, prediction.UserId, points);
-                if (updateResponse.Success)
-                {
-                    successCount++;
-                }
-                else
-                {
-                    Console.WriteLine($"Failed to update points for user {prediction.UserId}: {updateResponse.Error}");
-                }
+                await ApiClient.UpdatePredictionPointsAsync(prediction.EventId, prediction.UserId, points);
             }
-
-            Console.WriteLine($"Successfully updated {successCount} of {predictions.Count} predictions");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Error in CalculateWithRules: {ex.Message}");
+            // Silently fail - points calculation is supplementary to result saving
         }
     }
 
