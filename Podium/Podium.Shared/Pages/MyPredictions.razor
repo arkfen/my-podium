@@ -1,0 +1,216 @@
+@page "/my-predictions"
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>My Predictions - Podium</PageTitle>
+
+<div class="page-container">
+    <h1>My Predictions</h1>
+
+    @if (!AuthState.IsAuthenticated)
+    {
+        <div class="alert alert-warning">
+            Please <a href="/signin">sign in</a> to view your predictions.
+        </div>
+        return;
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading your predictions...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (predictions.Count == 0)
+    {
+        <div class="alert alert-info">
+            <p>You haven't made any predictions yet.</p>
+            <a href="/disciplines" class="btn btn-primary">Make Your First Prediction</a>
+        </div>
+    }
+    else
+    {
+        <div class="predictions-list">
+            @foreach (var pred in predictions)
+            {
+                <div class="prediction-card">
+                    <div class="prediction-header">
+                        <h3>Event #@GetEventNumber(pred.EventId)</h3>
+                        @if (pred.PointsEarned.HasValue)
+                        {
+                            <span class="points-badge">@pred.PointsEarned pts</span>
+                        }
+                        else
+                        {
+                            <span class="pending-badge">Pending</span>
+                        }
+                    </div>
+                    <div class="prediction-podium">
+                        <div class="prediction-position">
+                            <span class="position-label"><span class="medal-icon gold">&#129351;</span></span>
+                            <span>@pred.FirstPlaceName</span>
+                        </div>
+                        <div class="prediction-position">
+                            <span class="position-label"><span class="medal-icon silver">&#129352;</span></span>
+                            <span>@pred.SecondPlaceName</span>
+                        </div>
+                        <div class="prediction-position">
+                            <span class="position-label"><span class="medal-icon bronze">&#129353;</span></span>
+                            <span>@pred.ThirdPlaceName</span>
+                        </div>
+                    </div>
+                    <div class="prediction-footer">
+                        <small>Submitted: @pred.SubmittedDate.ToString("MMM dd, yyyy HH:mm")</small>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .predictions-list {
+        display: grid;
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+
+    .prediction-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 2px solid var(--border-color);
+    }
+
+    .prediction-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .prediction-header h3 {
+        margin: 0;
+    }
+
+    .points-badge {
+        background: var(--success-color);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: bold;
+    }
+
+    .pending-badge {
+        background: var(--warning-color);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: bold;
+    }
+
+    .prediction-podium {
+        display: flex;
+        gap: 1rem;
+        justify-content: space-around;
+        margin: 1rem 0;
+    }
+
+    .prediction-position {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+        padding: 1rem;
+        background: var(--bg-light);
+        border-radius: 8px;
+    }
+
+    .position-label {
+        font-size: 1.5rem;
+    }
+
+    .prediction-footer {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+        color: var(--text-light);
+    }
+</style>
+
+@code {
+    private List<Prediction> predictions = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated || string.IsNullOrEmpty(AuthState.UserId))
+        {
+            return;
+        }
+
+        await LoadPredictions();
+    }
+
+    private async Task LoadPredictions()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // For now, we'll need to get all seasons and load predictions
+            // In a real app, you'd have a "GetUserPredictions" endpoint
+            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null)
+            {
+                foreach (var discipline in disciplinesResponse.Data)
+                {
+                    var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
+                    if (seriesResponse.Success && seriesResponse.Data != null)
+                    {
+                        foreach (var series in seriesResponse.Data)
+                        {
+                            var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
+                            if (seasonResponse.Success && seasonResponse.Data != null)
+                            {
+                                var predsResponse = await ApiClient.GetUserSeasonPredictionsAsync(
+                                    AuthState.UserId!, 
+                                    seasonResponse.Data.Id);
+                                
+                                if (predsResponse.Success && predsResponse.Data != null)
+                                {
+                                    predictions.AddRange(predsResponse.Data);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Sort by submitted date, newest first
+            predictions = predictions.OrderByDescending(p => p.SubmittedDate).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private int GetEventNumber(string eventId)
+    {
+        // This is a simplified version - in real app you'd look up the event
+        return predictions.IndexOf(predictions.First(p => p.EventId == eventId)) + 1;
+    }
+}

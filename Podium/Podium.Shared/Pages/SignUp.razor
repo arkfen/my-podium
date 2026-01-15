@@ -1,0 +1,134 @@
+@page "/signup"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Sign Up - Podium</PageTitle>
+
+<div class="auth-container">
+    <div class="auth-card">
+        <h2>Create Your Account</h2>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <div class="auth-form">
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" class="form-control" @bind="email" placeholder="your@email.com" />
+            </div>
+
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" class="form-control" @bind="username" placeholder="Your display name" />
+            </div>
+
+            <div class="form-group">
+                <label>Preferred Sign-In Method</label>
+                <select class="form-control" @bind="preferredAuthMethod">
+                    <option value="Both">Both (Password & Email Code)</option>
+                    <option value="Password">Password Only</option>
+                    <option value="Email">Email Code Only</option>
+                </select>
+            </div>
+
+            @if (preferredAuthMethod != "Email")
+            {
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="form-control" @bind="password" placeholder="At least 6 characters" />
+                </div>
+
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" class="form-control" @bind="confirmPassword" placeholder="Re-enter password" />
+                </div>
+            }
+
+            <button class="btn btn-primary w-100" @onclick="RegisterUser" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span>Creating account...</span>
+                }
+                else
+                {
+                    <span>Sign Up</span>
+                }
+            </button>
+        </div>
+
+        <div class="auth-footer">
+            <p>Already have an account? <a href="/signin">Sign In</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string email = "";
+    private string username = "";
+    private string password = "";
+    private string confirmPassword = "";
+    private string preferredAuthMethod = "Both";
+    private bool isLoading = false;
+    private string? errorMessage;
+
+    private async Task RegisterUser()
+    {
+        errorMessage = null;
+
+        // Validation
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
+        {
+            errorMessage = "Please enter a valid email address.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(username) || username.Length < 3)
+        {
+            errorMessage = "Username must be at least 3 characters.";
+            return;
+        }
+
+        if (preferredAuthMethod != "Email")
+        {
+            if (string.IsNullOrWhiteSpace(password) || password.Length < 6)
+            {
+                errorMessage = "Password must be at least 6 characters.";
+                return;
+            }
+
+            if (password != confirmPassword)
+            {
+                errorMessage = "Passwords do not match.";
+                return;
+            }
+        }
+
+        isLoading = true;
+        try
+        {
+            var response = await ApiClient.RegisterAsync(email, username, password, preferredAuthMethod);
+            if (response.Success && response.Data != null)
+            {
+                // Registration successful, redirect to sign in
+                Navigation.NavigateTo("/signin");
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Registration failed. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

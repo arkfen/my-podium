@@ -1,0 +1,815 @@
+@page "/admin/results"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+@inject IJSRuntime JS
+
+<PageTitle>Manage Results - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>&#127942; Manage Event Results</h1>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading events...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>&#10004; @successMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearSuccess">Clear &times;</button>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>@errorMessage</span>
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError">Clear &times;</button>
+            </div>
+        }
+
+        <div class="filter-section">
+            <div style="flex: 1; max-width: 400px;">
+                <label>Search Events:</label>
+                <input type="text" class="form-control" @bind="searchQuery" @bind:after="FilterEvents" 
+                       placeholder="Search by event name..." />
+            </div>
+            <div style="flex: 1; max-width: 250px;">
+                <label>Filter by Results:</label>
+                <select class="form-control" @bind="selectedResultFilter" @bind:after="FilterEvents">
+                    <option value="">All Events</option>
+                    <option value="HasResult">Has Result</option>
+                    <option value="NoResult">No Result</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Event</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                        <th>Result Status</th>
+                        <th>Podium</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var evt in paginatedEvents)
+                    {
+                        var hasResult = eventResults.ContainsKey(evt.Id);
+                        <tr>
+                            <td><strong>@evt.EventNumber</strong></td>
+                            <td>
+                                <strong>@evt.DisplayName</strong>
+                                <br />
+                                <small style="color: var(--text-light);">@GetSeasonDisplay(evt.SeasonId)</small>
+                            </td>
+                            <td>
+                                <small>@evt.EventDate.ToString("MMM dd, yyyy")</small>
+                            </td>
+                            <td>
+                                <span class="badge @GetStatusBadgeClass(evt.Status)">
+                                    @evt.Status
+                                </span>
+                            </td>
+                            <td>
+                                @if (hasResult)
+                                {
+                                    <span class="badge badge-success">&#10004; Entered</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-inactive">Not Entered</span>
+                                }
+                            </td>
+                            <td>
+                                @if (hasResult)
+                                {
+                                    var result = eventResults[evt.Id];
+                                    <small>
+                                        <strong>1st:</strong> @result.FirstPlaceName<br />
+                                        <strong>2nd:</strong> @result.SecondPlaceName<br />
+                                        <strong>3rd:</strong> @result.ThirdPlaceName
+                                    </small>
+                                }
+                                else
+                                {
+                                    <small style="color: var(--text-light);">-</small>
+                                }
+                            </td>
+                            <td>
+                                @if (evt.Status == "Completed")
+                                {
+                                    <button class="btn btn-sm btn-primary" @onclick="() => EnterOrEditResult(evt)">
+                                        @(hasResult ? "Edit" : "Enter") Result
+                                    </button>
+                                    @if (hasResult)
+                                    {
+                                        <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(evt)">Delete</button>
+                                    }
+                                }
+                                else
+                                {
+                                    <small style="color: var(--text-light);">
+                                        Event must be Completed
+                                    </small>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!filteredEvents.Any())
+            {
+                <div class="no-results">
+                    <p>No events found. Try adjusting your filters.</p>
+                </div>
+            }
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <div class="pagination">
+                <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(currentPage == 1)">
+                    &laquo; Previous
+                </button>
+                <span style="margin: 0 1rem;">
+                    Page @currentPage of @totalPages (@filteredEvents.Count total)
+                </span>
+                <button class="btn btn-secondary" @onclick="NextPage" disabled="@(currentPage == totalPages)">
+                    Next &raquo;
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@if (showResultForm)
+{
+    <div class="modal-overlay">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>@(isEditingResult ? "Edit" : "Enter") Result - @selectedEvent?.DisplayName</h3>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+
+                <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-light); border-radius: 8px;">
+                    <strong>Event:</strong> @selectedEvent?.DisplayName<br />
+                    <strong>Date:</strong> @selectedEvent?.EventDate.ToString("MMM dd, yyyy")<br />
+                    <strong>Season:</strong> @GetSeasonDisplay(selectedEvent?.SeasonId ?? "")
+                </div>
+
+                <div class="form-group">
+                    <label><strong>&#127941; First Place:</strong></label>
+                    <select class="form-control" @bind="formFirstPlaceId" @bind:after="OnFirstPlaceChanged">
+                        <option value="">-- Select Competitor --</option>
+                        @foreach (var competitor in availableCompetitors)
+                        {
+                            <option value="@competitor.Id">@competitor.Name (@competitor.ShortName)</option>
+                        }
+                    </select>
+                    @if (!availableCompetitors.Any())
+                    {
+                        <small style="color: var(--danger-color); display: block; margin-top: 0.5rem;">
+                            &#9888; No competitors assigned to this season. Please go to Competitor Management and assign competitors to this season first.
+                        </small>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label><strong>&#129352; Second Place:</strong></label>
+                    <select class="form-control" @bind="formSecondPlaceId" @bind:after="OnSecondPlaceChanged">
+                        <option value="">-- Select Competitor --</option>
+                        @foreach (var competitor in availableCompetitors.Where(c => c.Id != formFirstPlaceId))
+                        {
+                            <option value="@competitor.Id">@competitor.Name (@competitor.ShortName)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label><strong>&#129353; Third Place:</strong></label>
+                    <select class="form-control" @bind="formThirdPlaceId" @bind:after="OnThirdPlaceChanged">
+                        <option value="">-- Select Competitor --</option>
+                        @foreach (var competitor in availableCompetitors.Where(c => c.Id != formFirstPlaceId && c.Id != formSecondPlaceId))
+                        {
+                            <option value="@competitor.Id">@competitor.Name (@competitor.ShortName)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(formFirstPlaceId) && !string.IsNullOrEmpty(formSecondPlaceId) && !string.IsNullOrEmpty(formThirdPlaceId))
+                {
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: #d1fae5; border-radius: 8px; border: 1px solid #6ee7b7;">
+                        <h4 style="margin-top: 0;">Preview Podium:</h4>
+                        <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem;">
+                            <div style="text-align: center; order: 2;">
+                                <div style="font-size: 2rem;">&#127941;</div>
+                                <strong>@GetCompetitorName(formFirstPlaceId)</strong>
+                            </div>
+                            <div style="text-align: center; order: 1;">
+                                <div style="font-size: 1.5rem;">&#129352;</div>
+                                <strong>@GetCompetitorName(formSecondPlaceId)</strong>
+                            </div>
+                            <div style="text-align: center; order: 3;">
+                                <div style="font-size: 1.25rem;">&#129353;</div>
+                                <strong>@GetCompetitorName(formThirdPlaceId)</strong>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CancelResultForm">Cancel</button>
+                <button class="btn btn-primary" @onclick="SaveResult" disabled="@saving">
+                    @(saving ? "Saving..." : "Save Result")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Result"
+               Message="@deleteConfirmMessage"
+               ConfirmText="Delete"
+               OnConfirm="DeleteResult"
+               OnCancel="CancelDelete" />
+
+<ConfirmDialog IsVisible="showRecalculateWarning"
+               Title="Recalculate Points Warning"
+               Message="@recalculateWarningMessage"
+               ConfirmText="Save & Recalculate"
+               OnConfirm="ConfirmSaveAndRecalculate"
+               OnCancel="CancelSaveResult" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private List<Series> allSeries = new();
+    private List<Season> allSeasons = new();
+    private List<Event> allEvents = new();
+    private List<Event> filteredEvents = new();
+    private List<Event> paginatedEvents = new();
+    private List<Competitor> allCompetitors = new();
+    private List<Competitor> availableCompetitors = new();
+    private Dictionary<string, EventResult> eventResults = new();
+
+    private bool loading = true;
+    private bool saving = false;
+    private bool showResultForm = false;
+    private bool showDeleteConfirm = false;
+    private bool showRecalculateWarning = false;
+    private bool isEditingResult = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+    private string formError = "";
+    private string searchQuery = "";
+    private string selectedResultFilter = "";
+    private string deleteConfirmMessage = "";
+    private string recalculateWarningMessage = "";
+
+    private Event? selectedEvent = null;
+    private Event? eventToDeleteResult = null;
+    private string formFirstPlaceId = "";
+    private string formSecondPlaceId = "";
+    private string formThirdPlaceId = "";
+
+    private int currentPage = 1;
+    private int pageSize = 20;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMessage = "";
+
+        var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
+        if (disciplineResponse.Success && disciplineResponse.Data != null)
+        {
+            disciplines = disciplineResponse.Data;
+        }
+
+        allSeries = new();
+        foreach (var discipline in disciplines)
+        {
+            var seriesResponse = await ApiClient.GetAllSeriesAdminAsync(discipline.Id);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                allSeries.AddRange(seriesResponse.Data);
+            }
+        }
+
+        allSeasons = new();
+        foreach (var series in allSeries)
+        {
+            var seasonsResponse = await ApiClient.GetAllSeasonsAdminAsync(series.Id);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                allSeasons.AddRange(seasonsResponse.Data);
+            }
+        }
+
+        var eventsResponse = await ApiClient.GetAllEventsAsync();
+        if (eventsResponse.Success && eventsResponse.Data != null)
+        {
+            allEvents = eventsResponse.Data;
+        }
+
+        var competitorsResponse = await ApiClient.GetAllCompetitorsAdminAsync();
+        if (competitorsResponse.Success && competitorsResponse.Data != null)
+        {
+            allCompetitors = competitorsResponse.Data;
+        }
+
+        await LoadResults();
+
+        FilterEvents();
+        loading = false;
+    }
+
+    private async Task LoadResults()
+    {
+        eventResults.Clear();
+
+        foreach (var evt in allEvents)
+        {
+            var resultResponse = await ApiClient.GetEventResultAdminAsync(evt.Id);
+            // Only add if successful AND has data (404 is expected for events without results)
+            if (resultResponse.Success && resultResponse.Data != null)
+            {
+                eventResults[evt.Id] = resultResponse.Data;
+            }
+            // Don't log 404s as they're expected
+        }
+    }
+
+    private void FilterEvents()
+    {
+        filteredEvents = allEvents;
+
+        if (!string.IsNullOrEmpty(selectedResultFilter))
+        {
+            if (selectedResultFilter == "HasResult")
+            {
+                filteredEvents = filteredEvents.Where(e => eventResults.ContainsKey(e.Id)).ToList();
+            }
+            else if (selectedResultFilter == "NoResult")
+            {
+                filteredEvents = filteredEvents.Where(e => !eventResults.ContainsKey(e.Id)).ToList();
+            }
+        }
+
+        if (!string.IsNullOrEmpty(searchQuery))
+        {
+            var search = searchQuery.ToLower();
+            filteredEvents = filteredEvents.Where(e => 
+                e.Name.ToLower().Contains(search) || 
+                e.DisplayName.ToLower().Contains(search)
+            ).ToList();
+        }
+
+        filteredEvents = filteredEvents.OrderByDescending(e => e.EventDate).ToList();
+        
+        currentPage = 1;
+        UpdatePagination();
+    }
+
+    private void UpdatePagination()
+    {
+        totalPages = (int)Math.Ceiling(filteredEvents.Count / (double)pageSize);
+        if (totalPages == 0) totalPages = 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var skip = (currentPage - 1) * pageSize;
+        paginatedEvents = filteredEvents.Skip(skip).Take(pageSize).ToList();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            UpdatePagination();
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            UpdatePagination();
+        }
+    }
+
+    private string GetSeasonDisplay(string seasonId)
+    {
+        var season = allSeasons.FirstOrDefault(s => s.Id == seasonId);
+        if (season == null) return "Unknown";
+
+        var series = allSeries.FirstOrDefault(s => s.Id == season.SeriesId);
+        if (series == null) return $"{season.Year} Season";
+
+        return $"{season.Year} {series.DisplayName}";
+    }
+
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Upcoming" => "badge-info",
+            "InProgress" => "badge-warning",
+            "Completed" => "badge-success",
+            _ => "badge-secondary"
+        };
+    }
+
+    private string GetCompetitorName(string competitorId)
+    {
+        var competitor = allCompetitors.FirstOrDefault(c => c.Id == competitorId);
+        return competitor?.Name ?? "Unknown";
+    }
+
+    private async Task EnterOrEditResult(Event evt)
+    {
+        selectedEvent = evt;
+        isEditingResult = eventResults.ContainsKey(evt.Id);
+        formError = "";
+
+        // Get competitors for this event's season
+        var season = allSeasons.FirstOrDefault(s => s.Id == evt.SeasonId);
+        if (season != null)
+        {
+            var seasonCompetitorsResponse = await ApiClient.GetSeasonCompetitorsAdminAsync(season.Id);
+            if (seasonCompetitorsResponse.Success && seasonCompetitorsResponse.Data != null)
+            {
+                var competitorIds = seasonCompetitorsResponse.Data.Select(sc => sc.CompetitorId).ToHashSet();
+                availableCompetitors = allCompetitors.Where(c => competitorIds.Contains(c.Id)).OrderBy(c => c.Name).ToList();
+            }
+        }
+
+        // Load existing result if editing
+        if (isEditingResult && eventResults.ContainsKey(evt.Id))
+        {
+            var result = eventResults[evt.Id];
+            formFirstPlaceId = result.FirstPlaceId;
+            formSecondPlaceId = result.SecondPlaceId;
+            formThirdPlaceId = result.ThirdPlaceId;
+        }
+        else
+        {
+            formFirstPlaceId = "";
+            formSecondPlaceId = "";
+            formThirdPlaceId = "";
+        }
+
+        showResultForm = true;
+    }
+
+    private void OnFirstPlaceChanged()
+    {
+        // Auto-clear if conflicts with other selections
+        if (formFirstPlaceId == formSecondPlaceId)
+        {
+            formSecondPlaceId = "";
+        }
+        if (formFirstPlaceId == formThirdPlaceId)
+        {
+            formThirdPlaceId = "";
+        }
+    }
+
+    private void OnSecondPlaceChanged()
+    {
+        if (formSecondPlaceId == formThirdPlaceId)
+        {
+            formThirdPlaceId = "";
+        }
+    }
+
+    private void OnThirdPlaceChanged()
+    {
+        // No action needed
+    }
+
+    private void CancelResultForm()
+    {
+        showResultForm = false;
+        selectedEvent = null;
+        formError = "";
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+    }
+
+    private void ClearSuccess()
+    {
+        successMessage = "";
+    }
+
+    private async Task ScrollToTop()
+    {
+        await Task.Delay(100);
+        await JS.InvokeVoidAsync("eval", "window.scrollTo({ top: 0, behavior: 'smooth' })");
+    }
+
+    private async Task SaveResult()
+    {
+        if (selectedEvent == null) return;
+
+        if (string.IsNullOrWhiteSpace(formFirstPlaceId))
+        {
+            formError = "First place is required";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formSecondPlaceId))
+        {
+            formError = "Second place is required";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formThirdPlaceId))
+        {
+            formError = "Third place is required";
+            return;
+        }
+
+        // Check if we're editing and if there are predictions
+        if (isEditingResult)
+        {
+            // Show warning about recalculation
+            recalculateWarningMessage = $"You are about to change the result for '{selectedEvent.DisplayName}'.\n\n" +
+                "This will RECALCULATE all user points for this event based on the new result. " +
+                "Any previously calculated points will be overwritten.\n\n" +
+                "Do you want to proceed?";
+            showRecalculateWarning = true;
+            return; // Wait for confirmation
+        }
+
+        // If not editing, just save
+        await PerformSaveAndCalculate();
+    }
+
+    private async Task PerformSaveAndCalculate()
+    {
+        if (selectedEvent == null) return;
+
+        saving = true;
+        formError = "";
+        errorMessage = "";
+        successMessage = "";
+        StateHasChanged(); // Force UI update
+
+        try
+        {
+            var request = new CreateEventResultRequest(
+                formFirstPlaceId,
+                GetCompetitorName(formFirstPlaceId),
+                formSecondPlaceId,
+                GetCompetitorName(formSecondPlaceId),
+                formThirdPlaceId,
+                GetCompetitorName(formThirdPlaceId)
+            );
+
+            var response = await ApiClient.CreateOrUpdateEventResultAsync(selectedEvent.Id, request);
+            
+            if (response.Success)
+            {
+                // Calculate points for all predictions
+                await CalculatePointsForEvent(selectedEvent.Id);
+
+                successMessage = $"Result for '{selectedEvent.DisplayName}' saved and points calculated successfully!";
+                showResultForm = false;
+                selectedEvent = null;
+                await LoadResults();
+                FilterEvents();
+                await ScrollToTop();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to save result";
+            }
+        }
+        catch (Exception ex)
+        {
+            formError = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+            StateHasChanged(); // Ensure button is reset
+        }
+    }
+
+    private async Task CalculatePointsForEvent(string eventId)
+    {
+        try
+        {
+            // Get the event and season
+            var evt = allEvents.FirstOrDefault(e => e.Id == eventId);
+            if (evt == null) return;
+
+            var season = allSeasons.FirstOrDefault(s => s.Id == evt.SeasonId);
+            if (season == null) return;
+
+            // Get scoring rules for this season
+            var rulesResponse = await ApiClient.GetScoringRulesAsync(season.Id);
+            if (!rulesResponse.Success || rulesResponse.Data == null)
+            {
+                // Use default scoring rules if not found
+                var defaultRules = new ScoringRules
+                {
+                    SeasonId = season.Id,
+                    ExactMatchPoints = 25,
+                    OneOffPoints = 18,
+                    TwoOffPoints = 15
+                };
+                await CalculateWithRules(eventId, evt, defaultRules);
+                return;
+            }
+
+            await CalculateWithRules(eventId, evt, rulesResponse.Data);
+        }
+        catch (Exception)
+        {
+            // Silently fail - don't block the save operation
+        }
+    }
+
+    private async Task CalculateWithRules(string eventId, Event evt, ScoringRules rules)
+    {
+        try
+        {
+            // Get the actual result
+            var resultResponse = await ApiClient.GetEventResultAdminAsync(eventId);
+            if (!resultResponse.Success || resultResponse.Data == null) return;
+            var result = resultResponse.Data;
+
+            // Get all predictions for this event
+            var predictionsResponse = await ApiClient.GetEventPredictionsAsync(eventId);
+            if (!predictionsResponse.Success || predictionsResponse.Data == null) return;
+            var predictions = predictionsResponse.Data;
+
+            // Calculate points for each prediction
+            foreach (var prediction in predictions)
+            {
+                int points = CalculatePredictionPoints(prediction, result, rules);
+                await ApiClient.UpdatePredictionPointsAsync(prediction.EventId, prediction.UserId, points);
+            }
+        }
+        catch (Exception)
+        {
+            // Silently fail - points calculation is supplementary to result saving
+        }
+    }
+
+    private int CalculatePredictionPoints(Prediction prediction, EventResult result, ScoringRules rules)
+    {
+        int totalPoints = 0;
+
+        // Award points FOR EACH CORRECT POSITION
+        // Each position that matches exactly gets full points (25)
+        // Each position that's off by one gets OneOffPoints (18)
+        // Each position that's off by two gets TwoOffPoints (15)
+
+        // Check First Place
+        if (prediction.FirstPlaceId == result.FirstPlaceId)
+        {
+            // Exact match for 1st place
+            totalPoints += rules.ExactMatchPoints; // 25 points
+        }
+        else if (prediction.FirstPlaceId == result.SecondPlaceId)
+        {
+            // Predicted 1st, actually 2nd (one off)
+            totalPoints += rules.OneOffPoints; // 18 points
+        }
+        else if (prediction.FirstPlaceId == result.ThirdPlaceId)
+        {
+            // Predicted 1st, actually 3rd (two off)
+            totalPoints += rules.TwoOffPoints; // 15 points
+        }
+        // else: Predicted 1st place not in podium = 0 points
+
+        // Check Second Place
+        if (prediction.SecondPlaceId == result.SecondPlaceId)
+        {
+            // Exact match for 2nd place
+            totalPoints += rules.ExactMatchPoints; // 25 points
+        }
+        else if (prediction.SecondPlaceId == result.FirstPlaceId || prediction.SecondPlaceId == result.ThirdPlaceId)
+        {
+            // Predicted 2nd, actually 1st or 3rd (one off)
+            totalPoints += rules.OneOffPoints; // 18 points
+        }
+        // else: Predicted 2nd place not in podium = 0 points
+
+        // Check Third Place
+        if (prediction.ThirdPlaceId == result.ThirdPlaceId)
+        {
+            // Exact match for 3rd place
+            totalPoints += rules.ExactMatchPoints; // 25 points
+        }
+        else if (prediction.ThirdPlaceId == result.SecondPlaceId)
+        {
+            // Predicted 3rd, actually 2nd (one off)
+            totalPoints += rules.OneOffPoints; // 18 points
+        }
+        else if (prediction.ThirdPlaceId == result.FirstPlaceId)
+        {
+            // Predicted 3rd, actually 1st (two off)
+            totalPoints += rules.TwoOffPoints; // 15 points
+        }
+        // else: Predicted 3rd place not in podium = 0 points
+
+        return totalPoints;
+    }
+
+    private async void ConfirmSaveAndRecalculate()
+    {
+        showRecalculateWarning = false;
+        StateHasChanged();
+        await PerformSaveAndCalculate();
+    }
+
+    private void CancelSaveResult()
+    {
+        showRecalculateWarning = false;
+        saving = false;
+        StateHasChanged();
+    }
+
+    private void ConfirmDelete(Event evt)
+    {
+        eventToDeleteResult = evt;
+        deleteConfirmMessage = $"Are you sure you want to delete the result for '{evt.DisplayName}'? This action cannot be undone.";
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        eventToDeleteResult = null;
+    }
+
+    private async Task DeleteResult()
+    {
+        if (eventToDeleteResult == null) return;
+
+        var name = eventToDeleteResult.DisplayName;
+        var response = await ApiClient.DeleteEventResultAsync(eventToDeleteResult.Id);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            successMessage = $"Result for '{name}' deleted successfully!";
+            await LoadResults();
+            FilterEvents();
+            await ScrollToTop();
+        }
+        else
+        {
+            errorMessage = response.Error ?? $"Failed to delete result for '{name}'";
+            await ScrollToTop();
+        }
+        
+        eventToDeleteResult = null;
+    }
+}

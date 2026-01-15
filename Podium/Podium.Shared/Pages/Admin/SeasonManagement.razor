@@ -1,0 +1,631 @@
+@page "/admin/seasons"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Seasons - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1><span style="font-size: 1.2em;">&#128197;</span> Manage Seasons</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Season</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading seasons...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            var isInfoMessage = errorMessage.StartsWith("?");
+            var alertClass = isInfoMessage ? "alert alert-info" : "alert alert-error";
+            <div class="@alertClass">
+                @errorMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
+
+        @if (showForm)
+        {
+            <div class="admin-form">
+                <h3>@(editingSeason == null ? "Create" : "Edit") Season</h3>
+                
+                <div class="form-group">
+                    <label>Discipline:</label>
+                    <select class="form-control" @bind="formDisciplineId" @bind:after="OnDisciplineChanged">
+                        <option value="">-- Select Discipline --</option>
+                        @foreach (var discipline in disciplines)
+                        {
+                            <option value="@discipline.Id">@discipline.DisplayName</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Series:</label>
+                    <select class="form-control" @bind="formSeriesId" disabled="@string.IsNullOrEmpty(formDisciplineId)">
+                        <option value="">-- Select Series --</option>
+                        @foreach (var series in filteredSeriesForForm)
+                        {
+                            <option value="@series.Id">@series.DisplayName</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Year:</label>
+                    <input type="number" class="form-control" @bind="formYear" placeholder="e.g., 2024" min="2000" max="2100" />
+                </div>
+
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" class="form-control" @bind="formName" placeholder="e.g., 2024 Season" />
+                </div>
+
+                <div class="form-group">
+                    <label>Start Date:</label>
+                    <input type="date" class="form-control" @bind="formStartDate" />
+                </div>
+
+                <div class="form-group">
+                    <label>End Date (Optional):</label>
+                    <input type="date" class="form-control" @bind="formEndDate" />
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveSeason" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="filter-section">
+            <label>Filter by Discipline:</label>
+            <select class="form-control" @bind="selectedDisciplineFilter" @bind:after="OnDisciplineFilterChanged">
+                <option value="">All Disciplines</option>
+                @foreach (var discipline in disciplines)
+                {
+                    <option value="@discipline.Id">@discipline.DisplayName</option>
+                }
+            </select>
+
+            @if (!string.IsNullOrEmpty(selectedDisciplineFilter))
+            {
+                <label style="margin-left: 15px;">Filter by Series:</label>
+                <select class="form-control" @bind="selectedSeriesFilter" @bind:after="FilterSeasons">
+                    <option value="">All Series</option>
+                    @foreach (var series in filteredSeriesForFilter)
+                    {
+                        <option value="@series.Id">@series.DisplayName</option>
+                    }
+                </select>
+            }
+        </div>
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Name</th>
+                        <th>Series</th>
+                        <th>Discipline</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Status</th>
+                        <th>Dependencies</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var season in filteredSeasons)
+                    {
+                        <tr>
+                            <td><strong>@season.Year</strong></td>
+                            <td>@season.Name</td>
+                            <td>
+                                <span class="badge badge-info">
+                                    @GetSeriesName(season.SeriesId)
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge badge-secondary">
+                                    @GetDisciplineName(season.SeriesId)
+                                </span>
+                            </td>
+                            <td>@season.StartDate.ToShortDateString()</td>
+                            <td>@(season.EndDate?.ToShortDateString() ?? "Ongoing")</td>
+                            <td>
+                                @if (season.IsActive)
+                                {
+                                    <span class="badge badge-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-inactive">Inactive</span>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => SetActiveSeason(season)" style="margin-left: 5px;">
+                                        Set Active
+                                    </button>
+                                }
+                            </td>
+                            <td>
+                                @if (seasonDependencies.ContainsKey(season.Id))
+                                {
+                                    var deps = seasonDependencies[season.Id];
+                                    <small>
+                                        @if (deps.EventCount > 0) 
+                                        { 
+                                            <span style="color: #2563eb;">
+                                                <strong>Events:</strong> @deps.EventCount
+                                            </span>
+                                        }
+                                        @if (deps.CompetitorCount > 0) 
+                                        { 
+                                            @if (deps.EventCount > 0) { <span> | </span> }
+                                            <span style="color: #10b981;">
+                                                <strong>Competitors:</strong> @deps.CompetitorCount
+                                            </span>
+                                        }
+                                        @if (!deps.HasDependencies) 
+                                        { 
+                                            <span style="color: #6b7280;">None</span> 
+                                        }
+                                    </small>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditSeason(season)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(season)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!filteredSeasons.Any())
+            {
+                <div class="no-results">
+                    <p>No seasons found. @(string.IsNullOrEmpty(selectedSeriesFilter) ? "Create one to get started!" : "Try selecting a different series.")</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Season"
+               Message="@deleteConfirmMessage"
+               ConfirmText="Delete"
+               OnConfirm="DeleteSeason"
+               OnCancel="CancelDelete" />
+
+<ConfirmDialog IsVisible="showSetActiveConfirm"
+               Title="Set Active Season"
+               Message="@setActiveConfirmMessage"
+               ConfirmText="Set Active"
+               OnConfirm="ConfirmSetActive"
+               OnCancel="CancelSetActive" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private List<Series> allSeries = new();
+    private List<Season> allSeasons = new();
+    private List<Season> filteredSeasons = new();
+    private List<Series> filteredSeriesForForm = new();
+    private List<Series> filteredSeriesForFilter = new();
+    private Dictionary<string, SeasonDependencies> seasonDependencies = new();
+    
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private bool showSetActiveConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+    private string selectedDisciplineFilter = "";
+    private string selectedSeriesFilter = "";
+    private string deleteConfirmMessage = "";
+    private string setActiveConfirmMessage = "";
+
+    private Season? editingSeason = null;
+    private Season? seasonToDelete = null;
+    private Season? seasonToSetActive = null;
+    private string formDisciplineId = "";
+    private string formSeriesId = "";
+    private string originalSeriesId = "";
+    private int formYear = DateTime.Now.Year;
+    private string formName = "";
+    private DateTime formStartDate = DateTime.Now;
+    private DateTime? formEndDate = null;
+    private bool formIsActive = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMessage = "";
+
+        // Load disciplines
+        var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
+        if (disciplineResponse.Success && disciplineResponse.Data != null)
+        {
+            disciplines = disciplineResponse.Data;
+        }
+        else
+        {
+            errorMessage = "Failed to load disciplines";
+            loading = false;
+            return;
+        }
+
+        // Load all series
+        allSeries = new();
+        foreach (var discipline in disciplines)
+        {
+            var seriesResponse = await ApiClient.GetAllSeriesAdminAsync(discipline.Id);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                allSeries.AddRange(seriesResponse.Data);
+            }
+        }
+
+        // Load all seasons
+        allSeasons = new();
+        foreach (var series in allSeries)
+        {
+            var seasonsResponse = await ApiClient.GetAllSeasonsAdminAsync(series.Id);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                allSeasons.AddRange(seasonsResponse.Data);
+            }
+        }
+
+        // Load dependencies for all seasons
+        await LoadDependencies();
+
+        FilterSeasons();
+        loading = false;
+    }
+
+    private async Task LoadDependencies()
+    {
+        seasonDependencies.Clear();
+        foreach (var season in allSeasons)
+        {
+            var depsResponse = await ApiClient.GetSeasonDependenciesAsync(season.Id);
+            if (depsResponse.Success && depsResponse.Data != null)
+            {
+                seasonDependencies[season.Id] = depsResponse.Data;
+            }
+        }
+    }
+
+    private void OnDisciplineChanged()
+    {
+        // Only clear series selection if creating new (not editing)
+        if (editingSeason == null)
+        {
+            formSeriesId = "";
+        }
+        
+        filteredSeriesForForm = string.IsNullOrEmpty(formDisciplineId)
+            ? new List<Series>()
+            : allSeries.Where(s => s.DisciplineId == formDisciplineId).ToList();
+    }
+
+    private void OnDisciplineFilterChanged()
+    {
+        selectedSeriesFilter = "";
+        filteredSeriesForFilter = string.IsNullOrEmpty(selectedDisciplineFilter)
+            ? new List<Series>()
+            : allSeries.Where(s => s.DisciplineId == selectedDisciplineFilter).ToList();
+        FilterSeasons();
+    }
+
+    private void FilterSeasons()
+    {
+        if (string.IsNullOrEmpty(selectedDisciplineFilter))
+        {
+            filteredSeasons = allSeasons.ToList();
+        }
+        else if (string.IsNullOrEmpty(selectedSeriesFilter))
+        {
+            var seriesIds = allSeries.Where(s => s.DisciplineId == selectedDisciplineFilter).Select(s => s.Id).ToList();
+            filteredSeasons = allSeasons.Where(s => seriesIds.Contains(s.SeriesId)).ToList();
+        }
+        else
+        {
+            filteredSeasons = allSeasons.Where(s => s.SeriesId == selectedSeriesFilter).ToList();
+        }
+
+        // Sort by year descending
+        filteredSeasons = filteredSeasons.OrderByDescending(s => s.Year).ToList();
+    }
+
+    private string GetSeriesName(string seriesId)
+    {
+        var series = allSeries.FirstOrDefault(s => s.Id == seriesId);
+        return series?.DisplayName ?? "Unknown";
+    }
+
+    private string GetDisciplineName(string seriesId)
+    {
+        var series = allSeries.FirstOrDefault(s => s.Id == seriesId);
+        if (series == null) return "Unknown";
+        
+        var discipline = disciplines.FirstOrDefault(d => d.Id == series.DisciplineId);
+        return discipline?.DisplayName ?? "Unknown";
+    }
+
+    private void ShowCreateForm()
+    {
+        editingSeason = null;
+        formDisciplineId = "";
+        formSeriesId = "";
+        originalSeriesId = "";
+        formYear = DateTime.Now.Year;
+        formName = "";
+        formStartDate = DateTime.Now;
+        formEndDate = null;
+        formIsActive = false;
+        formError = "";
+        filteredSeriesForForm = new();
+        showForm = true;
+    }
+
+    private void EditSeason(Season season)
+    {
+        editingSeason = season;
+        
+        var series = allSeries.FirstOrDefault(s => s.Id == season.SeriesId);
+        formDisciplineId = series?.DisciplineId ?? "";
+        formSeriesId = season.SeriesId;
+        originalSeriesId = season.SeriesId;
+        formYear = season.Year;
+        formName = season.Name;
+        formStartDate = season.StartDate;
+        formEndDate = season.EndDate;
+        formIsActive = season.IsActive;
+        formError = "";
+        
+        // Populate series dropdown after setting values
+        OnDisciplineChanged();
+        
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingSeason = null;
+        originalSeriesId = "";
+        formError = "";
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+    }
+
+    private async Task SaveSeason()
+    {
+        if (string.IsNullOrWhiteSpace(formSeriesId))
+        {
+            formError = "Please select a series";
+            return;
+        }
+
+        if (formYear < 2000 || formYear > 2100)
+        {
+            formError = "Year must be between 2000 and 2100";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            formError = "Name is required";
+            return;
+        }
+
+        if (formEndDate.HasValue && formStartDate >= formEndDate.Value)
+        {
+            formError = "Start date must be before end date";
+            return;
+        }
+
+        if (formStartDate.Year != formYear)
+        {
+            formError = "Year must match the start date year";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        if (editingSeason == null)
+        {
+            // Create
+            var request = new CreateSeasonRequest(
+                formSeriesId,
+                formYear,
+                formName,
+                formIsActive,
+                formStartDate,
+                formEndDate
+            );
+            var response = await ApiClient.CreateSeasonAsync(request);
+            
+            if (response.Success)
+            {
+                await LoadData();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create season";
+            }
+        }
+        else
+        {
+            // Update
+            var request = new UpdateSeasonRequest(
+                formSeriesId,
+                formYear,
+                formName,
+                formIsActive,
+                formStartDate,
+                formEndDate
+            );
+            var response = await ApiClient.UpdateSeasonAsync(editingSeason.Id, originalSeriesId, request);
+            
+            if (response.Success)
+            {
+                // IMPORTANT: Capture these values BEFORE calling CancelForm() which nullifies editingSeason
+                bool seriesChanged = originalSeriesId != formSeriesId;
+                bool wasActive = editingSeason.IsActive;
+                
+                await LoadData();
+                CancelForm();
+                
+                // Check if series changed and season was active - show info message
+                if (seriesChanged && wasActive && !formIsActive)
+                {
+                    errorMessage = "? Season moved successfully but was deactivated to prevent duplicate active seasons. You can manually activate it using the 'Set Active' button.";
+                }
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update season";
+            }
+        }
+
+        saving = false;
+    }
+
+    private void ConfirmDelete(Season season)
+    {
+        seasonToDelete = season;
+        var deps = seasonDependencies.ContainsKey(season.Id) ? seasonDependencies[season.Id] : new SeasonDependencies();
+        
+        if (deps.HasDependencies)
+        {
+            var reasons = new List<string>();
+            if (deps.EventCount > 0) reasons.Add($"{deps.EventCount} event(s)");
+            if (deps.CompetitorCount > 0) reasons.Add($"{deps.CompetitorCount} competitor(s)");
+            
+            deleteConfirmMessage = $"Cannot delete '{season.Name}' because it has {string.Join(" and ", reasons)}. Please delete those first.";
+        }
+        else
+        {
+            deleteConfirmMessage = $"Are you sure you want to delete '{season.Name}'? This action cannot be undone.";
+        }
+        
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        seasonToDelete = null;
+    }
+
+    private async Task DeleteSeason()
+    {
+        if (seasonToDelete == null) return;
+
+        // Check dependencies one more time
+        var deps = seasonDependencies.ContainsKey(seasonToDelete.Id) 
+            ? seasonDependencies[seasonToDelete.Id] 
+            : new SeasonDependencies();
+
+        if (deps.HasDependencies)
+        {
+            showDeleteConfirm = false;
+            errorMessage = $"Cannot delete season because it has dependencies. Please delete those first.";
+            seasonToDelete = null;
+            return;
+        }
+
+        var response = await ApiClient.DeleteSeasonAsync(seasonToDelete.Id, seasonToDelete.SeriesId);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to delete season";
+        }
+        
+        seasonToDelete = null;
+    }
+
+    private void SetActiveSeason(Season season)
+    {
+        seasonToSetActive = season;
+        setActiveConfirmMessage = $"Set '{season.Name}' as the active season for {GetSeriesName(season.SeriesId)}? This will deactivate any other active seasons.";
+        showSetActiveConfirm = true;
+    }
+
+    private void CancelSetActive()
+    {
+        showSetActiveConfirm = false;
+        seasonToSetActive = null;
+    }
+
+    private async Task ConfirmSetActive()
+    {
+        if (seasonToSetActive == null) return;
+
+        var response = await ApiClient.SetActiveSeasonAsync(seasonToSetActive.SeriesId, seasonToSetActive.Id);
+        
+        showSetActiveConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to set active season";
+        }
+        
+        seasonToSetActive = null;
+    }
+}

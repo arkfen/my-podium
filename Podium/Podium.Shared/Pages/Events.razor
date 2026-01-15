@@ -1,0 +1,112 @@
+@page "/series/{SeriesId}/events"
+@inject IPodiumApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Select Event - Podium</PageTitle>
+
+<div class="page-container">
+    <nav class="breadcrumb">
+        <a href="/disciplines">Disciplines</a> / <a href="javascript:history.back()">Series</a> / Events
+    </nav>
+
+    <h1>Choose an Event</h1>
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading events...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (events.Count == 0)
+    {
+        <div class="alert alert-info">
+            No upcoming events available. Check back later!
+        </div>
+    }
+    else
+    {
+        <div class="event-grid">
+            @foreach (var evt in events)
+            {
+                <div class="event-card" @onclick="() => SelectEvent(evt.Id, seasonId)">
+                    <h3>@evt.DisplayName</h3>
+                    <p>@evt.Location</p>
+                    <p class="event-date">
+                        <span class="event-icon">&#128197;</span> @evt.EventDate.ToString("MMM dd, yyyy HH:mm") UTC
+                    </p>
+                    @if (evt.CanAcceptPredictions)
+                    {
+                        <span style="color: var(--success-color); font-weight: 500;"><span class="status-icon">&#10003;</span> Open for predictions</span>
+                    }
+                    else
+                    {
+                        <span style="color: var(--text-light);">Closed</span>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string SeriesId { get; set; } = "";
+
+    private List<Event> events = new();
+    private string seasonId = "";
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // First get the active season for this series
+            var seasonResponse = await ApiClient.GetActiveSeasonAsync(SeriesId);
+            if (!seasonResponse.Success || seasonResponse.Data == null)
+            {
+                errorMessage = "No active season found for this series.";
+                isLoading = false;
+                return;
+            }
+
+            seasonId = seasonResponse.Data.Id;
+
+            // Now get events for this season
+            var eventsResponse = await ApiClient.GetUpcomingEventsAsync(seasonId);
+            if (eventsResponse.Success && eventsResponse.Data != null)
+            {
+                events = eventsResponse.Data;
+            }
+            else
+            {
+                errorMessage = eventsResponse.Error ?? "Failed to load events.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectEvent(string eventId, string seasonId)
+    {
+        Navigation.NavigateTo($"/predict/{seasonId}/{eventId}");
+    }
+}
