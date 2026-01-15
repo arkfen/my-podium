@@ -1,0 +1,91 @@
+@page "/disciplines/{DisciplineId}/series"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@inject IPodiumApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Select Series - Podium</PageTitle>
+
+<div class="page-container">
+    <nav class="breadcrumb">
+        <a href="/disciplines">Disciplines</a> / Series
+    </nav>
+
+    <h1>Choose a Series</h1>
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading series...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (seriesList.Count == 0)
+    {
+        <div class="alert alert-info">
+            No series available for this discipline yet.
+        </div>
+    }
+    else
+    {
+        <div class="tier-grid">
+            @foreach (var series in seriesList)
+            {
+                <div class="tier-card" @onclick="() => SelectSeries(series.Id)">
+                    <h3>@series.DisplayName</h3>
+                    <p class="series-info">@series.GoverningBody &middot; @series.Region</p>
+                    <p>View events &rarr;</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string DisciplineId { get; set; } = "";
+
+    private List<Models.Series> seriesList = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSeries();
+    }
+
+    private async Task LoadSeries()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var response = await ApiClient.GetSeriesAsync(DisciplineId);
+            if (response.Success && response.Data != null)
+            {
+                seriesList = response.Data;
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to load series.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectSeries(string seriesId)
+    {
+        Navigation.NavigateTo($"/series/{seriesId}/events");
+    }
+}

@@ -1,0 +1,65 @@
+﻿@inherits LayoutComponentBase
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-content">
+            <a href="/" class="logo"><span class="logo-icon">🏆</span> Podium</a>
+            
+            <nav class="main-nav">
+                @if (AuthState.IsAuthenticated)
+                {
+                    <a href="/disciplines">Make Predictions</a>
+                    <a href="/my-predictions">My Predictions</a>
+                    <a href="/leaderboard">Leaderboard</a>
+                    @if (AdminState.IsAdmin)
+                    {
+                        <a href="/admin" class="admin-link">Admin</a>
+                    }
+                    <button class="btn-link" @onclick="SignOut">Sign Out</button>
+                }
+                else
+                {
+                    <a href="/signin">Sign In</a>
+                    <a href="/signup">Sign Up</a>
+                }
+            </nav>
+        </div>
+    </header>
+
+    <main class="app-main">
+        @Body
+    </main>
+
+    <footer class="app-footer">
+        <p>&copy; @DateTime.Now.Year Podium. Predict & Win.</p>
+    </footer>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        AuthState.OnAuthStateChanged += StateHasChanged;
+        AdminState.OnAdminStateChanged += StateHasChanged;
+        
+        if (!AdminState.IsInitialized && AuthState.IsAuthenticated)
+        {
+            await AdminState.InitializeAsync();
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await AuthState.ClearAuthStateAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    public void Dispose()
+    {
+        AuthState.OnAuthStateChanged -= StateHasChanged;
+        AdminState.OnAdminStateChanged -= StateHasChanged;
+    }
+}
+

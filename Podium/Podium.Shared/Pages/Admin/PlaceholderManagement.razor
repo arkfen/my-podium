@@ -1,0 +1,47 @@
+@using Podium.Shared.Services.State
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+
+<PageTitle>@PageTitle - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1>[COMING SOON] @PageTitle</h1>
+        <p>This feature is coming soon!</p>
+    </div>
+
+    <div class="admin-placeholder">
+        <p>This management page will allow you to:</p>
+        <ul>
+            @foreach (var feature in Features)
+            {
+                <li>@feature</li>
+            }
+        </ul>
+        <button class="btn btn-secondary" @onclick="GoBack">&larr; Back to Dashboard</button>
+    </div>
+</div>
+
+@code {
+    private string PageTitle => "Admin Management";
+
+    private List<string> Features => new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/admin");
+    }
+}

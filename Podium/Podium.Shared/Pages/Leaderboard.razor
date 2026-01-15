@@ -1,0 +1,138 @@
+@page "/leaderboard"
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Leaderboard - Podium</PageTitle>
+
+<div class="page-container">
+    <h1><span class="trophy-icon">&#127942;</span> Leaderboard</h1>
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading leaderboard...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else if (selectedSeasonId == null)
+    {
+        <div class="alert alert-info">
+            <p>Select a series to view its leaderboard.</p>
+            <a href="/disciplines" class="btn btn-primary">Browse Disciplines</a>
+        </div>
+    }
+    else if (leaderboard.Count == 0)
+    {
+        <div class="alert alert-info">
+            No predictions have been made yet for this season.
+        </div>
+    }
+    else
+    {
+        <div class="leaderboard-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Player</th>
+                        <th>Points</th>
+                        <th>Predictions</th>
+                        <th>Exact</th>
+                        <th>1 Off</th>
+                        <th>2 Off</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{int rank = 0;}
+                    @foreach (var entry in leaderboard)
+                    {
+                        rank++;
+                        <tr>
+                            <td>
+                                <span class="rank-badge @GetRankClass(rank)">@rank</span>
+                            </td>
+                            <td><strong>@entry.Username</strong></td>
+                            <td><strong>@entry.TotalPoints</strong></td>
+                            <td>@entry.PredictionsCount</td>
+                            <td>@entry.ExactMatches</td>
+                            <td>@entry.OneOffMatches</td>
+                            <td>@entry.TwoOffMatches</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    private List<UserStatistics> leaderboard = new();
+    private string? selectedSeasonId;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLeaderboard();
+    }
+
+    private async Task LoadLeaderboard()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // Get first active season for leaderboard
+            // In a real app, you'd let users select which season to view
+            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null && disciplinesResponse.Data.Any())
+            {
+                var discipline = disciplinesResponse.Data.First();
+                var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
+                
+                if (seriesResponse.Success && seriesResponse.Data != null && seriesResponse.Data.Any())
+                {
+                    var series = seriesResponse.Data.First();
+                    var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
+                    
+                    if (seasonResponse.Success && seasonResponse.Data != null)
+                    {
+                        selectedSeasonId = seasonResponse.Data.Id;
+                        var leaderboardResponse = await ApiClient.GetLeaderboardAsync(selectedSeasonId);
+                        
+                        if (leaderboardResponse.Success && leaderboardResponse.Data != null)
+                        {
+                            leaderboard = leaderboardResponse.Data;
+                        }
+                        else
+                        {
+                            errorMessage = leaderboardResponse.Error ?? "Failed to load leaderboard.";
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetRankClass(int rank)
+    {
+        return rank switch
+        {
+            1 => "rank-1",
+            2 => "rank-2",
+            3 => "rank-3",
+            _ => ""
+        };
+    }
+}

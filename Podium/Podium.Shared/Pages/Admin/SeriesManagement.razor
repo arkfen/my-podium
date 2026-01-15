@@ -1,0 +1,409 @@
+@page "/admin/series"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@using Podium.Shared.Components.Admin
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>Manage Series - Admin</PageTitle>
+
+<div class="admin-container">
+    <div class="admin-header">
+        <h1><span style="font-size: 1.2em;">&#127942;</span> Manage Series</h1>
+        <button class="btn btn-primary" @onclick="ShowCreateForm">+ Add Series</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading series...</div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error">
+                @errorMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
+        @if (showForm)
+        {
+            <div class="admin-form">
+                <h3>@(editingSeries == null ? "Create" : "Edit") Series</h3>
+                
+                <div class="form-group">
+                    <label>Discipline:</label>
+                    @if (editingSeries == null)
+                    {
+                        <select class="form-control" @bind="formDisciplineId">
+                            <option value="">-- Select Discipline --</option>
+                            @foreach (var discipline in disciplines)
+                            {
+                                <option value="@discipline.Id">@discipline.DisplayName (@discipline.Name)</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <select class="form-control" @bind="formDisciplineId">
+                            @foreach (var discipline in disciplines)
+                            {
+                                <option value="@discipline.Id">@discipline.DisplayName (@discipline.Name)</option>
+                            }
+                        </select>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Name:</label>
+                    <input type="text" class="form-control" @bind="formName" placeholder="e.g., Formula One World Championship" />
+                </div>
+
+                <div class="form-group">
+                    <label>Display Name:</label>
+                    <input type="text" class="form-control" @bind="formDisplayName" placeholder="e.g., Formula 1" />
+                </div>
+
+                <div class="form-group">
+                    <label>Governing Body:</label>
+                    <input type="text" class="form-control" @bind="formGoverningBody" placeholder="e.g., FIA" />
+                </div>
+
+                <div class="form-group">
+                    <label>Region:</label>
+                    <input type="text" class="form-control" @bind="formRegion" placeholder="e.g., Global, Europe, North America" />
+                </div>
+
+                <div class="form-group">
+                    <label>Vehicle Type:</label>
+                    <input type="text" class="form-control" @bind="formVehicleType" placeholder="e.g., Formula Car, Rally Car" />
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" @bind="formIsActive" />
+                        Active
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveSeries" disabled="@saving">
+                        @(saving ? "Saving..." : "Save")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <div class="alert alert-error">@formError</div>
+                }
+            </div>
+        }
+
+        <div class="filter-section">
+            <label>Filter by Discipline:</label>
+            <select class="form-control" @bind="selectedDisciplineFilter" @bind:after="FilterSeries">
+                <option value="">All Disciplines</option>
+                @foreach (var discipline in disciplines)
+                {
+                    <option value="@discipline.Id">@discipline.DisplayName</option>
+                }
+            </select>
+        </div>
+
+        <div class="admin-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Display Name</th>
+                        <th>Discipline</th>
+                        <th>Governing Body</th>
+                        <th>Region</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var series in filteredSeries)
+                    {
+                        <tr>
+                            <td>@series.Name</td>
+                            <td>@series.DisplayName</td>
+                            <td>
+                                <span class="badge badge-info">
+                                    @GetDisciplineName(series.DisciplineId)
+                                </span>
+                            </td>
+                            <td>@series.GoverningBody</td>
+                            <td>@series.Region</td>
+                            <td>
+                                <span class="badge @(series.IsActive ? "badge-success" : "badge-inactive")">
+                                    @(series.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td>@series.CreatedDate.ToShortDateString()</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary" @onclick="() => EditSeries(series)">Edit</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(series)">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (!filteredSeries.Any())
+            {
+                <div class="no-results">
+                    <p>No series found. @(string.IsNullOrEmpty(selectedDisciplineFilter) ? "Create one to get started!" : "Try selecting a different discipline.")</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsVisible="showDeleteConfirm"
+               Title="Delete Series"
+               Message="@deleteConfirmMessage"
+               ConfirmText="Delete"
+               OnConfirm="DeleteSeries"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<Discipline> disciplines = new();
+    private List<Series> allSeries = new();
+    private List<Series> filteredSeries = new();
+    private bool loading = true;
+    private bool saving = false;
+    private bool showForm = false;
+    private bool showDeleteConfirm = false;
+    private string errorMessage = "";
+    private string formError = "";
+    private string selectedDisciplineFilter = "";
+    private string deleteConfirmMessage = "";
+
+    private Series? editingSeries = null;
+    private Series? seriesToDelete = null;
+    private string formDisciplineId = "";
+    private string originalDisciplineId = ""; // Track original for updates
+    private string formName = "";
+    private string formDisplayName = "";
+    private string formGoverningBody = "";
+    private string formRegion = "";
+    private string formVehicleType = "";
+    private bool formIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        loading = true;
+        errorMessage = "";
+
+        // Load disciplines first
+        var disciplineResponse = await ApiClient.GetAllDisciplinesAdminAsync();
+        if (disciplineResponse.Success && disciplineResponse.Data != null)
+        {
+            disciplines = disciplineResponse.Data;
+        }
+        else
+        {
+            errorMessage = "Failed to load disciplines";
+            loading = false;
+            return;
+        }
+
+        // Load all series for all disciplines
+        allSeries = new();
+        foreach (var discipline in disciplines)
+        {
+            var seriesResponse = await ApiClient.GetAllSeriesAdminAsync(discipline.Id);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                allSeries.AddRange(seriesResponse.Data);
+            }
+        }
+
+        FilterSeries();
+        loading = false;
+    }
+
+    private void FilterSeries()
+    {
+        if (string.IsNullOrEmpty(selectedDisciplineFilter))
+        {
+            filteredSeries = allSeries.ToList();
+        }
+        else
+        {
+            filteredSeries = allSeries.Where(s => s.DisciplineId == selectedDisciplineFilter).ToList();
+        }
+    }
+
+    private string GetDisciplineName(string disciplineId)
+    {
+        var discipline = disciplines.FirstOrDefault(d => d.Id == disciplineId);
+        return discipline?.DisplayName ?? "Unknown";
+    }
+
+    private void ShowCreateForm()
+    {
+        editingSeries = null;
+        formDisciplineId = "";
+        originalDisciplineId = "";
+        formName = "";
+        formDisplayName = "";
+        formGoverningBody = "";
+        formRegion = "";
+        formVehicleType = "";
+        formIsActive = true;
+        formError = "";
+        showForm = true;
+    }
+
+    private void EditSeries(Series series)
+    {
+        editingSeries = series;
+        formDisciplineId = series.DisciplineId;
+        originalDisciplineId = series.DisciplineId; // Store original
+        formName = series.Name;
+        formDisplayName = series.DisplayName;
+        formGoverningBody = series.GoverningBody;
+        formRegion = series.Region;
+        formVehicleType = series.VehicleType;
+        formIsActive = series.IsActive;
+        formError = "";
+        showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        editingSeries = null;
+        originalDisciplineId = "";
+        formError = "";
+    }
+
+    private void ClearError()
+    {
+        errorMessage = "";
+    }
+
+    private async Task SaveSeries()
+    {
+        if (string.IsNullOrWhiteSpace(formDisciplineId))
+        {
+            formError = "Please select a discipline";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(formName))
+        {
+            formError = "Name is required";
+            return;
+        }
+
+        saving = true;
+        formError = "";
+
+        if (editingSeries == null)
+        {
+            // Create
+            var request = new CreateSeriesRequest(
+                formDisciplineId,
+                formName,
+                formDisplayName,
+                formIsActive,
+                formGoverningBody,
+                formRegion,
+                formVehicleType
+            );
+            var response = await ApiClient.CreateSeriesAsync(request);
+            
+            if (response.Success)
+            {
+                await LoadData();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to create series";
+            }
+        }
+        else
+        {
+            // Update - use originalDisciplineId to find the series
+            var request = new UpdateSeriesRequest(
+                formDisciplineId,
+                formName,
+                formDisplayName,
+                formIsActive,
+                formGoverningBody,
+                formRegion,
+                formVehicleType
+            );
+            var response = await ApiClient.UpdateSeriesAsync(editingSeries.Id, originalDisciplineId, request);
+            
+            if (response.Success)
+            {
+                await LoadData();
+                CancelForm();
+            }
+            else
+            {
+                formError = response.Error ?? "Failed to update series";
+            }
+        }
+
+        saving = false;
+    }
+
+    private void ConfirmDelete(Series series)
+    {
+        seriesToDelete = series;
+        deleteConfirmMessage = $"Are you sure you want to delete '{series.Name}'? This action cannot be undone if there are no seasons associated with it.";
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        seriesToDelete = null;
+    }
+
+    private async Task DeleteSeries()
+    {
+        if (seriesToDelete == null) return;
+
+        var response = await ApiClient.DeleteSeriesAsync(seriesToDelete.Id, seriesToDelete.DisciplineId);
+        
+        showDeleteConfirm = false;
+        
+        if (response.Success)
+        {
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to delete series";
+        }
+        
+        seriesToDelete = null;
+    }
+}

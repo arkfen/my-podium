@@ -1,0 +1,278 @@
+@page "/predict/{SeasonId}/{EventId}"
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Make Prediction - Podium</PageTitle>
+
+<div class="page-container">
+    @if (!AuthState.IsAuthenticated)
+    {
+        <div class="alert alert-warning">
+            Please <a href="/signin">sign in</a> to make predictions.
+        </div>
+        return;
+    }
+
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading...</p>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+    else
+    {
+        <h1>Predict the Podium</h1>
+        <h2>@eventDetails?.DisplayName</h2>
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        <div class="prediction-form">
+            <div class="form-section">
+                <h3><span class="medal-icon gold">&#129351;</span> First Place</h3>
+                <div class="competitor-grid">
+                    @foreach (var competitor in competitors)
+                    {
+                        <div class="competitor-option @(selectedFirst == competitor.CompetitorId ? "selected" : "") @(IsDisabled(competitor.CompetitorId, 1) ? "disabled" : "")"
+                             @onclick="() => SelectCompetitor(1, competitor.CompetitorId, competitor.CompetitorName)">
+                            @competitor.CompetitorName
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><span class="medal-icon silver">&#129352;</span> Second Place</h3>
+                <div class="competitor-grid">
+                    @foreach (var competitor in competitors)
+                    {
+                        <div class="competitor-option @(selectedSecond == competitor.CompetitorId ? "selected" : "") @(IsDisabled(competitor.CompetitorId, 2) ? "disabled" : "")"
+                             @onclick="() => SelectCompetitor(2, competitor.CompetitorId, competitor.CompetitorName)">
+                            @competitor.CompetitorName
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><span class="medal-icon bronze">&#129353;</span> Third Place</h3>
+                <div class="competitor-grid">
+                    @foreach (var competitor in competitors)
+                    {
+                        <div class="competitor-option @(selectedThird == competitor.CompetitorId ? "selected" : "") @(IsDisabled(competitor.CompetitorId, 3) ? "disabled" : "")"
+                             @onclick="() => SelectCompetitor(3, competitor.CompetitorId, competitor.CompetitorName)">
+                            @competitor.CompetitorName
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(selectedFirst) && !string.IsNullOrEmpty(selectedSecond) && !string.IsNullOrEmpty(selectedThird))
+            {
+                <div class="prediction-summary">
+                    <h3>Your Prediction</h3>
+                    <div class="podium-display">
+                        <div class="podium-position position-1">
+                            <div class="position-label"><span class="medal-icon gold">&#129351;</span> First</div>
+                            <div class="position-competitor">@selectedFirstName</div>
+                        </div>
+                        <div class="podium-position position-2">
+                            <div class="position-label"><span class="medal-icon silver">&#129352;</span> Second</div>
+                            <div class="position-competitor">@selectedSecondName</div>
+                        </div>
+                        <div class="podium-position position-3">
+                            <div class="position-label"><span class="medal-icon bronze">&#129353;</span> Third</div>
+                            <div class="position-competitor">@selectedThirdName</div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="SubmitPrediction" disabled="@isSubmitting">
+                        @if (isSubmitting)
+                        {
+                            <span>Submitting...</span>
+                        }
+                        else
+                        {
+                            <span>Submit Prediction</span>
+                        }
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string SeasonId { get; set; } = "";
+
+    [Parameter]
+    public string EventId { get; set; } = "";
+
+    private Event? eventDetails;
+    private List<SeasonCompetitor> competitors = new();
+    private string selectedFirst = "";
+    private string selectedFirstName = "";
+    private string selectedSecond = "";
+    private string selectedSecondName = "";
+    private string selectedThird = "";
+    private string selectedThirdName = "";
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // Load event details
+            var eventResponse = await ApiClient.GetEventDetailsAsync(EventId, SeasonId);
+            if (!eventResponse.Success || eventResponse.Data == null)
+            {
+                errorMessage = "Event not found.";
+                isLoading = false;
+                return;
+            }
+
+            eventDetails = eventResponse.Data;
+
+            if (!eventDetails.CanAcceptPredictions)
+            {
+                errorMessage = "This event no longer accepts predictions.";
+                isLoading = false;
+                return;
+            }
+
+            // Load competitors
+            var competitorsResponse = await ApiClient.GetCompetitorsAsync(SeasonId);
+            if (competitorsResponse.Success && competitorsResponse.Data != null)
+            {
+                competitors = competitorsResponse.Data;
+            }
+            else
+            {
+                errorMessage = "Failed to load competitors.";
+            }
+
+            // Check if user already has a prediction
+            if (AuthState.IsAuthenticated && !string.IsNullOrEmpty(AuthState.UserId))
+            {
+                var existingPrediction = await ApiClient.GetPredictionAsync(EventId, AuthState.UserId);
+                if (existingPrediction.Success && existingPrediction.Data != null)
+                {
+                    var pred = existingPrediction.Data;
+                    selectedFirst = pred.FirstPlaceId;
+                    selectedFirstName = pred.FirstPlaceName;
+                    selectedSecond = pred.SecondPlaceId;
+                    selectedSecondName = pred.SecondPlaceName;
+                    selectedThird = pred.ThirdPlaceId;
+                    selectedThirdName = pred.ThirdPlaceName;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectCompetitor(int position, string competitorId, string competitorName)
+    {
+        // Don't allow selection if already selected in another position
+        if (position != 1 && (competitorId == selectedFirst)) return;
+        if (position != 2 && (competitorId == selectedSecond)) return;
+        if (position != 3 && (competitorId == selectedThird)) return;
+
+        switch (position)
+        {
+            case 1:
+                selectedFirst = competitorId;
+                selectedFirstName = competitorName;
+                break;
+            case 2:
+                selectedSecond = competitorId;
+                selectedSecondName = competitorName;
+                break;
+            case 3:
+                selectedThird = competitorId;
+                selectedThirdName = competitorName;
+                break;
+        }
+    }
+
+    private bool IsDisabled(string competitorId, int position)
+    {
+        if (position != 1 && competitorId == selectedFirst) return true;
+        if (position != 2 && competitorId == selectedSecond) return true;
+        if (position != 3 && competitorId == selectedThird) return true;
+        return false;
+    }
+
+    private async Task SubmitPrediction()
+    {
+        if (string.IsNullOrEmpty(AuthState.UserId))
+        {
+            errorMessage = "You must be signed in to submit predictions.";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var request = new SubmitPredictionRequest(
+                EventId,
+                SeasonId,
+                AuthState.UserId,
+                selectedFirst,
+                selectedFirstName,
+                selectedSecond,
+                selectedSecondName,
+                selectedThird,
+                selectedThirdName
+            );
+
+            var response = await ApiClient.SubmitPredictionAsync(request);
+            if (response.Success)
+            {
+                successMessage = "Prediction submitted successfully!";
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/my-predictions");
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to submit prediction.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+}

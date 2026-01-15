@@ -1,0 +1,12 @@
+@inject AuthStateService AuthState
+
+<link href="_content/Podium.Shared/app.css" rel="stylesheet" />
+<Routes />
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Restore session from storage on app startup
+        await AuthState.InitializeAsync();
+    }
+}

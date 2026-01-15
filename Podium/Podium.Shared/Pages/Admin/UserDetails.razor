@@ -1,0 +1,156 @@
+@page "/admin/users/{UserId}"
+@using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
+@inject AuthStateService AuthState
+@inject AdminStateService AdminState
+@inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
+
+<PageTitle>User Details - Admin</PageTitle>
+
+<div class="admin-container">
+    @if (loading)
+    {
+        <div class="loading">Loading user details...</div>
+    }
+    else if (user == null)
+    {
+        <div class="admin-error">
+            <h2>User Not Found</h2>
+            <p>The requested user could not be found.</p>
+            <button class="btn btn-primary" @onclick="GoBack">Back to Users</button>
+        </div>
+    }
+    else
+    {
+        <div class="admin-header">
+            <div>
+                <button class="btn btn-outline" @onclick="GoBack">&larr; Back to Users</button>
+                <h1><span style="font-size: 1.2em;">&#128100;</span> @user.Username</h1>
+                <p class="user-email">@user.Email</p>
+            </div>
+        </div>
+
+        <div class="user-details-grid">
+            <div class="detail-card">
+                <h3>Account Information</h3>
+                <div class="detail-row">
+                    <span class="detail-label">User ID:</span>
+                    <span class="detail-value">@user.UserId</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Username:</span>
+                    <span class="detail-value">@user.Username</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value">@user.Email</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="badge @(user.IsActive ? "badge-success" : "badge-inactive")">
+                        @(user.IsActive ? "Active" : "Inactive")
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Preferred Auth:</span>
+                    <span class="detail-value">@user.PreferredAuthMethod</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Registered:</span>
+                    <span class="detail-value">@user.CreatedDate.ToString("MMMM dd, yyyy")</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Last Login:</span>
+                    <span class="detail-value">@(user.LastLoginDate?.ToString("MMMM dd, yyyy HH:mm") ?? "Never")</span>
+                </div>
+            </div>
+
+            @if (dependencies != null)
+            {
+                <div class="detail-card">
+                    <h3>User Activity</h3>
+                    <div class="detail-row">
+                        <span class="detail-label">Predictions:</span>
+                        <span class="detail-value">@dependencies.PredictionCount</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Admin Status:</span>
+                        <span class="badge @(dependencies.IsAdmin ? "badge-success" : "badge-inactive")">
+                            @(dependencies.IsAdmin ? "Is Admin" : "Not Admin")
+                        </span>
+                    </div>
+                    @if (dependencies.HasDependencies)
+                    {
+                        <div class="alert alert-info" style="margin-top: 1rem;">
+                            This user has existing data and cannot be deleted. You can deactivate the account instead.
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-primary" @onclick="EditUser">Edit User</button>
+            @if (dependencies != null && dependencies.IsAdmin)
+            {
+                <a href="/admin/admins" class="btn btn-outline">Manage Admin Privileges</a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string UserId { get; set; } = string.Empty;
+
+    private User? user = null;
+    private UserDependencies? dependencies = null;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AdminState.IsInitialized)
+        {
+            await AdminState.InitializeAsync();
+        }
+
+        if (!AdminState.IsAdmin)
+        {
+            Navigation.NavigateTo("/admin");
+            return;
+        }
+
+        await LoadUserDetails();
+    }
+
+    private async Task LoadUserDetails()
+    {
+        loading = true;
+
+        var userResponse = await ApiClient.GetUserAdminAsync(UserId);
+        if (userResponse.Success && userResponse.Data != null)
+        {
+            user = userResponse.Data;
+        }
+
+        var depResponse = await ApiClient.GetUserDependenciesAsync(UserId);
+        if (depResponse.Success && depResponse.Data != null)
+        {
+            dependencies = depResponse.Data;
+        }
+
+        loading = false;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/admin/users");
+    }
+
+    private void EditUser()
+    {
+        Navigation.NavigateTo($"/admin/users?editUserId={UserId}");
+    }
+}
