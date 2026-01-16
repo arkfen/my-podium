@@ -93,6 +93,7 @@
 
         <div class="action-buttons">
             <button class="btn btn-primary" @onclick="EditUser">Edit User</button>
+            <button class="btn btn-outline" @onclick="SetupPassword">Setup/Reset Password</button>
             @if (dependencies != null && dependencies.IsAdmin)
             {
                 <a href="/admin/admins" class="btn btn-outline">Manage Admin Privileges</a>
@@ -101,6 +102,34 @@
     }
 </div>
 
+@if (showPasswordDialog)
+{
+    <div class="modal-overlay" @onclick="ClosePasswordDialog">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Temporary Password Generated</h3>
+            </div>
+            <div class="modal-body">
+                <p><strong>User:</strong> @user?.Username (@user?.Email)</p>
+                <div class="alert alert-warning">
+                    <p><strong>⚠️ Important Security Notice</strong></p>
+                    <p>This temporary password will only be shown once. Please share it securely with the user and instruct them to change it after their first login.</p>
+                </div>
+                <div class="password-display">
+                    <label>Temporary Password:</label>
+                    <div class="password-box">
+                        <code>@temporaryPassword</code>
+                    </div>
+                </div>
+                <p class="info-text">The user's authentication method has been updated to allow password login.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="ClosePasswordDialog">I've Saved the Password</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter]
     public string UserId { get; set; } = string.Empty;
@@ -108,6 +137,8 @@
     private User? user = null;
     private UserDependencies? dependencies = null;
     private bool loading = true;
+    private bool showPasswordDialog = false;
+    private string temporaryPassword = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -152,5 +183,27 @@
     private void EditUser()
     {
         Navigation.NavigateTo($"/admin/users?editUserId={UserId}");
+    }
+
+    private async Task SetupPassword()
+    {
+        if (user == null) return;
+        
+        var response = await ApiClient.SetupUserPasswordAsync(user.UserId);
+        
+        if (response.Success && response.Data != null)
+        {
+            temporaryPassword = response.Data.TemporaryPassword;
+            showPasswordDialog = true;
+            
+            // Reload user details to reflect auth method change
+            await LoadUserDetails();
+        }
+    }
+
+    private void ClosePasswordDialog()
+    {
+        showPasswordDialog = false;
+        temporaryPassword = "";
     }
 }

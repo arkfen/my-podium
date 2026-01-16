@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Podium.Shared.Services.Data;
 using Podium.Shared.Services.Business;
+using Podium.Shared.Services.Auth;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Api;
 using Podium.Api.Middleware;
@@ -1194,6 +1195,76 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("UpdateUserAdmin");
 
+        // Update user authentication method
+        group.MapPut("/users/{userId}/auth-method", async (
+            string userId,
+            [FromBody] UpdateAuthMethodRequest request,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+
+            // Validate auth method
+            var validAuthMethods = new[] { "Email", "Password", "Both" };
+            if (!validAuthMethods.Contains(request.PreferredAuthMethod))
+            {
+                return Results.BadRequest(new { error = "PreferredAuthMethod must be 'Email', 'Password', or 'Both'" });
+            }
+
+            // Update auth method
+            user.PreferredAuthMethod = request.PreferredAuthMethod;
+
+            var success = await userRepo.UpdateUserAsync(user);
+            if (!success)
+                return Results.StatusCode(500);
+
+            return Results.Ok(new { message = "Authentication method updated successfully" });
+        })
+        .RequireAdmin()
+        .WithName("UpdateUserAuthMethod");
+
+        // Initiate password setup for user
+        group.MapPost("/users/{userId}/setup-password", async (
+            string userId,
+            [FromServices] IUserRepository userRepo,
+            [FromServices] IAuthenticationService authService) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+
+            // Generate a temporary password
+            var temporaryPassword = GenerateTemporaryPassword();
+            var (hash, salt) = AuthenticationService.HashPassword(temporaryPassword);
+
+            // Update user's password
+            user.PasswordHash = hash;
+            user.PasswordSalt = salt;
+
+            // If user currently uses Email-only auth, switch to Both
+            if (user.PreferredAuthMethod == "Email")
+            {
+                user.PreferredAuthMethod = "Both";
+            }
+
+            var success = await userRepo.UpdateUserAsync(user);
+            if (!success)
+                return Results.StatusCode(500);
+
+            // Send temporary password via email (if email service is configured)
+            // Note: In production, this would send an email. For now, we'll return it in the response
+            // which should only be shown to the admin, never logged or stored
+            return Results.Ok(new 
+            { 
+                message = "Password setup initiated. Temporary password generated.",
+                temporaryPassword = temporaryPassword,
+                warning = "Please share this password securely with the user. It will not be shown again."
+            });
+        })
+        .RequireAdmin()
+        .WithName("SetupUserPassword");
+
         // Delete user (with dependency check)
         group.MapDelete("/users/{userId}", async (
             string userId,
@@ -1317,6 +1388,47 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("DeleteScoringRules");
     }
+
+    private static string GenerateTemporaryPassword()
+    {
+        // Generate a secure random password with 12 characters
+        // Contains uppercase, lowercase, numbers, and special characters
+        const string upperChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        const string lowerChars = "abcdefghijklmnopqrstuvwxyz";
+        const string numberChars = "0123456789";
+        const string specialChars = "!@#$%&*";
+        const string allChars = upperChars + lowerChars + numberChars + specialChars;
+
+        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
+        var password = new char[12];
+        var data = new byte[12];
+        
+        rng.GetBytes(data);
+        
+        // Ensure at least one of each type
+        password[0] = upperChars[data[0] % upperChars.Length];
+        password[1] = lowerChars[data[1] % lowerChars.Length];
+        password[2] = numberChars[data[2] % numberChars.Length];
+        password[3] = specialChars[data[3] % specialChars.Length];
+        
+        // Fill the rest randomly
+        for (int i = 4; i < password.Length; i++)
+        {
+            password[i] = allChars[data[i] % allChars.Length];
+        }
+        
+        // Shuffle the password
+        for (int i = password.Length - 1; i > 0; i--)
+        {
+            rng.GetBytes(data);
+            int j = data[0] % (i + 1);
+            var temp = password[i];
+            password[i] = password[j];
+            password[j] = temp;
+        }
+        
+        return new string(password);
+    }
 }
 
 // Request DTOs
@@ -1325,4 +1437,5 @@ public record UpdateAdminRequest(bool IsActive, bool CanManageAdmins);
 public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateUserRequest(string Username, string Email, bool IsActive);
+public record UpdateAuthMethodRequest(string PreferredAuthMethod);
 public record CreateOrUpdateScoringRulesRequest(int ExactMatchPoints, int OneOffPoints, int TwoOffPoints);

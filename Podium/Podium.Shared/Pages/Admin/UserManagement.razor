@@ -50,6 +50,16 @@
                 </div>
                 
                 <div class="form-group">
+                    <label>Preferred Authentication Method:</label>
+                    <select class="form-control" @bind="formPreferredAuthMethod">
+                        <option value="Both">Both (Email OTP and Password)</option>
+                        <option value="Email">Email OTP Only</option>
+                        <option value="Password">Password Only</option>
+                    </select>
+                    <small class="form-text">Controls which sign-in methods are allowed for this user.</small>
+                </div>
+                
+                <div class="form-group">
                     <label>
                         <input type="checkbox" @bind="formIsActive" />
                         Active (can sign in and use the application)
@@ -100,6 +110,7 @@
                             <td>@(user.LastLoginDate?.ToShortDateString() ?? "Never")</td>
                             <td>
                                 <button class="btn btn-sm btn-secondary" @onclick="() => EditUser(user)">Edit</button>
+                                <button class="btn btn-sm btn-primary" @onclick="() => SetupPassword(user)">Setup Password</button>
                                 <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(user)">Delete</button>
                             </td>
                         </tr>
@@ -131,6 +142,37 @@
                OnConfirm="DeleteUser"
                OnCancel="CancelDelete" />
 
+@if (showPasswordDialog)
+{
+    <div class="modal-overlay" @onclick="ClosePasswordDialog">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Temporary Password Generated</h3>
+            </div>
+            <div class="modal-body">
+                <p><strong>User:</strong> @temporaryPasswordUser?.Username (@temporaryPasswordUser?.Email)</p>
+                <div class="alert alert-warning">
+                    <p><strong>⚠️ Important Security Notice</strong></p>
+                    <p>This temporary password will only be shown once. Please share it securely with the user and instruct them to change it after their first login.</p>
+                </div>
+                <div class="password-display">
+                    <label>Temporary Password:</label>
+                    <div class="password-box">
+                        <code>@temporaryPassword</code>
+                        <button class="btn btn-sm btn-outline" @onclick="CopyPassword" title="Copy to clipboard">
+                            📋 Copy
+                        </button>
+                    </div>
+                </div>
+                <p class="info-text">The user's authentication method has been updated to allow password login.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="ClosePasswordDialog">I've Saved the Password</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [SupplyParameterFromQuery(Name = "editUserId")]
     public string? EditUserId { get; set; }
@@ -152,6 +194,11 @@
     private string formUsername = "";
     private string formEmail = "";
     private bool formIsActive = true;
+    private string formPreferredAuthMethod = "Both";
+    
+    private bool showPasswordDialog = false;
+    private User? temporaryPasswordUser = null;
+    private string temporaryPassword = "";
 
     private string deleteConfirmTitle = "";
     private string deleteConfirmMessage = "";
@@ -234,6 +281,7 @@
         formUsername = user.Username;
         formEmail = user.Email;
         formIsActive = user.IsActive;
+        formPreferredAuthMethod = user.PreferredAuthMethod;
         formError = "";
         showEditForm = true;
     }
@@ -269,6 +317,18 @@
         
         if (response.Success)
         {
+            // Also update auth method if it changed
+            if (formPreferredAuthMethod != editingUser.PreferredAuthMethod)
+            {
+                var authResponse = await ApiClient.UpdateUserAuthMethodAsync(editingUser.UserId, formPreferredAuthMethod);
+                if (!authResponse.Success)
+                {
+                    formError = authResponse.Error ?? "Failed to update authentication method";
+                    saving = false;
+                    return;
+                }
+            }
+
             await LoadUsers();
             CancelEdit();
         }
@@ -372,5 +432,40 @@
         
         userToDelete = null;
         userDependencies = null;
+    }
+
+    private async Task SetupPassword(User user)
+    {
+        temporaryPasswordUser = user;
+        
+        var response = await ApiClient.SetupUserPasswordAsync(user.UserId);
+        
+        if (response.Success && response.Data != null)
+        {
+            temporaryPassword = response.Data.TemporaryPassword;
+            showPasswordDialog = true;
+            
+            // Reload users to reflect auth method change
+            await LoadUsers();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to setup password";
+        }
+    }
+
+    private void ClosePasswordDialog()
+    {
+        showPasswordDialog = false;
+        temporaryPasswordUser = null;
+        temporaryPassword = "";
+    }
+
+    private async Task CopyPassword()
+    {
+        // In Blazor WebAssembly, we can use JS interop to copy to clipboard
+        // For now, we'll just show a message. JS interop would be needed for actual copy functionality
+        // This is a placeholder for the actual implementation
+        await Task.CompletedTask;
     }
 }

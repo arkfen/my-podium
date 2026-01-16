@@ -110,6 +110,8 @@ public interface IPodiumApiClient
     Task<ApiResponse<User>> GetUserAdminAsync(string userId);
     Task<ApiResponse<UserDependencies>> GetUserDependenciesAsync(string userId);
     Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request);
+    Task<ApiResponse<MessageResponse>> UpdateUserAuthMethodAsync(string userId, string preferredAuthMethod);
+    Task<ApiResponse<PasswordSetupResponse>> SetupUserPasswordAsync(string userId);
     Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId);
 }
 
@@ -515,6 +517,17 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<MessageResponse>($"/api/admin/users/{userId}", request);
     }
 
+    public async Task<ApiResponse<MessageResponse>> UpdateUserAuthMethodAsync(string userId, string preferredAuthMethod)
+    {
+        return await PutAsync<MessageResponse>($"/api/admin/users/{userId}/auth-method", 
+            new { preferredAuthMethod });
+    }
+
+    public async Task<ApiResponse<PasswordSetupResponse>> SetupUserPasswordAsync(string userId)
+    {
+        return await PostAsync<PasswordSetupResponse>($"/api/admin/users/{userId}/setup-password", new { });
+    }
+
     public async Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId)
     {
         return await DeleteAsync<MessageResponse>($"/api/admin/users/{userId}");
@@ -638,6 +651,7 @@ public record MessageResponse(string Message);
 public record AuthResponse(string UserId, string Username, string SessionId, string Message);
 public record PredictionResponse(string Message, Prediction Prediction);
 public record AdminStatusResponse(bool IsAdmin, bool CanManageAdmins);
+public record PasswordSetupResponse(string Message, string TemporaryPassword, string Warning);
 
 public record SubmitPredictionRequest(
     string EventId,
