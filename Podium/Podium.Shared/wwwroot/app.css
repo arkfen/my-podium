@@ -1240,3 +1240,17 @@ input[type="number"].form-control {
     font-weight: 600;
 }
 
+.alert.alert-info {
+    background: #dbeafe;
+    border: 1px solid #60a5fa;
+    color: #1e40af;
+}
+
+.alert.alert-info p {
+    margin: 0.5rem 0;
+}
+
+.alert.alert-info p:first-child {
+    font-weight: 600;
+}
+

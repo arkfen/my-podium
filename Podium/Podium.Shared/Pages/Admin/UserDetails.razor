@@ -107,30 +107,61 @@
     }
 </div>
 
-@if (showPasswordDialog)
+@if (showPasswordConfirmDialog)
 {
-    <div class="modal-overlay" @onclick="ClosePasswordDialog">
+    <div class="modal-overlay" @onclick="CancelPasswordSetup">
         <div class="modal-dialog" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3>Temporary Password Generated</h3>
+                <h3>Confirm Password Setup</h3>
             </div>
             <div class="modal-body">
-                <p><strong>User:</strong> @user?.Username (@user?.Email)</p>
+                <p><strong>User:</strong> @user?.Username</p>
+                <p><strong>Email:</strong> @user?.Email</p>
                 <div class="alert alert-warning">
-                    <p><strong>⚠️ Important Security Notice</strong></p>
-                    <p>This temporary password will only be shown once. Please share it securely with the user and instruct them to change it after their first login.</p>
+                    <p><strong>⚠️ Important Notice</strong></p>
+                    <p>A secure temporary password will be generated and sent directly to the user's email address.</p>
+                    <p><strong>You will NOT see the password.</strong> The user will receive it via email and should change it after first login.</p>
+                    <p>This action will immediately update the user's password in the database.</p>
                 </div>
-                <div class="password-display">
-                    <label>Temporary Password:</label>
-                    <div class="password-box">
-                        <code>@temporaryPassword</code>
-                    </div>
-                    <small class="form-text">Select and copy the password above. You can also write it down temporarily.</small>
-                </div>
-                <p class="info-text">The user's authentication method has been updated to allow password login.</p>
+                @if (!string.IsNullOrEmpty(passwordSetupError))
+                {
+                    <div class="alert alert-error">@passwordSetupError</div>
+                }
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" @onclick="ClosePasswordDialog">I've Saved the Password</button>
+                <button class="btn btn-secondary" @onclick="CancelPasswordSetup" disabled="@settingPassword">Cancel</button>
+                <button class="btn btn-primary" @onclick="ConfirmPasswordSetup" disabled="@settingPassword">
+                    @(settingPassword ? "Setting Password..." : "Confirm & Email Password")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showPasswordSuccessDialog)
+{
+    <div class="modal-overlay" @onclick="ClosePasswordSuccessDialog">
+        <div class="modal-dialog" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>✅ Password Set Successfully</h3>
+            </div>
+            <div class="modal-body">
+                <p><strong>User:</strong> @user?.Username</p>
+                <p><strong>Email:</strong> @user?.Email</p>
+                <div class="alert alert-info">
+                    <p>A temporary password has been generated and emailed to the user.</p>
+                    <p>The user can now sign in using their email and the temporary password.</p>
+                    @if (emailFailed)
+                    {
+                        <div class="alert alert-warning" style="margin-top: 1rem;">
+                            <p><strong>⚠️ Email delivery failed!</strong></p>
+                            <p>The password was set in the database but the email could not be sent. Please contact the user through an alternative method.</p>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" @onclick="ClosePasswordSuccessDialog">Close</button>
             </div>
         </div>
     </div>
@@ -143,8 +174,11 @@
     private User? user = null;
     private UserDependencies? dependencies = null;
     private bool loading = true;
-    private bool showPasswordDialog = false;
-    private string temporaryPassword = "";
+    private bool showPasswordConfirmDialog = false;
+    private bool showPasswordSuccessDialog = false;
+    private bool settingPassword = false;
+    private bool emailFailed = false;
+    private string passwordSetupError = "";
     private string errorMessage = "";
 
     protected override async Task OnInitializedAsync()
@@ -197,25 +231,57 @@
         if (user == null) return;
         
         errorMessage = "";
-        var response = await ApiClient.SetupUserPasswordAsync(user.UserId);
+        passwordSetupError = "";
+        emailFailed = false;
+        
+        // First call to initiate - just shows confirmation dialog
+        var response = await ApiClient.InitiatePasswordSetupAsync(user.UserId);
         
         if (response.Success && response.Data != null)
         {
-            temporaryPassword = response.Data.TemporaryPassword;
-            showPasswordDialog = true;
+            showPasswordConfirmDialog = true;
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to initiate password setup. Please try again.";
+        }
+    }
+
+    private async Task ConfirmPasswordSetup()
+    {
+        if (user == null) return;
+        
+        settingPassword = true;
+        passwordSetupError = "";
+        
+        var response = await ApiClient.ConfirmPasswordSetupAsync(user.UserId);
+        
+        settingPassword = false;
+        
+        if (response.Success && response.Data != null)
+        {
+            emailFailed = response.Data.EmailFailed ?? false;
+            showPasswordConfirmDialog = false;
+            showPasswordSuccessDialog = true;
             
             // Reload user details to reflect auth method change
             await LoadUserDetails();
         }
         else
         {
-            errorMessage = response.Error ?? "Failed to setup password. Please try again.";
+            passwordSetupError = response.Error ?? "Failed to setup password. Please try again.";
         }
     }
 
-    private void ClosePasswordDialog()
+    private void CancelPasswordSetup()
     {
-        showPasswordDialog = false;
-        temporaryPassword = "";
+        showPasswordConfirmDialog = false;
+        passwordSetupError = "";
+    }
+
+    private void ClosePasswordSuccessDialog()
+    {
+        showPasswordSuccessDialog = false;
+        emailFailed = false;
     }
 }

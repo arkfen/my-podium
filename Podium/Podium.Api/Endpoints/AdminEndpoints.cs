@@ -5,6 +5,7 @@ using Podium.Shared.Services.Auth;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Api;
 using Podium.Api.Middleware;
+using Podium.Api.Services;
 
 namespace Podium.Api.Endpoints;
 
@@ -1224,11 +1225,33 @@ public static class AdminEndpoints
         .RequireAdmin()
         .WithName("UpdateUserAuthMethod");
 
-        // Initiate password setup for user
+        // Initiate password setup for user (generate but don't save)
         group.MapPost("/users/{userId}/setup-password", async (
             string userId,
+            [FromServices] IUserRepository userRepo) =>
+        {
+            var user = await userRepo.GetUserByIdAsync(userId);
+            if (user == null)
+                return Results.NotFound(new { error = "User not found" });
+
+            // Just return user info - password will be generated and emailed on confirmation
+            return Results.Ok(new 
+            { 
+                userId = user.UserId,
+                username = user.Username,
+                email = user.Email,
+                currentAuthMethod = user.PreferredAuthMethod,
+                message = "Ready to setup password. Confirm to generate and email password to user."
+            });
+        })
+        .RequireAdmin()
+        .WithName("InitiatePasswordSetup");
+
+        // Confirm password setup - generates password, emails it, and saves to DB
+        group.MapPost("/users/{userId}/setup-password/confirm", async (
+            string userId,
             [FromServices] IUserRepository userRepo,
-            [FromServices] IAuthenticationService authService) =>
+            [FromServices] IEmailService emailService) =>
         {
             var user = await userRepo.GetUserByIdAsync(userId);
             if (user == null)
@@ -1252,18 +1275,33 @@ public static class AdminEndpoints
             if (!success)
                 return Results.StatusCode(500);
 
-            // Send temporary password via email (if email service is configured)
-            // Note: In production, this would send an email. For now, we'll return it in the response
-            // which should only be shown to the admin, never logged or stored
+            // Send temporary password via email
+            try
+            {
+                await emailService.SendTemporaryPasswordEmailAsync(user.Email, user.Username, temporaryPassword);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send password email: {ex.Message}");
+                // Password is already saved - log for manual followup but don't fail
+                return Results.Ok(new 
+                { 
+                    message = "Password has been set, but email failed to send. Please share the password manually.",
+                    email = user.Email,
+                    success = true,
+                    emailFailed = true
+                });
+            }
+
             return Results.Ok(new 
             { 
-                message = "Password setup initiated. Temporary password generated.",
-                temporaryPassword = temporaryPassword,
-                warning = "Please share this password securely with the user. It will not be shown again."
+                message = $"Password has been generated and emailed to {user.Email}.",
+                email = user.Email,
+                success = true
             });
         })
         .RequireAdmin()
-        .WithName("SetupUserPassword");
+        .WithName("ConfirmPasswordSetup");
 
         // Delete user (with dependency check)
         group.MapDelete("/users/{userId}", async (
