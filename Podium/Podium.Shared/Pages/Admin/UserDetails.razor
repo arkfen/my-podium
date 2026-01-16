@@ -99,6 +99,11 @@
                 <a href="/admin/admins" class="btn btn-outline">Manage Admin Privileges</a>
             }
         </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-error" style="margin-top: 1rem;">@errorMessage</div>
+        }
     }
 </div>
 
@@ -120,6 +125,7 @@
                     <div class="password-box">
                         <code>@temporaryPassword</code>
                     </div>
+                    <small class="form-text">Select and copy the password above. You can also write it down temporarily.</small>
                 </div>
                 <p class="info-text">The user's authentication method has been updated to allow password login.</p>
             </div>
@@ -139,6 +145,7 @@
     private bool loading = true;
     private bool showPasswordDialog = false;
     private string temporaryPassword = "";
+    private string errorMessage = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -189,6 +196,7 @@
     {
         if (user == null) return;
         
+        errorMessage = "";
         var response = await ApiClient.SetupUserPasswordAsync(user.UserId);
         
         if (response.Success && response.Data != null)
@@ -198,6 +206,10 @@
             
             // Reload user details to reflect auth method change
             await LoadUserDetails();
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to setup password. Please try again.";
         }
     }
 
