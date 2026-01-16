@@ -106,7 +106,7 @@ public class EmailService : IEmailService
             var message = new MailMessage
             {
                 From = new MailAddress(_senderEmail, _senderName),
-                Subject = "Your Temporary Password - Podium",
+                Subject = "Your Temporary Password - YouCent Podium",
                 IsBodyHtml = true,
                 Body = $@"
                     <!DOCTYPE html>
@@ -125,7 +125,7 @@ public class EmailService : IEmailService
                     <body>
                         <div class='container'>
                             <div class='header'>
-                                <h1>Podium</h1>
+                                <h1>YouCent Podium</h1>
                             </div>
                             <div class='content'>
                                 <h2>Your Temporary Password</h2>
@@ -138,11 +138,11 @@ public class EmailService : IEmailService
                                     <p>• Do not share this password with anyone.</p>
                                     <p>• If you did not request this password reset, please contact your administrator immediately.</p>
                                 </div>
-                                <p>To sign in, go to the Podium application and use your email address with this temporary password.</p>
+                                <p>To sign in, go to the YouCent Podium application and use your email address with this temporary password.</p>
                             </div>
                             <div class='footer'>
                                 <p>This is an automated message, please do not reply.</p>
-                                <p>&copy; {DateTime.Now.Year} Podium. All rights reserved.</p>
+                                <p>&copy; {DateTime.Now.Year} YouCent Podium. All rights reserved.</p>
                             </div>
                         </div>
                     </body>
