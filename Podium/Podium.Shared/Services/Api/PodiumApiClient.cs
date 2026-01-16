@@ -110,6 +110,9 @@ public interface IPodiumApiClient
     Task<ApiResponse<User>> GetUserAdminAsync(string userId);
     Task<ApiResponse<UserDependencies>> GetUserDependenciesAsync(string userId);
     Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request);
+    Task<ApiResponse<MessageResponse>> UpdateUserAuthMethodAsync(string userId, string preferredAuthMethod);
+    Task<ApiResponse<PasswordSetupInitResponse>> InitiatePasswordSetupAsync(string userId);
+    Task<ApiResponse<PasswordSetupConfirmResponse>> ConfirmPasswordSetupAsync(string userId);
     Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId);
 }
 
@@ -515,6 +518,22 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<MessageResponse>($"/api/admin/users/{userId}", request);
     }
 
+    public async Task<ApiResponse<MessageResponse>> UpdateUserAuthMethodAsync(string userId, string preferredAuthMethod)
+    {
+        return await PutAsync<MessageResponse>($"/api/admin/users/{userId}/auth-method", 
+            new { preferredAuthMethod });
+    }
+
+    public async Task<ApiResponse<PasswordSetupInitResponse>> InitiatePasswordSetupAsync(string userId)
+    {
+        return await PostAsync<PasswordSetupInitResponse>($"/api/admin/users/{userId}/setup-password", new { });
+    }
+
+    public async Task<ApiResponse<PasswordSetupConfirmResponse>> ConfirmPasswordSetupAsync(string userId)
+    {
+        return await PostAsync<PasswordSetupConfirmResponse>($"/api/admin/users/{userId}/setup-password/confirm", new { });
+    }
+
     public async Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId)
     {
         return await DeleteAsync<MessageResponse>($"/api/admin/users/{userId}");
@@ -638,6 +657,8 @@ public record MessageResponse(string Message);
 public record AuthResponse(string UserId, string Username, string SessionId, string Message);
 public record PredictionResponse(string Message, Prediction Prediction);
 public record AdminStatusResponse(bool IsAdmin, bool CanManageAdmins);
+public record PasswordSetupInitResponse(string UserId, string Username, string Email, string CurrentAuthMethod, string Message);
+public record PasswordSetupConfirmResponse(string Message, string Email, bool Success, bool? EmailFailed);
 
 public record SubmitPredictionRequest(
     string EventId,

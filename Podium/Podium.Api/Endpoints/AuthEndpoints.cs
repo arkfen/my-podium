@@ -33,8 +33,16 @@ public static class AuthEndpoints
         // Send OTP to email
         group.MapPost("/send-otp", async (
             [FromBody] SendOtpRequest request,
-            [FromServices] IAuthenticationService authService) =>
+            [FromServices] IAuthenticationService authService,
+            [FromServices] IUserRepository userRepo) =>
         {
+            // Check user's preferred auth method
+            var user = await userRepo.GetUserByEmailAsync(request.Email);
+            if (user != null && user.PreferredAuthMethod == "Password")
+            {
+                return Results.BadRequest(new { error = "Email authentication is not enabled for this account. Please sign in with password." });
+            }
+
             var (success, errorMessage) = await authService.SendOTPAsync(request.Email);
 
             if (!success)
@@ -67,8 +75,16 @@ public static class AuthEndpoints
         // Sign in with password
         group.MapPost("/signin", async (
             [FromBody] SignInRequest request,
-            [FromServices] IAuthenticationService authService) =>
+            [FromServices] IAuthenticationService authService,
+            [FromServices] IUserRepository userRepo) =>
         {
+            // Check user's preferred auth method
+            var user = await userRepo.GetUserByEmailAsync(request.Email);
+            if (user != null && user.PreferredAuthMethod == "Email")
+            {
+                return Results.BadRequest(new { error = "Password authentication is not enabled for this account. Please sign in with email OTP." });
+            }
+
             var (success, userId, username, sessionId, errorMessage) = await authService.SignInWithPasswordAsync(
                 request.Email, 
                 request.Password);
