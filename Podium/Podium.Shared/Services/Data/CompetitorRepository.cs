@@ -166,6 +166,7 @@ public class CompetitorRepository : ICompetitorRepository
             // PartitionKey = Type ("Individual" or "Team")
             var entity = new TableEntity(competitor.Type, competitor.Id)
             {
+                ["Type"] = competitor.Type,
                 ["Name"] = competitor.Name,
                 ["ShortName"] = competitor.ShortName,
                 ["IsActive"] = competitor.IsActive,
@@ -190,13 +191,14 @@ public class CompetitorRepository : ICompetitorRepository
             // PartitionKey = Type ("Individual" or "Team")
             var entity = new TableEntity(competitor.Type, competitor.Id)
             {
+                ["Type"] = competitor.Type,
                 ["Name"] = competitor.Name,
                 ["ShortName"] = competitor.ShortName,
                 ["IsActive"] = competitor.IsActive,
                 ["CreatedDate"] = DateTime.SpecifyKind(competitor.CreatedDate, DateTimeKind.Utc)
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return competitor;
         }
         catch (RequestFailedException)
@@ -228,11 +230,13 @@ public class CompetitorRepository : ICompetitorRepository
         {
             var entity = new TableEntity(seasonId, competitorId)
             {
+                ["SeasonId"] = seasonId,
+                ["CompetitorId"] = competitorId,
                 ["CompetitorName"] = competitorName,
                 ["JoinDate"] = DateTime.UtcNow
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return true;
         }
         catch (RequestFailedException)

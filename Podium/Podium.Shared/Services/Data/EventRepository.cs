@@ -130,7 +130,7 @@ public class EventRepository : IEventRepository
                 ["UpdatedDate"] = DateTime.SpecifyKind(result.UpdatedDate, DateTimeKind.Utc)
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return result;
         }
         catch (RequestFailedException)
@@ -237,6 +237,7 @@ public class EventRepository : IEventRepository
 
             var entity = new TableEntity(evt.SeasonId, evt.Id)
             {
+                ["SeasonId"] = evt.SeasonId,
                 ["Name"] = evt.Name,
                 ["DisplayName"] = evt.DisplayName,
                 ["EventNumber"] = evt.EventNumber,
@@ -264,6 +265,7 @@ public class EventRepository : IEventRepository
         {
             var entity = new TableEntity(evt.SeasonId, evt.Id)
             {
+                ["SeasonId"] = evt.SeasonId,
                 ["Name"] = evt.Name,
                 ["DisplayName"] = evt.DisplayName,
                 ["EventNumber"] = evt.EventNumber,
@@ -274,7 +276,7 @@ public class EventRepository : IEventRepository
                 ["CreatedDate"] = DateTime.SpecifyKind(evt.CreatedDate, DateTimeKind.Utc)
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return evt;
         }
         catch (RequestFailedException)

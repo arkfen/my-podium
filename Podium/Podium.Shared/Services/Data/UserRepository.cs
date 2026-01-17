@@ -211,7 +211,7 @@ public class UserRepository : IUserRepository
                     : (DateTime?)null
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return true;
         }
         catch (RequestFailedException)

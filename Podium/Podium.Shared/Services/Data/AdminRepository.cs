@@ -127,7 +127,7 @@ public class AdminRepository : IAdminRepository
                 ["LastModifiedBy"] = admin.LastModifiedBy
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return true;
         }
         catch (RequestFailedException)

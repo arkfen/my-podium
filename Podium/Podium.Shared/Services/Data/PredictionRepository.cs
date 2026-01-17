@@ -129,6 +129,8 @@ public class PredictionRepository : IPredictionRepository
             // This preserves PartitionKey (EventId) and RowKey (UserId)
             var entity = new TableEntity(prediction.EventId, prediction.UserId)
             {
+                ["EventId"] = prediction.EventId,
+                ["UserId"] = prediction.UserId,
                 ["FirstPlaceId"] = prediction.FirstPlaceId,
                 ["FirstPlaceName"] = prediction.FirstPlaceName,
                 ["SecondPlaceId"] = prediction.SecondPlaceId,

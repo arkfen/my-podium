@@ -45,7 +45,7 @@ public class ScoringRulesRepository : IScoringRulesRepository
         {
             scoringRules.CreatedDate = DateTime.UtcNow;
             var entity = MapToTableEntity(scoringRules);
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return scoringRules;
         }
         catch (RequestFailedException)

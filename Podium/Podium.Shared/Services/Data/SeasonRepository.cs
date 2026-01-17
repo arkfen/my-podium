@@ -117,13 +117,13 @@ public class SeasonRepository : ISeasonRepository
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 entity["IsActive"] = false;
-                await tableClient.UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Replace);
+                await tableClient.UpdateEntityAsync(entity, entity.ETag, TableUpdateMode.Merge);
             }
 
             // Then, activate the specified season
             var targetEntity = await tableClient.GetEntityAsync<TableEntity>(seriesId, seasonId);
             targetEntity.Value["IsActive"] = true;
-            await tableClient.UpdateEntityAsync(targetEntity.Value, targetEntity.Value.ETag, TableUpdateMode.Replace);
+            await tableClient.UpdateEntityAsync(targetEntity.Value, targetEntity.Value.ETag, TableUpdateMode.Merge);
 
             return true;
         }
@@ -181,6 +181,7 @@ public class SeasonRepository : ISeasonRepository
     {
         var entity = new TableEntity(season.SeriesId, season.Id)
         {
+            { "SeriesId", season.SeriesId },
             { "Year", season.Year },
             { "Name", season.Name },
             { "IsActive", season.IsActive },
@@ -249,7 +250,7 @@ public class SeasonRepository : ISeasonRepository
 
             // Create/Update in the (new or same) partition
             var entity = MapToTableEntity(season);
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return season;
         }
         catch (RequestFailedException)

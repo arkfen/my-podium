@@ -134,7 +134,7 @@ public class DisciplineRepository : IDisciplineRepository
                 ["CreatedDate"] = DateTime.SpecifyKind(discipline.CreatedDate, DateTimeKind.Utc)
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return discipline;
         }
         catch (RequestFailedException)

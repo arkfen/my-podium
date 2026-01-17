@@ -130,6 +130,7 @@ public class SeriesRepository : ISeriesRepository
 
             var entity = new TableEntity(series.DisciplineId, series.Id)
             {
+                ["DisciplineId"] = series.DisciplineId,
                 ["Name"] = series.Name,
                 ["DisplayName"] = series.DisplayName,
                 ["GoverningBody"] = series.GoverningBody,
@@ -169,6 +170,7 @@ public class SeriesRepository : ISeriesRepository
             // Create/Update in the (new or same) partition
             var entity = new TableEntity(series.DisciplineId, series.Id)
             {
+                ["DisciplineId"] = series.DisciplineId,
                 ["Name"] = series.Name,
                 ["DisplayName"] = series.DisplayName,
                 ["GoverningBody"] = series.GoverningBody,
@@ -178,7 +180,7 @@ public class SeriesRepository : ISeriesRepository
                 ["CreatedDate"] = DateTime.SpecifyKind(series.CreatedDate, DateTimeKind.Utc)
             };
 
-            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Replace);
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
             return series;
         }
         catch (RequestFailedException)
