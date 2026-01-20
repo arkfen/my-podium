@@ -10,7 +10,6 @@ public interface ILeaderboardRepository
     Task<UserStatistics?> GetUserStatisticsAsync(string seasonId, string userId);
     Task<bool> UpsertUserStatisticsAsync(UserStatistics userStatistics);
     Task<List<string>> GetDistinctUserIdsForSeasonAsync(string seasonId);
-    Task<DateTime?> GetOldestLastUpdatedAsync(string seasonId);
     Task<int> CountUpdatedAfterAsync(string seasonId, DateTime timestamp);
 }
 
@@ -107,34 +106,6 @@ public class LeaderboardRepository : ILeaderboardRepository
         }
 
         return userIds.ToList();
-    }
-
-    public async Task<DateTime?> GetOldestLastUpdatedAsync(string seasonId)
-    {
-        var tableClient = _tableClientFactory.GetTableClient(TableName);
-        DateTime? oldestDate = null;
-
-        try
-        {
-            var filter = $"PartitionKey eq '{seasonId}'";
-            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
-            {
-                var lastUpdated = entity.GetDateTimeOffset("LastUpdated")?.UtcDateTime;
-                if (lastUpdated.HasValue)
-                {
-                    if (!oldestDate.HasValue || lastUpdated.Value < oldestDate.Value)
-                    {
-                        oldestDate = lastUpdated.Value;
-                    }
-                }
-            }
-        }
-        catch (RequestFailedException)
-        {
-            return null;
-        }
-
-        return oldestDate;
     }
 
     public async Task<int> CountUpdatedAfterAsync(string seasonId, DateTime timestamp)

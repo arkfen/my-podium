@@ -1346,10 +1346,13 @@ public static class AdminEndpoints
             [FromServices] IStatisticsRecalculationService recalculationService) =>
         {
             var job = await recalculationService.GetJobStatusAsync(jobId);
-            if (job == null)
-                return Results.NotFound(new { error = "Job not found" });
-
-            return Results.Ok(job);
+            
+            // Return 200 OK with status field instead of 404 to avoid console pollution
+            return Results.Ok(new 
+            { 
+                found = job != null,
+                job = job
+            });
         })
         .RequireAdmin()
         .WithName("GetStatisticsJobStatus");

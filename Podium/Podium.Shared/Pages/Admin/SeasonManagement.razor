@@ -25,11 +25,19 @@
     {
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            var isInfoMessage = errorMessage.StartsWith("?");
-            var alertClass = isInfoMessage ? "alert alert-info" : "alert alert-error";
+            var alertClass = "alert alert-error";
             <div class="@alertClass">
                 @errorMessage
                 <button class="btn btn-sm btn-secondary" @onclick="ClearError" style="margin-left: 10px;">Clear &times;</button>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            var alertClass = "alert alert-info";
+            <div class="@alertClass">
+                @successMessage
+                <button class="btn btn-sm btn-secondary" @onclick="ClearSuccess" style="margin-left: 10px;">Clear &times;</button>
             </div>
         }
 
@@ -252,6 +260,7 @@
     private bool showDeleteConfirm = false;
     private bool showSetActiveConfirm = false;
     private string errorMessage = "";
+    private string successMessage = "";
     private string formError = "";
     private string selectedDisciplineFilter = "";
     private string selectedSeriesFilter = "";
@@ -460,6 +469,11 @@
         errorMessage = "";
     }
 
+    private void ClearSuccess()
+    {
+        successMessage = "";
+    }
+
     private async Task SaveSeason()
     {
         if (string.IsNullOrWhiteSpace(formSeriesId))
@@ -543,7 +557,7 @@
                 // Check if series changed and season was active - show info message
                 if (seriesChanged && wasActive && !formIsActive)
                 {
-                    errorMessage = "? Season moved successfully but was deactivated to prevent duplicate active seasons. You can manually activate it using the 'Set Active' button.";
+                    successMessage = "ℹ️ Season moved successfully but was deactivated to prevent duplicate active seasons. You can manually activate it using the 'Set Active' button.";
                 }
             }
             else
@@ -658,11 +672,12 @@
 
         recalculatingSeasonId = season.Id;
         recalculationProgress = 0;
-        errorMessage = $"⏳ Starting statistics recalculation for {season.Name}...";
+        successMessage = $"⏳ Starting statistics recalculation for {season.Name}...";
+        errorMessage = "";
 
         try
         {
-            // Capture current timestamp as reference point
+            // Capture current timestamp as reference point (anything updated after this is from our job)
             statisticsBeforeTimestamp = DateTime.UtcNow.AddSeconds(-1);
 
             // Start the recalculation
@@ -671,21 +686,23 @@
             if (!response.Success || response.Data == null)
             {
                 errorMessage = response.Error ?? "Failed to start recalculation";
+                successMessage = "";
                 recalculatingSeasonId = null;
                 statisticsBeforeTimestamp = null;
                 return;
             }
 
             currentJobId = response.Data.JobId;
-            errorMessage = $"⏳ Recalculating statistics for {season.Name}... (0%)";
+            successMessage = $"⏳ Recalculating statistics for {season.Name}... (0%)";
             
-            // Start polling in background
+            // Start polling in background - wait 10 seconds before first poll
             pollingCancellation = new CancellationTokenSource();
             _ = Task.Run(async () => await PollRecalculationStatusAsync(pollingCancellation.Token));
         }
         catch (Exception ex)
         {
             errorMessage = $"Error starting recalculation: {ex.Message}";
+            successMessage = "";
             recalculatingSeasonId = null;
             statisticsBeforeTimestamp = null;
         }
@@ -695,13 +712,17 @@
     {
         try
         {
+            // Wait 10 seconds before first poll (minimum processing time illusion)
+            await Task.Delay(10000, cancellationToken);
+
             while (!cancellationToken.IsCancellationRequested && currentJobId != null && recalculatingSeasonId != null)
             {
                 try
                 {
                     var response = await ApiClient.GetStatisticsJobStatusAsync(currentJobId);
                     
-                    if (!response.Success)
+                    // Check if request was successful and job was found
+                    if (!response.Success || response.Data == null || !response.Data.Found || response.Data.Job == null)
                     {
                         // Job not found - fallback to checking if statistics were updated
                         if (statisticsBeforeTimestamp.HasValue)
@@ -711,11 +732,12 @@
                             if (verifyResponse.Success && verifyResponse.Data?.HasUpdates == true)
                             {
                                 // Statistics were updated, consider it successful
-                                errorMessage = $"✓ Statistics recalculation completed! Updated {verifyResponse.Data.UpdatedCount} user(s).";
+                                successMessage = $"✓ Statistics recalculation completed! Updated {verifyResponse.Data.UpdatedCount} user(s).";
+                                errorMessage = "";
                                 recalculatingSeasonId = null;
                                 currentJobId = null;
                                 statisticsBeforeTimestamp = null;
-                                recalculationProgress = 0;
+                                recalculationProgress = 100;
                                 await InvokeAsync(StateHasChanged);
                                 break;
                             }
@@ -726,14 +748,7 @@
                         continue;
                     }
 
-                    if (response.Data == null)
-                    {
-                        // No data and no success, keep trying
-                        await Task.Delay(10000, cancellationToken);
-                        continue;
-                    }
-
-                    var job = response.Data;
+                    var job = response.Data.Job;
                     
                     // Calculate progress percentage
                     if (job.TotalUsers > 0)
@@ -746,7 +761,8 @@
                     // Update message with progress
                     if (job.Status == "Running")
                     {
-                        errorMessage = $"⏳ Recalculating statistics for {seasonName}... ({recalculationProgress}% - {job.ProcessedUsers}/{job.TotalUsers} users)";
+                        successMessage = $"⏳ Recalculating statistics for {seasonName}... ({recalculationProgress}% - {job.ProcessedUsers}/{job.TotalUsers} users)";
+                        errorMessage = "";
                     }
 
                     await InvokeAsync(StateHasChanged);
@@ -754,17 +770,19 @@
                     // Check if completed or failed
                     if (job.Status == "Completed")
                     {
-                        errorMessage = $"✓ Statistics recalculation completed! Processed {job.ProcessedUsers} user(s).";
+                        successMessage = $"✓ Statistics recalculation completed! Processed {job.ProcessedUsers} user(s).";
+                        errorMessage = "";
                         recalculatingSeasonId = null;
                         currentJobId = null;
                         statisticsBeforeTimestamp = null;
-                        recalculationProgress = 0;
+                        recalculationProgress = 100;
                         await InvokeAsync(StateHasChanged);
                         break;
                     }
                     else if (job.Status == "Failed")
                     {
                         errorMessage = $"❌ Recalculation failed: {job.ErrorMessage ?? "Unknown error"}";
+                        successMessage = "";
                         recalculatingSeasonId = null;
                         currentJobId = null;
                         statisticsBeforeTimestamp = null;

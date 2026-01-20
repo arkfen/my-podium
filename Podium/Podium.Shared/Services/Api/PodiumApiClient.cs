@@ -106,7 +106,7 @@ public interface IPodiumApiClient
 
     // Admin - Statistics Recalculation
     Task<ApiResponse<RecalculationJobResponse>> StartStatisticsRecalculationAsync(string seasonId);
-    Task<ApiResponse<StatisticsRecalculationJob>> GetStatisticsJobStatusAsync(string jobId);
+    Task<ApiResponse<JobStatusResponse>> GetStatisticsJobStatusAsync(string jobId);
     Task<ApiResponse<StatisticsUpdateVerification>> VerifyStatisticsUpdatedAsync(string seasonId, DateTime afterTimestamp);
 
     // Admin - User Management
@@ -500,9 +500,9 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<RecalculationJobResponse>($"/api/admin/seasons/{seasonId}/recalculate-statistics", new { });
     }
 
-    public async Task<ApiResponse<StatisticsRecalculationJob>> GetStatisticsJobStatusAsync(string jobId)
+    public async Task<ApiResponse<JobStatusResponse>> GetStatisticsJobStatusAsync(string jobId)
     {
-        return await GetAsync<StatisticsRecalculationJob>($"/api/admin/statistics-jobs/{jobId}");
+        return await GetAsync<JobStatusResponse>($"/api/admin/statistics-jobs/{jobId}");
     }
 
     public async Task<ApiResponse<StatisticsUpdateVerification>> VerifyStatisticsUpdatedAsync(string seasonId, DateTime afterTimestamp)
@@ -698,5 +698,7 @@ public record UpdateUserRequest(string Username, string Email, bool IsActive);
 public record UserSearchResult(string UserId, string Email, string Username, bool IsActive);
 
 public record RecalculationJobResponse(string Message, string JobId);
+
+public record JobStatusResponse(bool Found, StatisticsRecalculationJob? Job);
 
 public record StatisticsUpdateVerification(int UpdatedCount, bool HasUpdates);
