@@ -107,6 +107,7 @@ public interface IPodiumApiClient
     // Admin - Statistics Recalculation
     Task<ApiResponse<RecalculationJobResponse>> StartStatisticsRecalculationAsync(string seasonId);
     Task<ApiResponse<StatisticsRecalculationJob>> GetStatisticsJobStatusAsync(string jobId);
+    Task<ApiResponse<StatisticsUpdateVerification>> VerifyStatisticsUpdatedAsync(string seasonId, DateTime afterTimestamp);
 
     // Admin - User Management
     Task<ApiResponse<List<User>>> GetAllUsersAsync();
@@ -504,6 +505,12 @@ public class PodiumApiClient : IPodiumApiClient
         return await GetAsync<StatisticsRecalculationJob>($"/api/admin/statistics-jobs/{jobId}");
     }
 
+    public async Task<ApiResponse<StatisticsUpdateVerification>> VerifyStatisticsUpdatedAsync(string seasonId, DateTime afterTimestamp)
+    {
+        var timestampStr = afterTimestamp.ToString("o");
+        return await GetAsync<StatisticsUpdateVerification>($"/api/admin/seasons/{seasonId}/statistics-updated?afterTimestamp={Uri.EscapeDataString(timestampStr)}");
+    }
+
     // Admin - User Management
     public async Task<ApiResponse<List<User>>> GetAllUsersAsync()
     {
@@ -691,3 +698,5 @@ public record UpdateUserRequest(string Username, string Email, bool IsActive);
 public record UserSearchResult(string UserId, string Email, string Username, bool IsActive);
 
 public record RecalculationJobResponse(string Message, string JobId);
+
+public record StatisticsUpdateVerification(int UpdatedCount, bool HasUpdates);

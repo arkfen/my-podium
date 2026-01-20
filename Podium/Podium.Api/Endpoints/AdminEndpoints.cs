@@ -1353,6 +1353,27 @@ public static class AdminEndpoints
         })
         .RequireAdmin()
         .WithName("GetStatisticsJobStatus");
+
+        // Verify statistics were updated after a timestamp (fallback when job not found)
+        group.MapGet("/seasons/{seasonId}/statistics-updated", async (
+            string seasonId,
+            [FromQuery] string? afterTimestamp,
+            [FromServices] ILeaderboardRepository leaderboardRepo) =>
+        {
+            if (string.IsNullOrEmpty(afterTimestamp) || !DateTime.TryParse(afterTimestamp, out var timestamp))
+            {
+                return Results.BadRequest(new { error = "Invalid timestamp" });
+            }
+
+            var updatedCount = await leaderboardRepo.CountUpdatedAfterAsync(seasonId, timestamp);
+            return Results.Ok(new 
+            { 
+                updatedCount = updatedCount,
+                hasUpdates = updatedCount > 0
+            });
+        })
+        .RequireAdmin()
+        .WithName("VerifyStatisticsUpdated");
     }
 }
 
