@@ -1316,6 +1316,43 @@ public static class AdminEndpoints
         })
         .RequireAdmin()
         .WithName("DeleteScoringRules");
+
+        // ===== STATISTICS RECALCULATION =====
+
+        // Trigger statistics recalculation for a season
+        group.MapPost("/seasons/{seasonId}/recalculate-statistics", async (
+            string seasonId,
+            [FromServices] IStatisticsRecalculationService recalculationService,
+            [FromServices] ISeasonRepository seasonRepo) =>
+        {
+            // Verify season exists
+            var season = await seasonRepo.GetSeasonByIdOnlyAsync(seasonId);
+            if (season == null)
+                return Results.BadRequest(new { error = "Season not found" });
+
+            var jobId = await recalculationService.StartRecalculationAsync(seasonId);
+            return Results.Ok(new 
+            { 
+                message = "Statistics recalculation started",
+                jobId = jobId
+            });
+        })
+        .RequireAdmin()
+        .WithName("RecalculateSeasonStatistics");
+
+        // Get statistics recalculation job status
+        group.MapGet("/statistics-jobs/{jobId}", async (
+            string jobId,
+            [FromServices] IStatisticsRecalculationService recalculationService) =>
+        {
+            var job = await recalculationService.GetJobStatusAsync(jobId);
+            if (job == null)
+                return Results.NotFound(new { error = "Job not found" });
+
+            return Results.Ok(job);
+        })
+        .RequireAdmin()
+        .WithName("GetStatisticsJobStatus");
     }
 }
 

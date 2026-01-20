@@ -104,6 +104,10 @@ public interface IPodiumApiClient
     Task<ApiResponse<ScoringRules>> GetScoringRulesAsync(string seasonId);
     Task<ApiResponse<MessageResponse>> UpdatePredictionPointsAsync(string eventId, string userId, int points);
 
+    // Admin - Statistics Recalculation
+    Task<ApiResponse<RecalculationJobResponse>> StartStatisticsRecalculationAsync(string seasonId);
+    Task<ApiResponse<StatisticsRecalculationJob>> GetStatisticsJobStatusAsync(string jobId);
+
     // Admin - User Management
     Task<ApiResponse<List<User>>> GetAllUsersAsync();
     Task<ApiResponse<List<UserSearchResult>>> SearchUsersAsync(string searchTerm);
@@ -489,6 +493,17 @@ public class PodiumApiClient : IPodiumApiClient
         return await PutAsync<MessageResponse>($"/api/admin/predictions/{eventId}/{userId}/points", new { points });
     }
 
+    // Admin - Statistics Recalculation
+    public async Task<ApiResponse<RecalculationJobResponse>> StartStatisticsRecalculationAsync(string seasonId)
+    {
+        return await PostAsync<RecalculationJobResponse>($"/api/admin/seasons/{seasonId}/recalculate-statistics", new { });
+    }
+
+    public async Task<ApiResponse<StatisticsRecalculationJob>> GetStatisticsJobStatusAsync(string jobId)
+    {
+        return await GetAsync<StatisticsRecalculationJob>($"/api/admin/statistics-jobs/{jobId}");
+    }
+
     // Admin - User Management
     public async Task<ApiResponse<List<User>>> GetAllUsersAsync()
     {
@@ -674,3 +689,5 @@ public record UpdatePointsRequest(int Points);
 public record UpdateUserRequest(string Username, string Email, bool IsActive);
 
 public record UserSearchResult(string UserId, string Email, string Username, bool IsActive);
+
+public record RecalculationJobResponse(string Message, string JobId);

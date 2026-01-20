@@ -7,6 +7,7 @@
 @inject AdminStateService AdminState
 @inject NavigationManager Navigation
 @inject IPodiumApiClient ApiClient
+@implements IDisposable
 
 <PageTitle>Manage Seasons - Admin</PageTitle>
 
@@ -196,6 +197,17 @@
                             <td>
                                 <button class="btn btn-sm btn-secondary" @onclick="() => EditSeason(season)">Edit</button>
                                 <button class="btn btn-sm btn-danger" @onclick="() => ConfirmDelete(season)">Delete</button>
+                                <button class="btn btn-sm btn-primary" @onclick="() => RecalculateStatistics(season)" 
+                                        disabled="@(recalculatingSeasonId == season.Id)">
+                                    @if (recalculatingSeasonId == season.Id)
+                                    {
+                                        @($"Recalc... {recalculationProgress}%")
+                                    }
+                                    else
+                                    {
+                                        @("Recalc Stats")
+                                    }
+                                </button>
                             </td>
                         </tr>
                     }
@@ -245,6 +257,12 @@
     private string selectedSeriesFilter = "";
     private string deleteConfirmMessage = "";
     private string setActiveConfirmMessage = "";
+    
+    // Recalculation state
+    private string? recalculatingSeasonId = null;
+    private string? currentJobId = null;
+    private int recalculationProgress = 0;
+    private System.Threading.Timer? pollTimer = null;
 
     private Season? editingSeason = null;
     private Season? seasonToDelete = null;
@@ -627,5 +645,98 @@
         }
         
         seasonToSetActive = null;
+    }
+
+    private async Task RecalculateStatistics(Season season)
+    {
+        if (recalculatingSeasonId != null)
+        {
+            errorMessage = "Another recalculation is already in progress";
+            return;
+        }
+
+        recalculatingSeasonId = season.Id;
+        recalculationProgress = 0;
+        errorMessage = $"? Starting statistics recalculation for {season.Name}...";
+
+        try
+        {
+            // Start the recalculation
+            var response = await ApiClient.StartStatisticsRecalculationAsync(season.Id);
+            
+            if (!response.Success || response.Data == null)
+            {
+                errorMessage = response.Error ?? "Failed to start recalculation";
+                recalculatingSeasonId = null;
+                return;
+            }
+
+            currentJobId = response.Data.JobId;
+            
+            // Start polling every 10 seconds
+            pollTimer = new System.Threading.Timer(async _ => await PollRecalculationStatus(), null, 0, 10000);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error starting recalculation: {ex.Message}";
+            recalculatingSeasonId = null;
+        }
+    }
+
+    private async Task PollRecalculationStatus()
+    {
+        if (currentJobId == null) return;
+
+        try
+        {
+            var response = await ApiClient.GetStatisticsJobStatusAsync(currentJobId);
+            
+            if (!response.Success || response.Data == null)
+            {
+                return;
+            }
+
+            var job = response.Data;
+            
+            // Calculate progress percentage
+            if (job.TotalUsers > 0)
+            {
+                recalculationProgress = (job.ProcessedUsers * 100) / job.TotalUsers;
+            }
+
+            await InvokeAsync(StateHasChanged);
+
+            // Check if completed or failed
+            if (job.Status == "Completed")
+            {
+                pollTimer?.Dispose();
+                pollTimer = null;
+                errorMessage = $"? Statistics recalculation completed! Processed {job.ProcessedUsers} users.";
+                recalculatingSeasonId = null;
+                currentJobId = null;
+                recalculationProgress = 0;
+                await InvokeAsync(StateHasChanged);
+            }
+            else if (job.Status == "Failed")
+            {
+                pollTimer?.Dispose();
+                pollTimer = null;
+                errorMessage = $"Recalculation failed: {job.ErrorMessage ?? "Unknown error"}";
+                recalculatingSeasonId = null;
+                currentJobId = null;
+                recalculationProgress = 0;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Don't stop polling on transient errors
+            Console.WriteLine($"Error polling status: {ex.Message}");
+        }
+    }
+
+    public void Dispose()
+    {
+        pollTimer?.Dispose();
     }
 }

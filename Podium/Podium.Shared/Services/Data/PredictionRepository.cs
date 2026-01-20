@@ -9,6 +9,7 @@ public interface IPredictionRepository
     Task<Prediction?> GetPredictionAsync(string eventId, string userId);
     Task<List<Prediction>> GetPredictionsByEventAsync(string eventId);
     Task<List<Prediction>> GetPredictionsByUserAndSeasonAsync(string userId, string seasonId, List<string> eventIds);
+    Task<List<Prediction>> GetAllPredictionsForSeasonAsync(string seasonId, List<string> eventIds);
     Task<bool> SavePredictionAsync(Prediction prediction);
     Task<Prediction?> UpdatePredictionAsync(Prediction prediction);
 }
@@ -76,6 +77,31 @@ public class PredictionRepository : IPredictionRepository
                 catch (RequestFailedException)
                 {
                     // No prediction for this event, continue
+                }
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return predictions;
+        }
+
+        return predictions;
+    }
+
+    public async Task<List<Prediction>> GetAllPredictionsForSeasonAsync(string seasonId, List<string> eventIds)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        var predictions = new List<Prediction>();
+
+        try
+        {
+            // Query predictions for each event in the season
+            foreach (var eventId in eventIds)
+            {
+                var filter = $"PartitionKey eq '{eventId}'";
+                await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+                {
+                    predictions.Add(MapToPrediction(entity));
                 }
             }
         }

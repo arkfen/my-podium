@@ -8,6 +8,8 @@ public interface ILeaderboardRepository
 {
     Task<List<UserStatistics>> GetLeaderboardBySeasonAsync(string seasonId);
     Task<UserStatistics?> GetUserStatisticsAsync(string seasonId, string userId);
+    Task<bool> UpsertUserStatisticsAsync(UserStatistics userStatistics);
+    Task<List<string>> GetDistinctUserIdsForSeasonAsync(string seasonId);
 }
 
 public class LeaderboardRepository : ILeaderboardRepository
@@ -54,6 +56,55 @@ public class LeaderboardRepository : ILeaderboardRepository
         {
             return null;
         }
+    }
+
+    public async Task<bool> UpsertUserStatisticsAsync(UserStatistics userStatistics)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            var entity = new TableEntity(userStatistics.SeasonId, userStatistics.UserId)
+            {
+                ["SeasonId"] = userStatistics.SeasonId,
+                ["UserId"] = userStatistics.UserId,
+                ["Username"] = userStatistics.Username,
+                ["TotalPoints"] = userStatistics.TotalPoints,
+                ["PredictionsCount"] = userStatistics.PredictionsCount,
+                ["ExactMatches"] = userStatistics.ExactMatches,
+                ["OneOffMatches"] = userStatistics.OneOffMatches,
+                ["TwoOffMatches"] = userStatistics.TwoOffMatches,
+                ["LastUpdated"] = DateTime.SpecifyKind(userStatistics.LastUpdated, DateTimeKind.Utc)
+            };
+
+            await tableClient.UpsertEntityAsync(entity, TableUpdateMode.Merge);
+            return true;
+        }
+        catch (RequestFailedException)
+        {
+            return false;
+        }
+    }
+
+    public async Task<List<string>> GetDistinctUserIdsForSeasonAsync(string seasonId)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+        var userIds = new HashSet<string>();
+
+        try
+        {
+            var filter = $"PartitionKey eq '{seasonId}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter, select: new[] { "RowKey" }))
+            {
+                userIds.Add(entity.RowKey);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return userIds.ToList();
+        }
+
+        return userIds.ToList();
     }
 
     private static UserStatistics MapToUserStatistics(TableEntity entity)

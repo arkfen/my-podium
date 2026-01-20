@@ -80,9 +80,11 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ILeaderboardRepository, LeaderboardRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IScoringRulesRepository, ScoringRulesRepository>();
+builder.Services.AddScoped<IStatisticsJobRepository, StatisticsJobRepository>();
 
 // Register business services
 builder.Services.AddScoped<IScoringService, ScoringService>();
+builder.Services.AddScoped<IStatisticsRecalculationService, StatisticsRecalculationService>();
 
 // Register authentication services with email callback
 builder.Services.AddScoped<IAuthenticationService>(sp =>
