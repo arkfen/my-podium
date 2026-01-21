@@ -86,86 +86,107 @@
         </div>
 
         <div class="predictions-list">
-            @foreach (var (pred, index) in filteredPredictions.Select((p, i) => (p, i)))
+            @{
+                var groupedPredictions = filteredPredictions
+                    .GroupBy(p => new { p.SeasonId, p.SeasonName, p.SeasonYear, p.SeriesDisplayName })
+                    .OrderByDescending(g => g.Key.SeasonYear)
+                    .ThenBy(g => g.Key.SeriesDisplayName);
+            }
+
+            @foreach (var seasonGroup in groupedPredictions)
             {
-                <div class="prediction-card">
-                    <div class="prediction-header">
-                        <div class="prediction-info">
-                            <span class="prediction-number">#@(totalPredictions - index)</span>
-                            <div class="event-info">
-                                <h3>@pred.EventDisplayName</h3>
-                                <div class="event-details">
-                                    <span class="discipline-badge">@pred.DisciplineDisplayName</span>
-                                    <span class="series-badge">@pred.SeriesDisplayName</span>
-                                    <span class="season-badge">@pred.SeasonName @(!pred.SeasonIsActive ? " (Inactive)" : "")</span>
+                <div class="season-group">
+                    <h2 class="season-header">@seasonGroup.Key.SeriesDisplayName - @seasonGroup.Key.SeasonName</h2>
+                    
+                    @{
+                        var seasonPredictions = seasonGroup.OrderByDescending(p => p.SubmittedDate).ToList();
+                        var seasonCount = seasonPredictions.Count;
+                    }
+
+                    @foreach (var (pred, index) in seasonPredictions.Select((p, i) => (p, i)))
+                    {
+                        <div class="prediction-card">
+                            <div class="prediction-header">
+                                <div class="prediction-info">
+                                    <span class="prediction-number">#@(seasonCount - index)</span>
+                                    <div class="event-info">
+                                        <h3>@pred.EventDisplayName</h3>
+                                        <div class="event-details">
+                                            <span class="discipline-badge">@pred.DisciplineDisplayName</span>
+                                            @if (!pred.SeasonIsActive)
+                                            {
+                                                <span class="inactive-badge">Inactive Season</span>
+                                            }
+                                        </div>
+                                        <div class="event-meta">
+                                            <span>Location: @pred.EventLocation</span>
+                                            <span>Date: @pred.EventDate.ToString("MMM dd, yyyy")</span>
+                                            <span class="event-status @pred.EventStatus.ToLower()">@pred.EventStatus</span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="event-meta">
-                                    <span><span class="icon-location"></span> @pred.EventLocation</span>
-                                    <span><span class="icon-calendar"></span> @pred.EventDate.ToString("MMM dd, yyyy")</span>
-                                    <span class="event-status @pred.EventStatus.ToLower()">@pred.EventStatus</span>
+                                @if (pred.PointsEarned.HasValue)
+                                {
+                                    <span class="points-badge">@pred.PointsEarned pts</span>
+                                }
+                                else
+                                {
+                                    <span class="pending-badge">Pending</span>
+                                }
+                            </div>
+
+                            <div class="prediction-content">
+                                <div class="prediction-section">
+                                    <h4>Your Prediction</h4>
+                                    <div class="prediction-podium">
+                                        <div class="prediction-position">
+                                            <span class="medal gold">1st</span>
+                                            <span>@pred.FirstPlaceName</span>
+                                        </div>
+                                        <div class="prediction-position">
+                                            <span class="medal silver">2nd</span>
+                                            <span>@pred.SecondPlaceName</span>
+                                        </div>
+                                        <div class="prediction-position">
+                                            <span class="medal bronze">3rd</span>
+                                            <span>@pred.ThirdPlaceName</span>
+                                        </div>
+                                    </div>
                                 </div>
+
+                                @if (pred.EventStatus == "Completed" && !string.IsNullOrEmpty(pred.ActualFirstPlaceName))
+                                {
+                                    <div class="prediction-section actual-results">
+                                        <h4>Actual Results</h4>
+                                        <div class="actual-podium">
+                                            <div class="actual-position">
+                                                <span class="medal gold small">1st</span>
+                                                <span class="@(pred.FirstPlaceId == pred.ActualFirstPlaceId ? "correct" : "")">
+                                                    @pred.ActualFirstPlaceName
+                                                </span>
+                                            </div>
+                                            <div class="actual-position">
+                                                <span class="medal silver small">2nd</span>
+                                                <span class="@(pred.SecondPlaceId == pred.ActualSecondPlaceId ? "correct" : "")">
+                                                    @pred.ActualSecondPlaceName
+                                                </span>
+                                            </div>
+                                            <div class="actual-position">
+                                                <span class="medal bronze small">3rd</span>
+                                                <span class="@(pred.ThirdPlaceId == pred.ActualThirdPlaceId ? "correct" : "")">
+                                                    @pred.ActualThirdPlaceName
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="prediction-footer">
+                                <small>Submitted: @pred.SubmittedDate.ToString("MMM dd, yyyy HH:mm")</small>
                             </div>
                         </div>
-                        @if (pred.PointsEarned.HasValue)
-                        {
-                            <span class="points-badge">@pred.PointsEarned pts</span>
-                        }
-                        else
-                        {
-                            <span class="pending-badge">Pending</span>
-                        }
-                    </div>
-
-                    <div class="prediction-content">
-                        <div class="prediction-section">
-                            <h4>Your Prediction</h4>
-                            <div class="prediction-podium">
-                                <div class="prediction-position">
-                                    <span class="medal gold">1st</span>
-                                    <span>@pred.FirstPlaceName</span>
-                                </div>
-                                <div class="prediction-position">
-                                    <span class="medal silver">2nd</span>
-                                    <span>@pred.SecondPlaceName</span>
-                                </div>
-                                <div class="prediction-position">
-                                    <span class="medal bronze">3rd</span>
-                                    <span>@pred.ThirdPlaceName</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        @if (pred.EventStatus == "Completed" && !string.IsNullOrEmpty(pred.ActualFirstPlaceName))
-                        {
-                            <div class="prediction-section actual-results">
-                                <h4>Actual Results</h4>
-                                <div class="actual-podium">
-                                    <div class="actual-position">
-                                        <span class="medal gold small">1st</span>
-                                        <span class="@(pred.FirstPlaceId == pred.ActualFirstPlaceId ? "correct" : "")">
-                                            @pred.ActualFirstPlaceName
-                                        </span>
-                                    </div>
-                                    <div class="actual-position">
-                                        <span class="medal silver small">2nd</span>
-                                        <span class="@(pred.SecondPlaceId == pred.ActualSecondPlaceId ? "correct" : "")">
-                                            @pred.ActualSecondPlaceName
-                                        </span>
-                                    </div>
-                                    <div class="actual-position">
-                                        <span class="medal bronze small">3rd</span>
-                                        <span class="@(pred.ThirdPlaceId == pred.ActualThirdPlaceId ? "correct" : "")">
-                                            @pred.ActualThirdPlaceName
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        }
-                    </div>
-
-                    <div class="prediction-footer">
-                        <small>Submitted: @pred.SubmittedDate.ToString("MMM dd, yyyy HH:mm")</small>
-                    </div>
+                    }
                 </div>
             }
         </div>
@@ -210,6 +231,20 @@
         display: grid;
         gap: 1.5rem;
         margin-top: 2rem;
+    }
+
+    .season-group {
+        display: grid;
+        gap: 1.5rem;
+    }
+
+    .season-header {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin: 0 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid var(--primary-color);
     }
 
     .prediction-card {
@@ -259,7 +294,8 @@
 
     .discipline-badge,
     .series-badge,
-    .season-badge {
+    .season-badge,
+    .inactive-badge {
         font-size: 0.85rem;
         padding: 0.25rem 0.6rem;
         border-radius: 12px;
@@ -281,6 +317,11 @@
         color: #e65100;
     }
 
+    .inactive-badge {
+        background: #ffebee;
+        color: #c62828;
+    }
+
     .event-meta {
         display: flex;
         gap: 1rem;
@@ -294,25 +335,6 @@
         display: flex;
         align-items: center;
         gap: 0.3rem;
-    }
-
-    /* Icon styles */
-    .icon-location,
-    .icon-calendar {
-        display: inline-block;
-        width: 14px;
-        height: 14px;
-        position: relative;
-    }
-
-    .icon-location::before {
-        content: '??';
-        font-size: 14px;
-    }
-
-    .icon-calendar::before {
-        content: '??';
-        font-size: 14px;
     }
 
     /* Medal styles */
