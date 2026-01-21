@@ -113,9 +113,11 @@
                                         <h3>@pred.EventDisplayName</h3>
                                         <div class="event-details">
                                             <span class="discipline-badge">@pred.DisciplineDisplayName</span>
+                                            <span class="series-badge">@pred.SeriesDisplayName</span>
+                                            <span class="season-badge">@pred.SeasonName</span>
                                             @if (!pred.SeasonIsActive)
                                             {
-                                                <span class="inactive-badge">Inactive Season</span>
+                                                <span class="inactive-badge">Inactive</span>
                                             }
                                         </div>
                                         <div class="event-meta">
