@@ -30,6 +30,7 @@ public interface IPodiumApiClient
     Task<ApiResponse<List<Prediction>>> GetEventPredictionsAsync(string eventId);
     Task<ApiResponse<List<Prediction>>> GetUserSeasonPredictionsAsync(string userId, string seasonId);
     Task<ApiResponse<List<Prediction>>> GetUserActiveSeasonsPredictionsAsync(string userId);
+    Task<ApiResponse<List<PredictionWithDetails>>> GetUserPredictionsWithDetailsAsync(string userId, string? seasonId = null, string? seriesId = null, string? disciplineId = null, bool includeInactive = false);
     Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request);
 
     // Leaderboard
@@ -224,6 +225,18 @@ public class PodiumApiClient : IPodiumApiClient
     public async Task<ApiResponse<List<Prediction>>> GetUserActiveSeasonsPredictionsAsync(string userId)
     {
         return await GetAsync<List<Prediction>>($"/api/predictions/user/{userId}/active-seasons");
+    }
+
+    public async Task<ApiResponse<List<PredictionWithDetails>>> GetUserPredictionsWithDetailsAsync(string userId, string? seasonId = null, string? seriesId = null, string? disciplineId = null, bool includeInactive = false)
+    {
+        var queryParams = new List<string>();
+        if (!string.IsNullOrEmpty(seasonId)) queryParams.Add($"seasonId={seasonId}");
+        if (!string.IsNullOrEmpty(seriesId)) queryParams.Add($"seriesId={seriesId}");
+        if (!string.IsNullOrEmpty(disciplineId)) queryParams.Add($"disciplineId={disciplineId}");
+        if (includeInactive) queryParams.Add("includeInactive=true");
+        
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        return await GetAsync<List<PredictionWithDetails>>($"/api/predictions/user/{userId}/details{queryString}");
     }
 
     public async Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request)
