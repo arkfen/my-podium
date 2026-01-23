@@ -6,113 +6,150 @@
 <div class="page-container">
     <h1><span class="trophy-icon">&#127942;</span> Leaderboard</h1>
 
-    @if (isLoading)
+    @if (isLoadingInitial)
     {
         <div class="loading-spinner">
-            <p>Loading leaderboard...</p>
+            <p>Loading...</p>
         </div>
     }
     else if (!string.IsNullOrEmpty(errorMessage))
     {
         <div class="alert alert-danger">@errorMessage</div>
     }
-    else if (selectedSeasonId == null)
-    {
-        <div class="alert alert-info">
-            <p>Select a series to view its leaderboard.</p>
-            <a href="/disciplines" class="btn btn-primary">Browse Disciplines</a>
-        </div>
-    }
-    else if (leaderboard.Count == 0)
-    {
-        <div class="alert alert-info">
-            No predictions have been made yet for this season.
-        </div>
-    }
     else
     {
-        <div class="leaderboard-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Player</th>
-                        <th>Points</th>
-                        <th>Predictions</th>
-                        <th>Exact</th>
-                        <th>1 Off</th>
-                        <th>2 Off</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @{int rank = 0;}
-                    @foreach (var entry in leaderboard)
+        <div class="leaderboard-filters">
+            <div class="filter-group">
+                <label for="discipline-select">Discipline:</label>
+                <select id="discipline-select" @bind="selectedDisciplineId" @bind:after="OnDisciplineChanged">
+                    <option value="">-- Select Discipline --</option>
+                    @foreach (var discipline in disciplines)
                     {
-                        rank++;
-                        <tr>
-                            <td>
-                                <span class="rank-badge @GetRankClass(rank)">@rank</span>
-                            </td>
-                            <td><strong>@entry.Username</strong></td>
-                            <td><strong>@entry.TotalPoints</strong></td>
-                            <td>@entry.PredictionsCount</td>
-                            <td>@entry.ExactMatches</td>
-                            <td>@entry.OneOffMatches</td>
-                            <td>@entry.TwoOffMatches</td>
-                        </tr>
+                        <option value="@discipline.Id">@discipline.DisplayName</option>
                     }
-                </tbody>
-            </table>
+                </select>
+            </div>
+
+            @if (!string.IsNullOrEmpty(selectedDisciplineId) && series.Count > 0)
+            {
+                <div class="filter-group">
+                    <label for="series-select">Series:</label>
+                    <select id="series-select" @bind="selectedSeriesId" @bind:after="OnSeriesChanged">
+                        <option value="">-- Select Series --</option>
+                        @foreach (var s in series)
+                        {
+                            <option value="@s.Id">@s.DisplayName</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(selectedSeriesId) && seasons.Count > 0)
+            {
+                <div class="filter-group">
+                    <label for="season-select">Season:</label>
+                    <select id="season-select" @bind="selectedSeasonId" @bind:after="OnSeasonChanged">
+                        <option value="">-- Select Season --</option>
+                        @foreach (var season in seasons)
+                        {
+                            <option value="@season.Id">@season.Name (@season.Year)</option>
+                        }
+                    </select>
+                </div>
+            }
         </div>
+
+        @if (isLoadingLeaderboard)
+        {
+            <div class="loading-spinner">
+                <p>Loading leaderboard...</p>
+            </div>
+        }
+        else if (string.IsNullOrEmpty(selectedSeasonId))
+        {
+            <div class="alert alert-info">
+                <p>Please select a discipline, series, and season to view the leaderboard.</p>
+            </div>
+        }
+        else if (leaderboard.Count == 0)
+        {
+            <div class="alert alert-info">
+                No predictions have been made yet for this season.
+            </div>
+        }
+        else
+        {
+            <div class="leaderboard-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Points</th>
+                            <th>Predictions</th>
+                            <th>Exact</th>
+                            <th>1 Off</th>
+                            <th>2 Off</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{int rank = 0;}
+                        @foreach (var entry in leaderboard)
+                        {
+                            rank++;
+                            <tr>
+                                <td>
+                                    <span class="rank-badge @GetRankClass(rank)">@rank</span>
+                                </td>
+                                <td><strong>@entry.Username</strong></td>
+                                <td><strong>@entry.TotalPoints</strong></td>
+                                <td>@entry.PredictionsCount</td>
+                                <td>@entry.ExactMatches</td>
+                                <td>@entry.OneOffMatches</td>
+                                <td>@entry.TwoOffMatches</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
     }
 </div>
 
 @code {
     private List<UserStatistics> leaderboard = new();
+    private List<Discipline> disciplines = new();
+    private List<Series> series = new();
+    private List<Season> seasons = new();
+    
+    private string? selectedDisciplineId;
+    private string? selectedSeriesId;
     private string? selectedSeasonId;
-    private bool isLoading = true;
+    
+    private bool isLoadingInitial = true;
+    private bool isLoadingLeaderboard = false;
     private string? errorMessage;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadLeaderboard();
+        await LoadDisciplines();
     }
 
-    private async Task LoadLeaderboard()
+    private async Task LoadDisciplines()
     {
-        isLoading = true;
+        isLoadingInitial = true;
         errorMessage = null;
 
         try
         {
-            // Get first active season for leaderboard
-            // In a real app, you'd let users select which season to view
             var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
-            if (disciplinesResponse.Success && disciplinesResponse.Data != null && disciplinesResponse.Data.Any())
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null)
             {
-                var discipline = disciplinesResponse.Data.First();
-                var seriesResponse = await ApiClient.GetSeriesAsync(discipline.Id);
-                
-                if (seriesResponse.Success && seriesResponse.Data != null && seriesResponse.Data.Any())
-                {
-                    var series = seriesResponse.Data.First();
-                    var seasonResponse = await ApiClient.GetActiveSeasonAsync(series.Id);
-                    
-                    if (seasonResponse.Success && seasonResponse.Data != null)
-                    {
-                        selectedSeasonId = seasonResponse.Data.Id;
-                        var leaderboardResponse = await ApiClient.GetLeaderboardAsync(selectedSeasonId);
-                        
-                        if (leaderboardResponse.Success && leaderboardResponse.Data != null)
-                        {
-                            leaderboard = leaderboardResponse.Data;
-                        }
-                        else
-                        {
-                            errorMessage = leaderboardResponse.Error ?? "Failed to load leaderboard.";
-                        }
-                    }
-                }
+                disciplines = disciplinesResponse.Data;
+            }
+            else
+            {
+                errorMessage = disciplinesResponse.Error ?? "Failed to load disciplines.";
             }
         }
         catch (Exception ex)
@@ -121,7 +158,101 @@
         }
         finally
         {
-            isLoading = false;
+            isLoadingInitial = false;
+        }
+    }
+
+    private async Task OnDisciplineChanged()
+    {
+        selectedSeriesId = null;
+        selectedSeasonId = null;
+        series.Clear();
+        seasons.Clear();
+        leaderboard.Clear();
+
+        if (string.IsNullOrEmpty(selectedDisciplineId))
+            return;
+
+        try
+        {
+            var seriesResponse = await ApiClient.GetSeriesAsync(selectedDisciplineId);
+            if (seriesResponse.Success && seriesResponse.Data != null)
+            {
+                series = seriesResponse.Data;
+            }
+            else
+            {
+                errorMessage = seriesResponse.Error ?? "Failed to load series.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task OnSeriesChanged()
+    {
+        selectedSeasonId = null;
+        seasons.Clear();
+        leaderboard.Clear();
+
+        if (string.IsNullOrEmpty(selectedSeriesId))
+            return;
+
+        try
+        {
+            var seasonsResponse = await ApiClient.GetSeasonsAsync(selectedSeriesId);
+            if (seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                seasons = seasonsResponse.Data;
+            }
+            else
+            {
+                errorMessage = seasonsResponse.Error ?? "Failed to load seasons.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task OnSeasonChanged()
+    {
+        leaderboard.Clear();
+
+        if (string.IsNullOrEmpty(selectedSeasonId))
+            return;
+
+        await LoadLeaderboard();
+    }
+
+    private async Task LoadLeaderboard()
+    {
+        isLoadingLeaderboard = true;
+        errorMessage = null;
+
+        try
+        {
+            var leaderboardResponse = await ApiClient.GetLeaderboardAsync(selectedSeasonId!);
+            
+            if (leaderboardResponse.Success && leaderboardResponse.Data != null)
+            {
+                leaderboard = leaderboardResponse.Data;
+            }
+            else
+            {
+                errorMessage = leaderboardResponse.Error ?? "Failed to load leaderboard.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingLeaderboard = false;
         }
     }
 
@@ -136,3 +267,111 @@
         };
     }
 }
+
+<style>
+    .leaderboard-filters {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 200px;
+        flex: 1;
+    }
+
+    .filter-group label {
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+    }
+
+    .filter-group select {
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        background: white;
+        cursor: pointer;
+        transition: border-color 0.2s;
+    }
+
+    .filter-group select:hover {
+        border-color: #999;
+    }
+
+    .filter-group select:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .leaderboard-table {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        overflow-x: auto;
+    }
+
+    .leaderboard-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .leaderboard-table th {
+        background: #f8f9fa;
+        padding: 15px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .leaderboard-table td {
+        padding: 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .leaderboard-table tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .rank-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .rank-badge.rank-1 {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+        color: white;
+    }
+
+    .rank-badge.rank-2 {
+        background: linear-gradient(135deg, #C0C0C0, #A8A8A8);
+        color: white;
+    }
+
+    .rank-badge.rank-3 {
+        background: linear-gradient(135deg, #CD7F32, #A0522D);
+        color: white;
+    }
+
+    .trophy-icon {
+        font-size: 1.2em;
+        margin-right: 8px;
+    }
+</style>
