@@ -113,18 +113,20 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
 
                     totalPoints += prediction.PointsEarned.Value;
 
-                    // Determine match type based on points
-                    if (prediction.PointsEarned.Value == exactMatchPoints)
+                    // Get the event result to calculate match types per driver
+                    var eventId = prediction.EventId;
+                    var eventResult = await _eventRepository.GetEventResultAsync(eventId);
+                    
+                    if (eventResult != null)
                     {
-                        exactMatches++;
-                    }
-                    else if (prediction.PointsEarned.Value == oneOffPoints)
-                    {
-                        oneOffMatches++;
-                    }
-                    else if (prediction.PointsEarned.Value == twoOffPoints)
-                    {
-                        twoOffMatches++;
+                        // Count matches per driver position
+                        var matches = CalculateMatchesPerDriver(
+                            prediction.FirstPlaceName, prediction.SecondPlaceName, prediction.ThirdPlaceName,
+                            eventResult.FirstPlaceName, eventResult.SecondPlaceName, eventResult.ThirdPlaceName);
+                        
+                        exactMatches += matches.ExactMatches;
+                        oneOffMatches += matches.OneOffMatches;
+                        twoOffMatches += matches.TwoOffMatches;
                     }
                 }
 
@@ -175,5 +177,67 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
                 await _jobRepository.UpdateJobAsync(job);
             }
         }
+    }
+
+    private (int ExactMatches, int OneOffMatches, int TwoOffMatches) CalculateMatchesPerDriver(
+        string predictedP1, string predictedP2, string predictedP3,
+        string actualP1, string actualP2, string actualP3)
+    {
+        int exactMatches = 0;
+        int oneOffMatches = 0;
+        int twoOffMatches = 0;
+
+        // Normalize names for comparison
+        var predicted = new[] { 
+            predictedP1?.Trim() ?? "", 
+            predictedP2?.Trim() ?? "", 
+            predictedP3?.Trim() ?? "" 
+        };
+        var actual = new[] { 
+            actualP1?.Trim() ?? "", 
+            actualP2?.Trim() ?? "", 
+            actualP3?.Trim() ?? "" 
+        };
+
+        // Check each predicted driver
+        for (int predPos = 0; predPos < 3; predPos++)
+        {
+            if (string.IsNullOrWhiteSpace(predicted[predPos]))
+                continue;
+
+            // Find where this driver actually finished
+            int actualPos = -1;
+            for (int i = 0; i < 3; i++)
+            {
+                if (string.Equals(predicted[predPos], actual[i], StringComparison.OrdinalIgnoreCase))
+                {
+                    actualPos = i;
+                    break;
+                }
+            }
+
+            // If driver not in podium, no match
+            if (actualPos == -1)
+                continue;
+
+            // Calculate position difference
+            int positionDiff = Math.Abs(predPos - actualPos);
+
+            // Count match type based on position accuracy
+            if (positionDiff == 0)
+            {
+                exactMatches++;
+            }
+            else if (positionDiff == 1)
+            {
+                oneOffMatches++;
+            }
+            else if (positionDiff == 2)
+            {
+                twoOffMatches++;
+            }
+        }
+
+        return (exactMatches, oneOffMatches, twoOffMatches);
     }
 }
