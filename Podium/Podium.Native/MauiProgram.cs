@@ -26,7 +26,7 @@ namespace Podium.Native
             // Development configuration
             var appConfig = new AppConfiguration 
             { 
-                ApiBaseUrl = "https://localhost:50242",  // Use 10.0.2.2:50242 for Android emulator
+                ApiBaseUrl = "https://localhost:50001",  // Use 10.0.2.2:50001 for Android emulator
                 IsDevelopment = true
             };
 #else

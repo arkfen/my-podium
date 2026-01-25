@@ -10,7 +10,7 @@ builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
 // Configure app settings
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:50242";
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"] ?? "https://localhost:50001";
 var isDevelopment = builder.HostEnvironment.IsDevelopment();
 
 var appConfig = new AppConfiguration 

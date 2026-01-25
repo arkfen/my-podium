@@ -8,6 +8,6 @@ public interface IAppConfiguration
 
 public class AppConfiguration : IAppConfiguration
 {
-    public string ApiBaseUrl { get; set; } = "https://localhost:50242";
+    public string ApiBaseUrl { get; set; } = "https://localhost:50001";
     public bool IsDevelopment { get; set; } = true;
 }
