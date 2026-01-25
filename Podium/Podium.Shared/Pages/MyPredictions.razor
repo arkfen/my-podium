@@ -98,8 +98,10 @@
                 <div class="season-group">
                     <h2 class="season-header">@seasonGroup.Key.SeriesDisplayName - @seasonGroup.Key.SeasonName</h2>
                     
+                    
+                    
                     @{
-                        var seasonPredictions = seasonGroup.OrderByDescending(p => p.SubmittedDate).ToList();
+                        var seasonPredictions = seasonGroup.OrderByDescending(p => p.EventDate).ToList();
                         var seasonCount = seasonPredictions.Count;
                     }
 
