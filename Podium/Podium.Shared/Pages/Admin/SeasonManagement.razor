@@ -222,6 +222,9 @@
                                         @("Recalc Stats")
                                     }
                                 </button>
+                                <button class="btn btn-sm btn-info" @onclick="() => ShowCompetitors(season)">
+                                    Show Competitors
+                                </button>
                             </td>
                         </tr>
                     }
@@ -820,6 +823,12 @@
             pollingCancellation?.Dispose();
             pollingCancellation = null;
         }
+    }
+
+    private void ShowCompetitors(Season season)
+    {
+        // Navigate to competitors admin page with season filter
+        Navigation.NavigateTo($"/admin/competitors/{season.Id}");
     }
 
     public void Dispose()
