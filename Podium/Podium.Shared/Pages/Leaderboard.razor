@@ -1,5 +1,7 @@
 @page "/leaderboard"
+@using Podium.Shared.Services.State
 @inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
 
 <PageTitle>Leaderboard - Podium</PageTitle>
 
@@ -133,22 +135,22 @@
             else if (lastEventResult != null)
             {
                 <div class="last-event-section">
-                    <h2><span style="font-size: 1.1em;">??</span> Last Completed Event: @lastEventResult.EventName</h2>
+                    <h2><span class="flag-icon">&#127937;</span> Last Completed Event: @lastEventResult.EventName</h2>
                     <p class="event-date">@lastEventResult.EventDate.ToShortDateString()</p>
 
                     <div class="actual-result-box">
                         <h3>Actual Podium Result</h3>
                         <div class="podium-display">
                             <div class="podium-position position-1">
-                                <div class="position-label">?? 1st</div>
+                                <div class="position-label"><span class="medal-icon">&#129351;</span> 1st</div>
                                 <div class="competitor-name">@lastEventResult.FirstPlaceName</div>
                             </div>
                             <div class="podium-position position-2">
-                                <div class="position-label">?? 2nd</div>
+                                <div class="position-label"><span class="medal-icon">&#129352;</span> 2nd</div>
                                 <div class="competitor-name">@lastEventResult.SecondPlaceName</div>
                             </div>
                             <div class="podium-position position-3">
-                                <div class="position-label">?? 3rd</div>
+                                <div class="position-label"><span class="medal-icon">&#129353;</span> 3rd</div>
                                 <div class="competitor-name">@lastEventResult.ThirdPlaceName</div>
                             </div>
                         </div>
@@ -291,6 +293,7 @@ private System.Threading.Timer? searchDebounceTimer;
     protected override async Task OnInitializedAsync()
     {
         await LoadDisciplines();
+        await AutoPopulateWithLatestSeason();
     }
 
     private async Task LoadDisciplines()
@@ -317,6 +320,54 @@ private System.Threading.Timer? searchDebounceTimer;
         finally
         {
             isLoadingInitial = false;
+        }
+    }
+
+    private async Task AutoPopulateWithLatestSeason()
+    {
+        // Only auto-populate if user is authenticated
+        if (!AuthState.IsAuthenticated || string.IsNullOrEmpty(AuthState.UserId))
+            return;
+
+        try
+        {
+            var response = await ApiClient.GetLatestScoredPredictionFromActiveAsync(AuthState.UserId);
+            
+            if (response.Success && response.Data != null && 
+                !string.IsNullOrEmpty(response.Data.DisciplineId) &&
+                !string.IsNullOrEmpty(response.Data.SeriesId) &&
+                !string.IsNullOrEmpty(response.Data.SeasonId))
+            {
+                // Set discipline first
+                selectedDisciplineId = response.Data.DisciplineId;
+                
+                // Load series for this discipline
+                var seriesResponse = await ApiClient.GetSeriesAsync(selectedDisciplineId);
+                if (seriesResponse.Success && seriesResponse.Data != null)
+                {
+                    series = seriesResponse.Data;
+                }
+                
+                // Set series
+                selectedSeriesId = response.Data.SeriesId;
+                
+                // Load seasons for this series
+                var seasonsResponse = await ApiClient.GetSeasonsAsync(selectedSeriesId);
+                if (seasonsResponse.Success && seasonsResponse.Data != null)
+                {
+                    seasons = seasonsResponse.Data;
+                }
+                
+                // Set season and load leaderboard
+                selectedSeasonId = response.Data.SeasonId;
+                await LoadLeaderboard();
+                await LoadLastEventResult();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Silently fail - auto-population is not critical
+            Console.WriteLine($"Error auto-populating leaderboard: {ex.Message}");
         }
     }
 
@@ -680,6 +731,16 @@ private System.Threading.Timer? searchDebounceTimer;
         color: #333;
         margin-bottom: 8px;
         font-size: 1.5em;
+    }
+
+    .flag-icon {
+        font-size: 1.2em;
+        margin-right: 8px;
+    }
+
+    .medal-icon {
+        font-size: 1.2em;
+        margin-right: 4px;
     }
 
     .event-date {

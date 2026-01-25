@@ -32,6 +32,7 @@ public interface IPodiumApiClient
     Task<ApiResponse<List<Prediction>>> GetUserActiveSeasonsPredictionsAsync(string userId);
     Task<ApiResponse<List<PredictionWithDetails>>> GetUserPredictionsWithDetailsAsync(string userId, string? seasonId = null, string? seriesId = null, string? disciplineId = null, bool includeInactive = false);
     Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request);
+    Task<ApiResponse<LatestScoredPredictionResponse>> GetLatestScoredPredictionFromActiveAsync(string userId);
 
     // Leaderboard
     Task<ApiResponse<List<UserStatistics>>> GetLeaderboardAsync(string seasonId);
@@ -244,6 +245,11 @@ public class PodiumApiClient : IPodiumApiClient
     public async Task<ApiResponse<PredictionResponse>> SubmitPredictionAsync(SubmitPredictionRequest request)
     {
         return await PostAsync<PredictionResponse>("/api/predictions", request);
+    }
+
+    public async Task<ApiResponse<LatestScoredPredictionResponse>> GetLatestScoredPredictionFromActiveAsync(string userId)
+    {
+        return await GetAsync<LatestScoredPredictionResponse>($"/api/predictions/user/{userId}/latest-scored-active");
     }
 
     // Leaderboard

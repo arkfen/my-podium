@@ -309,6 +309,89 @@ public static class PredictionEndpoints
         })
         .RequireAuth()
         .WithName("SubmitPrediction");
+
+        // Get user's latest prediction with points from active seasons
+        group.MapGet("/user/{userId}/latest-scored-active", async (
+            string userId,
+            HttpContext httpContext,
+            [FromServices] IPredictionRepository predictionRepo,
+            [FromServices] ISeasonRepository seasonRepo,
+            [FromServices] ISeriesRepository seriesRepo,
+            [FromServices] IDisciplineRepository disciplineRepo,
+            [FromServices] IEventRepository eventRepo) =>
+        {
+            // Ensure user can only access their own predictions
+            var authenticatedUserId = httpContext.GetUserId();
+            if (authenticatedUserId != userId)
+            {
+                return Results.Forbid();
+            }
+
+            Prediction? latestScoredPrediction = null;
+            string? latestSeasonId = null;
+            string? latestSeriesId = null;
+            string? latestDisciplineId = null;
+
+            // Get all active disciplines
+            var disciplines = await disciplineRepo.GetActiveDisciplinesAsync();
+            
+            foreach (var discipline in disciplines)
+            {
+                // Get active series for this discipline
+                var seriesList = await seriesRepo.GetActiveSeriesByDisciplineAsync(discipline.Id);
+                
+                foreach (var series in seriesList)
+                {
+                    // Get active season for this series
+                    var season = await seasonRepo.GetActiveSeasonBySeriesAsync(series.Id);
+                    
+                    if (season != null)
+                    {
+                        // Get all events in the season
+                        var events = await eventRepo.GetEventsBySeasonAsync(season.Id);
+                        var eventIds = events.Select(e => e.Id).ToList();
+
+                        // Get predictions for those events
+                        var predictions = await predictionRepo.GetPredictionsByUserAndSeasonAsync(userId, season.Id, eventIds);
+                        
+                        // Filter only predictions with points
+                        var scoredPredictions = predictions
+                            .Where(p => p.PointsEarned.HasValue && p.PointsEarned.Value > 0)
+                            .OrderByDescending(p => p.UpdatedDate)
+                            .ToList();
+                        
+                        if (scoredPredictions.Any())
+                        {
+                            var candidate = scoredPredictions.First();
+                            
+                            // Compare with current latest
+                            if (latestScoredPrediction == null || candidate.UpdatedDate > latestScoredPrediction.UpdatedDate)
+                            {
+                                latestScoredPrediction = candidate;
+                                latestSeasonId = season.Id;
+                                latestSeriesId = series.Id;
+                                latestDisciplineId = discipline.Id;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (latestScoredPrediction == null)
+            {
+                return Results.Ok(null);
+            }
+
+            return Results.Ok(new
+            {
+                prediction = latestScoredPrediction,
+                seasonId = latestSeasonId,
+                seriesId = latestSeriesId,
+                disciplineId = latestDisciplineId
+            });
+        })
+        .RequireAuth()
+        .WithName("GetLatestScoredPredictionFromActivSeasons");
     }
 }
 
