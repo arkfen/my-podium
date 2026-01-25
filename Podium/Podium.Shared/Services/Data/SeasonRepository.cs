@@ -173,7 +173,8 @@ public class SeasonRepository : ISeasonRepository
             IsActive = entity.GetBoolean("IsActive") ?? false,
             StartDate = entity.GetDateTimeOffset("StartDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
             EndDate = entity.GetDateTimeOffset("EndDate")?.UtcDateTime,
-            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc)
+            CreatedDate = entity.GetDateTimeOffset("CreatedDate")?.UtcDateTime ?? DateTime.SpecifyKind(DateTime.MinValue, DateTimeKind.Utc),
+            BestResultsNumber = entity.GetInt32("BestResultsNumber")
         };
     }
 
@@ -187,7 +188,8 @@ public class SeasonRepository : ISeasonRepository
             { "IsActive", season.IsActive },
             { "StartDate", DateTime.SpecifyKind(season.StartDate, DateTimeKind.Utc) },
             { "EndDate", season.EndDate.HasValue ? DateTime.SpecifyKind(season.EndDate.Value, DateTimeKind.Utc) : (DateTime?)null },
-            { "CreatedDate", DateTime.SpecifyKind(season.CreatedDate, DateTimeKind.Utc) }
+            { "CreatedDate", DateTime.SpecifyKind(season.CreatedDate, DateTimeKind.Utc) },
+            { "BestResultsNumber", season.BestResultsNumber }
         };
 
         return entity;

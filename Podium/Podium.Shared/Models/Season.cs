@@ -9,5 +9,6 @@ public class Season
     public bool IsActive { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public int? BestResultsNumber { get; set; }
     public DateTime CreatedDate { get; set; }
 }

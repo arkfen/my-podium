@@ -460,7 +460,8 @@ public static class AdminEndpoints
                 Name = request.Name,
                 IsActive = request.IsActive,
                 StartDate = request.StartDate,
-                EndDate = request.EndDate
+                EndDate = request.EndDate,
+                BestResultsNumber = request.BestResultsNumber
             };
 
             var created = await seasonRepo.CreateSeasonAsync(season);
@@ -522,6 +523,7 @@ public static class AdminEndpoints
             existing.Name = request.Name;
             existing.StartDate = request.StartDate;
             existing.EndDate = request.EndDate;
+            existing.BestResultsNumber = request.BestResultsNumber;
 
             var updated = await seasonRepo.UpdateSeasonAsync(existing, currentSeriesId);
             if (updated == null)

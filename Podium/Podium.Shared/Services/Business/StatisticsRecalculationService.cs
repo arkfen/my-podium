@@ -17,6 +17,7 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
     private readonly IEventRepository _eventRepository;
     private readonly IUserRepository _userRepository;
     private readonly IScoringRulesRepository _scoringRulesRepository;
+    private readonly ISeasonRepository _seasonRepository;
 
     public StatisticsRecalculationService(
         IStatisticsJobRepository jobRepository,
@@ -24,7 +25,8 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
         ILeaderboardRepository leaderboardRepository,
         IEventRepository eventRepository,
         IUserRepository userRepository,
-        IScoringRulesRepository scoringRulesRepository)
+        IScoringRulesRepository scoringRulesRepository,
+        ISeasonRepository seasonRepository)
     {
         _jobRepository = jobRepository;
         _predictionRepository = predictionRepository;
@@ -32,6 +34,7 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
         _eventRepository = eventRepository;
         _userRepository = userRepository;
         _scoringRulesRepository = scoringRulesRepository;
+        _seasonRepository = seasonRepository;
     }
 
     public async Task<string> StartRecalculationAsync(string seasonId)
@@ -65,6 +68,10 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
     {
         try
         {
+            // Get the season to access BestResultsNumber
+            var season = await _seasonRepository.GetSeasonByIdOnlyAsync(seasonId);
+            int? bestResultsNumber = season?.BestResultsNumber;
+
             // Get all events for the season
             var events = await _eventRepository.GetEventsBySeasonAsync(seasonId);
             var eventIds = events.Select(e => e.Id).ToList();
@@ -106,12 +113,15 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
                 int exactMatches = 0;
                 int oneOffMatches = 0;
                 int twoOffMatches = 0;
+                var pointsPerPrediction = new List<int>();
 
                 foreach (var prediction in userPredictions)
                 {
                     if (!prediction.PointsEarned.HasValue) continue;
 
-                    totalPoints += prediction.PointsEarned.Value;
+                    int pts = prediction.PointsEarned.Value;
+                    totalPoints += pts;
+                    pointsPerPrediction.Add(pts);
 
                     // Get the event result to calculate match types per driver
                     var eventId = prediction.EventId;
@@ -130,6 +140,18 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
                     }
                 }
 
+                // Calculate BestResultsPoints: sum of top N results if configured, otherwise leave as null
+                int? bestResultsPoints = null;
+                if (bestResultsNumber.HasValue && bestResultsNumber.Value > 0)
+                {
+                    bestResultsPoints = pointsPerPrediction
+                        .OrderByDescending(p => p)
+                        .Take(bestResultsNumber.Value)
+                        .Sum();
+                }
+                // If no BestResultsNumber set, leave bestResultsPoints as null
+                // UI and sorting will fall back to TotalPoints
+
                 // Create/update user statistics
                 var userStats = new UserStatistics
                 {
@@ -137,6 +159,7 @@ public class StatisticsRecalculationService : IStatisticsRecalculationService
                     UserId = userId,
                     Username = user.Username,
                     TotalPoints = totalPoints,
+                    BestResultsPoints = bestResultsPoints,
                     PredictionsCount = userPredictions.Count,
                     ExactMatches = exactMatches,
                     OneOffMatches = oneOffMatches,

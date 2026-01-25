@@ -95,6 +95,12 @@
                     </label>
                 </div>
 
+                <div class="form-group">
+                    <label>Best N Results (for ranking):</label>
+                    <input type="number" class="form-control" @bind="formBestResultsNumber" placeholder="Leave empty to use total points" min="1" max="50" />
+                    <small class="form-text text-muted">Optional: Number of best results to count for leaderboard ranking</small>
+                </div>
+
                 <div class="form-actions">
                     <button class="btn btn-secondary" @onclick="CancelForm">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveSeason" disabled="@saving">
@@ -285,6 +291,7 @@
     private DateTime formStartDate = DateTime.Now;
     private DateTime? formEndDate = null;
     private bool formIsActive = false;
+    private int? formBestResultsNumber = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -430,6 +437,7 @@
         formStartDate = DateTime.Now;
         formEndDate = null;
         formIsActive = false;
+        formBestResultsNumber = null;
         formError = "";
         filteredSeriesForForm = new();
         showForm = true;
@@ -448,6 +456,7 @@
         formStartDate = season.StartDate;
         formEndDate = season.EndDate;
         formIsActive = season.IsActive;
+        formBestResultsNumber = season.BestResultsNumber;
         formError = "";
         
         // Populate series dropdown after setting values
@@ -518,7 +527,8 @@
                 formName,
                 formIsActive,
                 formStartDate,
-                formEndDate
+                formEndDate,
+                formBestResultsNumber
             );
             var response = await ApiClient.CreateSeasonAsync(request);
             
@@ -541,7 +551,8 @@
                 formName,
                 formIsActive,
                 formStartDate,
-                formEndDate
+                formEndDate,
+                formBestResultsNumber
             );
             var response = await ApiClient.UpdateSeasonAsync(editingSeason.Id, originalSeriesId, request);
             

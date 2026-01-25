@@ -83,12 +83,14 @@ Stores seasons for each series/competition.
 | IsActive | bool | Whether season is currently active |
 | StartDate | DateTime | Season start date |
 | EndDate | DateTime? | Season end date (nullable for ongoing) |
+| BestResultsNumber | int? | Number of best results to count for leaderboard ranking (nullable) |
 | CreatedDate | DateTime | When the season was created |
 
 **Example:**
 - PartitionKey: "a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"
 - RowKey: "b2c3d4e5-f6g7-8h9i-0j1k-2l3m4n5o6p7q"
 - Year: 2025
+- BestResultsNumber: 15
 
 ---
 
@@ -321,6 +323,7 @@ Stores aggregated user statistics per season.
 | SeasonId | string | Season ID (redundant) |
 | UserId | string | User ID (redundant) |
 | Username | string | Username (denormalized) |
+| BestResultsPoints | int? | Points from best N results for leaderboard ranking (nullable, null if feature not configured) |
 | TotalPoints | int | Total points earned in season |
 | PredictionsCount | int | Number of predictions made |
 | ExactMatches | int | Count of exact predictions |

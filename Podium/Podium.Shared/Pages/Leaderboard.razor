@@ -85,7 +85,11 @@
                         <tr>
                             <th>Rank</th>
                             <th>Player</th>
-                            <th>Points</th>
+                            @if (ShouldShowBestResultsColumn())
+                            {
+                                <th>@GetBestResultsColumnHeader()</th>
+                            }
+                            <th>Total</th>
                             <th>Predictions</th>
                             <th>Exact</th>
                             <th>1 Off</th>
@@ -102,7 +106,11 @@
                                     <span class="rank-badge @GetRankClass(rank)">@rank</span>
                                 </td>
                                 <td><strong>@entry.Username</strong></td>
-                                <td><strong>@entry.TotalPoints</strong></td>
+                                @if (ShouldShowBestResultsColumn())
+                                {
+                                    <td><strong>@(entry.BestResultsPoints ?? entry.TotalPoints)</strong></td>
+                                }
+                                <td>@entry.TotalPoints</td>
                                 <td>@entry.PredictionsCount</td>
                                 <td>@entry.ExactMatches</td>
                                 <td>@entry.OneOffMatches</td>
@@ -265,6 +273,31 @@
             3 => "rank-3",
             _ => ""
         };
+    }
+
+    private bool ShouldShowBestResultsColumn()
+    {
+        if (string.IsNullOrEmpty(selectedSeasonId))
+            return false;
+
+        var selectedSeason = seasons.FirstOrDefault(s => s.Id == selectedSeasonId);
+        return selectedSeason?.BestResultsNumber.HasValue == true && 
+               selectedSeason.BestResultsNumber.Value > 0;
+    }
+
+    private string GetBestResultsColumnHeader()
+    {
+        if (string.IsNullOrEmpty(selectedSeasonId))
+            return "Best Results";
+
+        var selectedSeason = seasons.FirstOrDefault(s => s.Id == selectedSeasonId);
+        if (selectedSeason?.BestResultsNumber.HasValue == true && 
+            selectedSeason.BestResultsNumber.Value > 0)
+        {
+            return $"Best {selectedSeason.BestResultsNumber} Results";
+        }
+
+        return "Best Results";
     }
 }
 

@@ -41,7 +41,10 @@ public class LeaderboardRepository : ILeaderboardRepository
             return leaderboard;
         }
 
-        return leaderboard.OrderByDescending(us => us.TotalPoints).ToList();
+        // Sort by BestResultsPoints if available, otherwise fall back to TotalPoints
+        return leaderboard
+            .OrderByDescending(us => us.BestResultsPoints ?? us.TotalPoints)
+            .ToList();
     }
 
     public async Task<UserStatistics?> GetUserStatisticsAsync(string seasonId, string userId)
@@ -71,6 +74,7 @@ public class LeaderboardRepository : ILeaderboardRepository
                 ["UserId"] = userStatistics.UserId,
                 ["Username"] = userStatistics.Username,
                 ["TotalPoints"] = userStatistics.TotalPoints,
+                ["BestResultsPoints"] = userStatistics.BestResultsPoints,
                 ["PredictionsCount"] = userStatistics.PredictionsCount,
                 ["ExactMatches"] = userStatistics.ExactMatches,
                 ["OneOffMatches"] = userStatistics.OneOffMatches,
@@ -141,6 +145,7 @@ public class LeaderboardRepository : ILeaderboardRepository
             UserId = entity.RowKey,
             Username = entity.GetString("Username") ?? string.Empty,
             TotalPoints = entity.GetInt32("TotalPoints") ?? 0,
+            BestResultsPoints = entity.GetInt32("BestResultsPoints"),
             PredictionsCount = entity.GetInt32("PredictionsCount") ?? 0,
             ExactMatches = entity.GetInt32("ExactMatches") ?? 0,
             OneOffMatches = entity.GetInt32("OneOffMatches") ?? 0,

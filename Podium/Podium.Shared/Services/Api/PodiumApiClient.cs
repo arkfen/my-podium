@@ -690,8 +690,8 @@ public record SubmitPredictionRequest(
 public record CreateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 public record UpdateDisciplineRequest(string Name, string DisplayName, bool IsActive);
 
-public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
-public record UpdateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate);
+public record CreateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate, int? BestResultsNumber);
+public record UpdateSeasonRequest(string SeriesId, int Year, string Name, bool IsActive, DateTime StartDate, DateTime? EndDate, int? BestResultsNumber);
 
 public record CreateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
 public record UpdateCompetitorRequest(string Name, string ShortName, string Type, bool IsActive);
