@@ -120,23 +120,173 @@
                     </tbody>
                 </table>
             </div>
+
+            @* Last Event Results Section *@
+            @if (isLoadingLastEvent)
+            {
+                <div class="last-event-section">
+                    <div class="loading-spinner">
+                        <p>Loading last event results...</p>
+                    </div>
+                </div>
+            }
+            else if (lastEventResult != null)
+            {
+                <div class="last-event-section">
+                    <h2><span style="font-size: 1.1em;">??</span> Last Completed Event: @lastEventResult.EventName</h2>
+                    <p class="event-date">@lastEventResult.EventDate.ToShortDateString()</p>
+
+                    <div class="actual-result-box">
+                        <h3>Actual Podium Result</h3>
+                        <div class="podium-display">
+                            <div class="podium-position position-1">
+                                <div class="position-label">?? 1st</div>
+                                <div class="competitor-name">@lastEventResult.FirstPlaceName</div>
+                            </div>
+                            <div class="podium-position position-2">
+                                <div class="position-label">?? 2nd</div>
+                                <div class="competitor-name">@lastEventResult.SecondPlaceName</div>
+                            </div>
+                            <div class="podium-position position-3">
+                                <div class="position-label">?? 3rd</div>
+                                <div class="competitor-name">@lastEventResult.ThirdPlaceName</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="user-predictions-section">
+                        <h3>Top 10 Predictors</h3>
+                        
+                        <div class="search-section">
+                            <label>Search for a specific user:</label>
+                            <div class="search-input-container">
+                                <input type="text" 
+                                       class="form-control" 
+                                       @bind="searchUserQuery" 
+                                       @bind:event="oninput"
+                                       @onkeyup="SearchLastEventUsers"
+                                       placeholder="Type username or email..." />
+                                @if (searchingUsers)
+                                {
+                                    <span class="search-spinner">?</span>
+                                }
+                            </div>
+                            
+                            @if (userSearchResults.Any())
+                            {
+                                <div class="search-results-dropdown">
+                                    @foreach (var user in userSearchResults)
+                                    {
+                                        <div class="search-result-item" @onclick="() => SelectSearchUser(user)">
+                                            <strong>@user.Username</strong> (@user.Email)
+                                            <span class="points-badge">@user.PointsEarned pts</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            
+                            @if (selectedSearchUsers.Any())
+                            {
+                                <div class="selected-users-display">
+                                    <strong>Showing results for:</strong>
+                                    @foreach (var user in selectedSearchUsers)
+                                    {
+                                        <span class="selected-user-tag">
+                                            @user.Username
+                                            <button class="clear-user-btn" @onclick="() => RemoveSearchUser(user)">×</button>
+                                        </span>
+                                    }
+                                    <button class="btn-link" @onclick="ClearAllSearchUsers">Clear All</button>
+                                </div>
+                            }
+                        </div>
+
+                        @{
+                            var displayedPredictions = selectedSearchUsers.Any() 
+                                ? selectedSearchUsers 
+                                : lastEventResult.TopPredictions.Take(10).ToList();
+                        }
+
+                        @if (displayedPredictions.Any())
+                        {
+                            <div class="predictions-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>User</th>
+                                            <th>Prediction</th>
+                                            <th>Points</th>
+                                            <th>Submitted</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @{int predRank = 0;}
+                                        @foreach (var pred in displayedPredictions)
+                                        {
+                                            predRank++;
+                                            <tr>
+                                                <td>
+                                                    <span class="rank-badge @GetRankClass(predRank)">@predRank</span>
+                                                </td>
+                                                <td>
+                                                    <strong>@pred.Username</strong>
+                                                    <div class="user-email">@pred.Email</div>
+                                                </td>
+                                                <td>
+                                                    <div class="prediction-display">
+                                                        <span class="pred-position">1st: @pred.FirstPlaceName</span>
+                                                        <span class="pred-position">2nd: @pred.SecondPlaceName</span>
+                                                        <span class="pred-position">3rd: @pred.ThirdPlaceName</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="points-earned">@pred.PointsEarned</span>
+                                                </td>
+                                                <td>
+                                                    <span class="submission-date">@pred.SubmittedDate.ToShortDateString() @pred.SubmittedDate.ToShortTimeString()</span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-results">
+                                <p>No predictions found for the selected users.</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
     }
 </div>
 
 @code {
-    private List<UserStatistics> leaderboard = new();
-    private List<Discipline> disciplines = new();
-    private List<Series> series = new();
-    private List<Season> seasons = new();
+private List<UserStatistics> leaderboard = new();
+private List<Discipline> disciplines = new();
+private List<Series> series = new();
+private List<Season> seasons = new();
     
-    private string? selectedDisciplineId;
-    private string? selectedSeriesId;
-    private string? selectedSeasonId;
+private string? selectedDisciplineId;
+private string? selectedSeriesId;
+private string? selectedSeasonId;
     
-    private bool isLoadingInitial = true;
-    private bool isLoadingLeaderboard = false;
-    private string? errorMessage;
+private bool isLoadingInitial = true;
+private bool isLoadingLeaderboard = false;
+private bool isLoadingLastEvent = false;
+private bool searchingUsers = false;
+private string? errorMessage;
+
+// Last event results
+private EventResultDetails? lastEventResult = null;
+private string searchUserQuery = "";
+private List<UserEventPrediction> userSearchResults = new();
+private List<UserEventPrediction> selectedSearchUsers = new();
+private System.Threading.Timer? searchDebounceTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -229,11 +379,16 @@
     private async Task OnSeasonChanged()
     {
         leaderboard.Clear();
+        lastEventResult = null;
+        selectedSearchUsers.Clear();
+        userSearchResults.Clear();
+        searchUserQuery = "";
 
         if (string.IsNullOrEmpty(selectedSeasonId))
             return;
 
         await LoadLeaderboard();
+        await LoadLastEventResult();
     }
 
     private async Task LoadLeaderboard()
@@ -262,6 +417,110 @@
         {
             isLoadingLeaderboard = false;
         }
+    }
+
+    private async Task LoadLastEventResult()
+    {
+        if (string.IsNullOrEmpty(selectedSeasonId))
+            return;
+
+        isLoadingLastEvent = true;
+
+        try
+        {
+            var response = await ApiClient.GetLastEventResultAsync(selectedSeasonId!);
+            
+            if (response.Success)
+            {
+                lastEventResult = response.Data;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Silently fail for last event - it's not critical
+            Console.WriteLine($"Error loading last event: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingLastEvent = false;
+        }
+    }
+
+    private void SearchLastEventUsers()
+    {
+        // Debounce the search
+        searchDebounceTimer?.Dispose();
+        searchDebounceTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await PerformUserSearch();
+            });
+        }, null, 300, Timeout.Infinite);
+    }
+
+    private async Task PerformUserSearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchUserQuery) || searchUserQuery.Length < 2)
+        {
+            userSearchResults.Clear();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        searchingUsers = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var response = await ApiClient.SearchLastEventResultAsync(selectedSeasonId!, searchUserQuery);
+            
+            if (response.Success && response.Data != null)
+            {
+                userSearchResults = response.Data;
+            }
+            else
+            {
+                userSearchResults.Clear();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error searching users: {ex.Message}");
+            userSearchResults.Clear();
+        }
+        finally
+        {
+            searchingUsers = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void SelectSearchUser(UserEventPrediction user)
+    {
+        if (!selectedSearchUsers.Any(u => u.UserId == user.UserId))
+        {
+            selectedSearchUsers.Add(user);
+            selectedSearchUsers = selectedSearchUsers
+                .OrderByDescending(u => u.PointsEarned)
+                .ThenBy(u => u.SubmittedDate)
+                .ToList();
+        }
+        
+        searchUserQuery = "";
+        userSearchResults.Clear();
+    }
+
+    private void RemoveSearchUser(UserEventPrediction user)
+    {
+        selectedSearchUsers.RemoveAll(u => u.UserId == user.UserId);
+    }
+
+    private void ClearAllSearchUsers()
+    {
+        selectedSearchUsers.Clear();
+        searchUserQuery = "";
+        userSearchResults.Clear();
     }
 
     private string GetRankClass(int rank)
@@ -406,5 +665,287 @@
     .trophy-icon {
         font-size: 1.2em;
         margin-right: 8px;
+    }
+
+    /* Last Event Results Section */
+    .last-event-section {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        margin-top: 30px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .last-event-section h2 {
+        color: #333;
+        margin-bottom: 8px;
+        font-size: 1.5em;
+    }
+
+    .event-date {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+
+    .actual-result-box {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        border-left: 4px solid #007bff;
+    }
+
+    .actual-result-box h3 {
+        color: #333;
+        margin-bottom: 15px;
+        font-size: 1.2em;
+    }
+
+    .podium-display {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+    }
+
+    .podium-position {
+        flex: 1;
+        min-width: 150px;
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .position-label {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #666;
+    }
+
+    .competitor-name {
+        font-size: 16px;
+        font-weight: 700;
+        color: #333;
+    }
+
+    .position-1 {
+        border-top: 3px solid #FFD700;
+    }
+
+    .position-2 {
+        border-top: 3px solid #C0C0C0;
+    }
+
+    .position-3 {
+        border-top: 3px solid #CD7F32;
+    }
+
+    .user-predictions-section {
+        margin-top: 20px;
+    }
+
+    .user-predictions-section h3 {
+        color: #333;
+        margin-bottom: 15px;
+        font-size: 1.2em;
+    }
+
+    .search-section {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+    }
+
+    .search-section label {
+        display: block;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 8px;
+        font-size: 14px;
+    }
+
+    .search-input-container {
+        position: relative;
+    }
+
+    .search-input-container input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+    .search-spinner {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 16px;
+    }
+
+    .search-results-dropdown {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-top: 5px;
+        max-height: 200px;
+        overflow-y: auto;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .search-result-item {
+        padding: 10px 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: background-color 0.2s;
+    }
+
+    .search-result-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+
+    .points-badge {
+        background: #007bff;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .selected-users-display {
+        margin-top: 10px;
+        padding: 10px;
+        background: white;
+        border-radius: 4px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .selected-users-display strong {
+        color: #333;
+        font-size: 14px;
+    }
+
+    .selected-user-tag {
+        background: #007bff;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .clear-user-btn {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        padding: 0;
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    }
+
+    .clear-user-btn:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-link {
+        background: none;
+        border: none;
+        color: #007bff;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+    }
+
+    .btn-link:hover {
+        color: #0056b3;
+    }
+
+    .predictions-table {
+        margin-top: 15px;
+        overflow-x: auto;
+    }
+
+    .predictions-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .predictions-table th {
+        background: #f8f9fa;
+        padding: 12px;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #dee2e6;
+        font-size: 14px;
+    }
+
+    .predictions-table td {
+        padding: 12px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .predictions-table tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .user-email {
+        font-size: 12px;
+        color: #666;
+        margin-top: 3px;
+    }
+
+    .prediction-display {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .pred-position {
+        font-size: 13px;
+        color: #333;
+    }
+
+    .points-earned {
+        font-size: 16px;
+        font-weight: 700;
+        color: #28a745;
+    }
+
+    .submission-date {
+        font-size: 12px;
+        color: #666;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 30px;
+        color: #666;
     }
 </style>

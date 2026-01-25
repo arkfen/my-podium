@@ -36,6 +36,8 @@ public interface IPodiumApiClient
     // Leaderboard
     Task<ApiResponse<List<UserStatistics>>> GetLeaderboardAsync(string seasonId);
     Task<ApiResponse<UserStatistics>> GetUserStatisticsAsync(string seasonId, string userId);
+    Task<ApiResponse<EventResultDetails>> GetLastEventResultAsync(string seasonId);
+    Task<ApiResponse<List<UserEventPrediction>>> SearchLastEventResultAsync(string seasonId, string query);
 
     // Admin - Season Management
     Task<ApiResponse<MessageResponse>> SetActiveSeasonAsync(string seriesId, string seasonId);
@@ -253,6 +255,16 @@ public class PodiumApiClient : IPodiumApiClient
     public async Task<ApiResponse<UserStatistics>> GetUserStatisticsAsync(string seasonId, string userId)
     {
         return await GetAsync<UserStatistics>($"/api/leaderboard/season/{seasonId}/user/{userId}");
+    }
+
+    public async Task<ApiResponse<EventResultDetails>> GetLastEventResultAsync(string seasonId)
+    {
+        return await GetAsync<EventResultDetails>($"/api/leaderboard/season/{seasonId}/last-event-result");
+    }
+
+    public async Task<ApiResponse<List<UserEventPrediction>>> SearchLastEventResultAsync(string seasonId, string query)
+    {
+        return await GetAsync<List<UserEventPrediction>>($"/api/leaderboard/season/{seasonId}/last-event-result/search?query={Uri.EscapeDataString(query)}");
     }
 
     // Admin - Season Management
