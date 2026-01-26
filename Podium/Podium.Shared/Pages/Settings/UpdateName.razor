@@ -1,0 +1,251 @@
+@page "/settings/name"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Update Display Name - Podium</PageTitle>
+
+<div class="settings-form-container">
+<a href="/settings" class="back-link">&lsaquo; Back to Settings</a>
+    
+    <div class="settings-form-card">
+        <h2>Update Display Name</h2>
+        <p class="subtitle">Change how your name appears on leaderboards and predictions</p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        @if (isLoading && profile == null)
+        {
+            <div class="loading">Loading...</div>
+        }
+        else if (profile != null)
+        {
+            <div class="auth-form">
+                <div class="current-value">
+                    <strong>Current name:</strong> @profile.Username
+                </div>
+
+                <div class="form-group">
+                    <label>New Display Name</label>
+                    <input type="text" class="form-control" @bind="newUsername" placeholder="Enter new display name" />
+                </div>
+
+                @if (!otpSent)
+                {
+                    @if (profile.HasPassword && profile.HasEmail)
+                    {
+                        <div class="info-box info">
+                            <p>Choose how to verify your identity:</p>
+                        </div>
+                        
+                        <div class="auth-tabs">
+                            <button class="@(verifyMethod == "password" ? "active" : "")" @onclick="@(() => verifyMethod = "password")">
+                                Password
+                            </button>
+                            <button class="@(verifyMethod == "email" ? "active" : "")" @onclick="@(() => verifyMethod = "email")">
+                                Email Code
+                            </button>
+                        </div>
+                    }
+
+                    @if (verifyMethod == "password" && profile.HasPassword)
+                    {
+                        <div class="form-group">
+                            <label>Your Password</label>
+                            <input type="password" class="form-control" @bind="password" placeholder="Enter your password" />
+                        </div>
+
+                        <button class="btn btn-primary w-100" @onclick="UpdateWithPassword" disabled="@isLoading">
+                            @if (isLoading) { <span>Updating...</span> } else { <span>Update Name</span> }
+                        </button>
+                    }
+                    else if (verifyMethod == "email" && profile.HasEmail)
+                    {
+                        <button class="btn btn-primary w-100" @onclick="SendOtp" disabled="@isLoading">
+                            @if (isLoading) { <span>Sending code...</span> } else { <span>Send Verification Code</span> }
+                        </button>
+                    }
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label>Verification Code</label>
+                        <input type="text" class="form-control" @bind="otpCode" placeholder="Enter 6-digit code" maxlength="6" />
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="UpdateWithOtp" disabled="@isLoading">
+                        @if (isLoading) { <span>Updating...</span> } else { <span>Verify & Update Name</span> }
+                    </button>
+
+                    <button class="btn btn-link w-100" @onclick="ResetOtp">Send a new code</button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private UserProfileResponse? profile;
+    private string newUsername = "";
+    private string password = "";
+    private string otpCode = "";
+    private string verifyMethod = "password";
+    private bool otpSent = false;
+    private bool isLoading = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/signin");
+            return;
+        }
+
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await ApiClient.GetMyProfileAsync();
+            if (response.Success && response.Data != null)
+            {
+                profile = response.Data;
+                newUsername = profile.Username;
+                verifyMethod = profile.HasPassword ? "password" : "email";
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to load profile";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateWithPassword()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newUsername) || newUsername.Length < 3)
+        {
+            errorMessage = "Display name must be at least 3 characters.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Please enter your password.";
+            return;
+        }
+
+        await UpdateUsername(password, null);
+    }
+
+    private async Task SendOtp()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            var response = await ApiClient.SendPasswordSetupOtpAsync();
+            if (response.Success)
+            {
+                otpSent = true;
+                successMessage = "Verification code sent to your email.";
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to send verification code.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateWithOtp()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newUsername) || newUsername.Length < 3)
+        {
+            errorMessage = "Display name must be at least 3 characters.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(otpCode))
+        {
+            errorMessage = "Please enter the verification code.";
+            return;
+        }
+
+        await UpdateUsername(null, otpCode);
+    }
+
+    private async Task UpdateUsername(string? pwd, string? otp)
+    {
+        isLoading = true;
+        try
+        {
+            var request = new UpdateUsernameRequest(newUsername, pwd, otp);
+            var response = await ApiClient.UpdateUsernameAsync(request);
+            if (response.Success)
+            {
+                successMessage = "Display name updated successfully!";
+                // Reload profile to show updated name
+                await LoadProfile();
+                // Update the auth state with new username
+                await AuthState.SetAuthStateAsync(AuthState.UserId!, newUsername, AuthState.SessionId!);
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to update display name.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetOtp()
+    {
+        otpSent = false;
+        otpCode = "";
+        errorMessage = null;
+        successMessage = null;
+    }
+}

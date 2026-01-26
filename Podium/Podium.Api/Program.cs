@@ -118,6 +118,7 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "healthy", timestamp =
 
 // Map API endpoints
 app.MapAuthEndpoints();
+app.MapProfileEndpoints();
 app.MapSportEndpoints();
 app.MapPredictionEndpoints();
 app.MapLeaderboardEndpoints();

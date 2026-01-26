@@ -1,0 +1,205 @@
+@page "/settings/email"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Update Email - Podium</PageTitle>
+
+<div class="settings-form-container">
+<a href="/settings" class="back-link">&lsaquo; Back to Settings</a>
+    
+    <div class="settings-form-card">
+        <h2>@(hasEmail ? "Update Email" : "Set Up Email")</h2>
+        <p class="subtitle">@(hasEmail ? "Change your email address for sign-in and notifications" : "Add an email address to your account")</p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        @if (isLoading && profile == null)
+        {
+            <div class="loading">Loading...</div>
+        }
+        else if (profile != null)
+        {
+            @if (hasEmail)
+            {
+                <div class="current-value">
+                    <strong>Current email:</strong> @profile.Email
+                </div>
+            }
+
+            <div class="auth-form">
+                @if (!otpSent)
+                {
+                    <div class="info-box info">
+                        <p>Enter your new email address. We'll send a verification code to confirm you have access to it.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label>New Email Address</label>
+                        <input type="email" class="form-control" @bind="newEmail" placeholder="your@email.com" />
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="SendOtp" disabled="@isLoading">
+                        @if (isLoading) { <span>Sending code...</span> } else { <span>Send Verification Code</span> }
+                    </button>
+                }
+                else
+                {
+                    <p class="text-center">We've sent a verification code to <strong>@newEmail</strong></p>
+
+                    <div class="form-group">
+                        <label>Verification Code</label>
+                        <input type="text" class="form-control" @bind="otpCode" placeholder="Enter 6-digit code" maxlength="6" />
+                    </div>
+
+                    <button class="btn btn-primary w-100" @onclick="ConfirmEmail" disabled="@isLoading">
+                        @if (isLoading) { <span>Verifying...</span> } else { <span>Verify & Update Email</span> }
+                    </button>
+
+                    <button class="btn btn-link w-100" @onclick="ResetOtp">Use a different email</button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private UserProfileResponse? profile;
+    private string newEmail = "";
+    private string otpCode = "";
+    private bool otpSent = false;
+    private bool isLoading = false;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private bool hasEmail => !string.IsNullOrEmpty(profile?.Email);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/signin");
+            return;
+        }
+
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await ApiClient.GetMyProfileAsync();
+            if (response.Success && response.Data != null)
+            {
+                profile = response.Data;
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to load profile";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SendOtp()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(newEmail) || !newEmail.Contains("@"))
+        {
+            errorMessage = "Please enter a valid email address.";
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var response = await ApiClient.SendEmailUpdateOtpAsync(newEmail);
+            if (response.Success)
+            {
+                otpSent = true;
+                successMessage = "Verification code sent! Check your new email inbox.";
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to send verification code.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ConfirmEmail()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(otpCode))
+        {
+            errorMessage = "Please enter the verification code.";
+            return;
+        }
+
+        isLoading = true;
+        try
+        {
+            var request = new ConfirmEmailUpdateRequest(newEmail, otpCode);
+            var response = await ApiClient.ConfirmEmailUpdateAsync(request);
+            if (response.Success)
+            {
+                successMessage = "Email updated successfully!";
+                otpSent = false;
+                newEmail = "";
+                otpCode = "";
+                // Reload profile
+                await LoadProfile();
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to update email.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetOtp()
+    {
+        otpSent = false;
+        otpCode = "";
+        errorMessage = null;
+        successMessage = null;
+    }
+}

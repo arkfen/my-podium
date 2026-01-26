@@ -9,6 +9,7 @@ namespace Podium.Shared.Services.Auth;
 public interface IAuthenticationService
 {
     Task<(bool Success, string ErrorMessage)> SendOTPAsync(string email);
+    Task<(bool Success, string ErrorMessage)> SendOTPForNewEmailAsync(string email, string userId);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string email, string password);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> ValidateSessionAsync(string sessionId);
@@ -66,6 +67,57 @@ public class AuthenticationService : IAuthenticationService
             ["Email"] = email.ToLowerInvariant(), // Store normalized email
             ["Code"] = otpCode,
             ["UserId"] = user.UserId,
+            ["ExpiryTime"] = DateTime.UtcNow.AddMinutes(10),
+            ["IsUsed"] = false,
+            ["CreatedDate"] = DateTime.UtcNow
+        };
+
+        try
+        {
+            await otpClient.AddEntityAsync(otpEntity);
+        }
+        catch (RequestFailedException ex)
+        {
+            return (false, $"Failed to generate code: {ex.Message}");
+        }
+
+        // Send email via callback (API will provide this)
+        if (_sendEmailCallback != null)
+        {
+            try
+            {
+                _sendEmailCallback(email, otpCode);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send email: {ex.Message}");
+                // Don't fail the request - OTP is still valid
+            }
+        }
+        else
+        {
+            // Fallback: Log to console (development)
+            Console.WriteLine($"OTP Code for {email}: {otpCode}");
+        }
+
+        return (true, string.Empty);
+    }
+
+    public async Task<(bool Success, string ErrorMessage)> SendOTPForNewEmailAsync(string email, string userId)
+    {
+        // This method sends OTP to a NEW email address that doesn't exist in user table yet
+        // Used when user is updating their email to a new address
+        
+        // Generate 6-digit OTP
+        var otpCode = GenerateOTP();
+
+        // Store OTP
+        var otpClient = _tableClientFactory.GetTableClient(OTPTable);
+        var otpEntity = new TableEntity("OTP", Guid.NewGuid().ToString())
+        {
+            ["Email"] = email.ToLowerInvariant(), // Store normalized email
+            ["Code"] = otpCode,
+            ["UserId"] = userId, // Use the current user's ID
             ["ExpiryTime"] = DateTime.UtcNow.AddMinutes(10),
             ["IsUsed"] = false,
             ["CreatedDate"] = DateTime.UtcNow

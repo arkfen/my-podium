@@ -18,7 +18,23 @@
                     {
                         <a href="/admin" class="admin-link">Admin</a>
                     }
-                    <button class="btn-link" @onclick="SignOut">Sign Out</button>
+                    <div class="profile-dropdown" @onfocusout="CloseDropdownDelayed">
+                        <button class="profile-btn" @onclick="ToggleDropdown" @onclick:stopPropagation="true">
+                            <span class="profile-name">@AuthState.Username</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </button>
+                        @if (showProfileDropdown)
+                        {
+                            <div class="dropdown-menu">
+                                <a href="/settings" class="dropdown-item" @onclick="CloseDropdown">
+                                    <span class="dropdown-icon">⚙️</span> Settings
+                                </a>
+                                <a class="dropdown-item" @onclick="SignOut">
+                                    <span class="dropdown-icon">🚪</span> Sign Out
+                                </a>
+                            </div>
+                        }
+                    </div>
                 }
                 else
                 {
@@ -39,6 +55,9 @@
 </div>
 
 @code {
+    private bool showProfileDropdown = false;
+    private System.Timers.Timer? closeTimer;
+
     protected override async Task OnInitializedAsync()
     {
         AuthState.OnAuthStateChanged += StateHasChanged;
@@ -50,8 +69,36 @@
         }
     }
 
+    private void ToggleDropdown()
+    {
+        showProfileDropdown = !showProfileDropdown;
+    }
+
+    private void CloseDropdown()
+    {
+        showProfileDropdown = false;
+    }
+
+    private void CloseDropdownDelayed()
+    {
+        closeTimer?.Dispose();
+        closeTimer = new System.Timers.Timer(150);
+        closeTimer.Elapsed += (s, e) =>
+        {
+            closeTimer?.Dispose();
+            InvokeAsync(() =>
+            {
+                showProfileDropdown = false;
+                StateHasChanged();
+            });
+        };
+        closeTimer.AutoReset = false;
+        closeTimer.Start();
+    }
+
     private async Task SignOut()
     {
+        showProfileDropdown = false;
         await AuthState.ClearAuthStateAsync();
         Navigation.NavigateTo("/");
     }
@@ -60,6 +107,7 @@
     {
         AuthState.OnAuthStateChanged -= StateHasChanged;
         AdminState.OnAdminStateChanged -= StateHasChanged;
+        closeTimer?.Dispose();
     }
 }
 

@@ -120,6 +120,15 @@ public interface IPodiumApiClient
     Task<ApiResponse<UserDependencies>> GetUserDependenciesAsync(string userId);
     Task<ApiResponse<MessageResponse>> UpdateUserAsync(string userId, UpdateUserRequest request);
     Task<ApiResponse<MessageResponse>> DeleteUserAsync(string userId);
+
+    // Profile Management
+    Task<ApiResponse<UserProfileResponse>> GetMyProfileAsync();
+    Task<ApiResponse<MessageResponse>> UpdateUsernameAsync(UpdateUsernameRequest request);
+    Task<ApiResponse<MessageResponse>> UpdateAuthMethodAsync(UpdateAuthMethodRequest request);
+    Task<ApiResponse<MessageResponse>> UpdatePasswordAsync(UpdatePasswordRequest request);
+    Task<ApiResponse<MessageResponse>> SendEmailUpdateOtpAsync(string newEmail);
+    Task<ApiResponse<MessageResponse>> ConfirmEmailUpdateAsync(ConfirmEmailUpdateRequest request);
+    Task<ApiResponse<MessageResponse>> SendPasswordSetupOtpAsync();
 }
 
 public class PodiumApiClient : IPodiumApiClient
@@ -573,6 +582,42 @@ public class PodiumApiClient : IPodiumApiClient
         return await DeleteAsync<MessageResponse>($"/api/admin/users/{userId}");
     }
 
+    // Profile Management
+    public async Task<ApiResponse<UserProfileResponse>> GetMyProfileAsync()
+    {
+        return await GetAsync<UserProfileResponse>("/api/profile");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdateUsernameAsync(UpdateUsernameRequest request)
+    {
+        return await PostAsync<MessageResponse>("/api/profile/username", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdateAuthMethodAsync(UpdateAuthMethodRequest request)
+    {
+        return await PostAsync<MessageResponse>("/api/profile/auth-method", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> UpdatePasswordAsync(UpdatePasswordRequest request)
+    {
+        return await PostAsync<MessageResponse>("/api/profile/password", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> SendEmailUpdateOtpAsync(string newEmail)
+    {
+        return await PostAsync<MessageResponse>("/api/profile/email/send-otp", new { newEmail });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> ConfirmEmailUpdateAsync(ConfirmEmailUpdateRequest request)
+    {
+        return await PostAsync<MessageResponse>("/api/profile/email/confirm", request);
+    }
+
+    public async Task<ApiResponse<MessageResponse>> SendPasswordSetupOtpAsync()
+    {
+        return await PostAsync<MessageResponse>("/api/profile/password/send-otp", new { });
+    }
+
     // Helper methods
     private async Task<ApiResponse<T>> GetAsync<T>(string url)
     {
@@ -733,3 +778,17 @@ public record RecalculationJobResponse(string Message, string JobId);
 public record JobStatusResponse(bool Found, StatisticsRecalculationJob? Job);
 
 public record StatisticsUpdateVerification(int UpdatedCount, bool HasUpdates);
+
+// Profile DTOs
+public record UserProfileResponse(
+    string UserId, 
+    string Email, 
+    string Username, 
+    string PreferredAuthMethod,
+    bool HasPassword,
+    bool HasEmail);
+
+public record UpdateUsernameRequest(string NewUsername, string? Password, string? OtpCode);
+public record UpdateAuthMethodRequest(string NewAuthMethod, string? Password, string? OtpCode);
+public record UpdatePasswordRequest(string? OldPassword, string? OtpCode, string NewPassword);
+public record ConfirmEmailUpdateRequest(string NewEmail, string OtpCode);

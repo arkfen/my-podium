@@ -1,0 +1,72 @@
+@page "/settings"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Settings - Podium</PageTitle>
+
+<div class="settings-container">
+    <div class="settings-header">
+        <h1>Settings</h1>
+        <p>Manage your account preferences and security settings</p>
+    </div>
+
+    @if (!AuthState.IsAuthenticated)
+    {
+        <div class="alert alert-danger">
+            Please sign in to access settings.
+        </div>
+    }
+    else
+    {
+        <div class="settings-grid">
+            <a href="/settings/name" class="settings-card">
+                <div class="settings-card-icon"><strong>ID</strong></div>
+                <div class="settings-card-content">
+                    <h3>Update Display Name</h3>
+                    <p>Change how your name appears on leaderboards and predictions</p>
+                </div>
+                <span class="settings-card-arrow">&rsaquo;</span>
+            </a>
+
+            <a href="/settings/signin-method" class="settings-card">
+                <div class="settings-card-icon"><strong>AUTH</strong></div>
+                <div class="settings-card-content">
+                    <h3>Sign-in Method</h3>
+                    <p>Choose how you want to sign in: password, email code, or both</p>
+                </div>
+                <span class="settings-card-arrow">&rsaquo;</span>
+            </a>
+
+            <a href="/settings/password" class="settings-card">
+                <div class="settings-card-icon"><strong>PASS</strong></div>
+                <div class="settings-card-content">
+                    <h3>Update Password</h3>
+                    <p>Change your account password</p>
+                </div>
+                <span class="settings-card-arrow">&rsaquo;</span>
+            </a>
+
+            <a href="/settings/email" class="settings-card">
+                <div class="settings-card-icon"><strong>&#64;</strong></div>
+                <div class="settings-card-content">
+                    <h3>Update Email</h3>
+                    <p>Change your email address for sign-in and notifications</p>
+                </div>
+                <span class="settings-card-arrow">&rsaquo;</span>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/signin");
+        }
+    }
+}

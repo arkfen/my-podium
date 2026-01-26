@@ -1,0 +1,346 @@
+@page "/settings/signin-method"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Sign-in Method - Podium</PageTitle>
+
+<div class="settings-form-container">
+<a href="/settings" class="back-link">&lsaquo; Back to Settings</a>
+    
+    <div class="settings-form-card">
+        <h2>Sign-in Method</h2>
+        <p class="subtitle">Choose how you want to sign in to Podium</p>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        @if (isLoading && profile == null)
+        {
+            <div class="loading">Loading...</div>
+        }
+        else if (profile != null)
+        {
+            <div class="current-value">
+                <strong>Current method:</strong> @GetMethodDisplayName(profile.PreferredAuthMethod)
+            </div>
+
+            @if (requiresSetup != null)
+            {
+                <div class="info-box">
+                    <p>@requiresSetup</p>
+                </div>
+            }
+            else if (!confirmStep)
+            {
+                <div class="auth-method-cards">
+                    <div class="auth-method-card @(selectedMethod == "Email" ? "selected" : "") @(!profile.HasEmail ? "disabled" : "")" 
+                         @onclick="@(() => SelectMethod("Email"))">
+                        <div class="auth-method-radio"></div>
+                        <div class="auth-method-content">
+                            <h4>Email Code Only</h4>
+                            <p>Sign in using a verification code sent to your email</p>
+                            @if (!profile.HasEmail)
+                            {
+                                <p><em><a href="/settings/email">Set up email first</a></em></p>
+                            }
+                        </div>
+                        <span class="auth-method-icon"><strong>&#64;</strong></span>
+                    </div>
+
+                    <div class="auth-method-card @(selectedMethod == "Password" ? "selected" : "") @(!profile.HasPassword ? "disabled" : "")" 
+                         @onclick="@(() => SelectMethod("Password"))">
+                        <div class="auth-method-radio"></div>
+                        <div class="auth-method-content">
+                            <h4>Password Only</h4>
+                            <p>Sign in using your email and password</p>
+                            @if (!profile.HasPassword)
+                            {
+                                <p><em><a href="/settings/password">Set up password first</a></em></p>
+                            }
+                        </div>
+                        <span class="auth-method-icon"><strong>KEY</strong></span>
+                    </div>
+
+                    <div class="auth-method-card @(selectedMethod == "Both" ? "selected" : "") @(!profile.HasEmail || !profile.HasPassword ? "disabled" : "")" 
+                         @onclick="@(() => SelectMethod("Both"))">
+                        <div class="auth-method-radio"></div>
+                        <div class="auth-method-content">
+                            <h4>Both Methods</h4>
+                            <p>Choose between password or email code when signing in</p>
+                            @if (!profile.HasEmail || !profile.HasPassword)
+                            {
+                                <p><em>Requires both email and password to be set up</em></p>
+                            }
+                        </div>
+                        <span class="auth-method-icon"><strong>BOTH</strong></span>
+                    </div>
+                </div>
+
+                @if (selectedMethod != profile.PreferredAuthMethod)
+                {
+                    <button class="btn btn-primary w-100" @onclick="StartConfirmation" disabled="@isLoading">
+                        Continue
+                    </button>
+                }
+            }
+            else
+            {
+                <div class="info-box info">
+                    <p>Confirm your identity to change sign-in method to <strong>@GetMethodDisplayName(selectedMethod)</strong></p>
+                </div>
+
+                @if (!otpSent)
+                {
+                    @if (profile.HasPassword && profile.HasEmail)
+                    {
+                        <div class="auth-tabs">
+                            <button class="@(verifyMethod == "password" ? "active" : "")" @onclick="@(() => verifyMethod = "password")">
+                                Password
+                            </button>
+                            <button class="@(verifyMethod == "email" ? "active" : "")" @onclick="@(() => verifyMethod = "email")">
+                                Email Code
+                            </button>
+                        </div>
+                    }
+
+                    <div class="auth-form">
+                        @if (verifyMethod == "password" && profile.HasPassword)
+                        {
+                            <div class="form-group">
+                                <label>Your Password</label>
+                                <input type="password" class="form-control" @bind="password" placeholder="Enter your password" />
+                            </div>
+
+                            <button class="btn btn-primary w-100" @onclick="UpdateWithPassword" disabled="@isLoading">
+                                @if (isLoading) { <span>Updating...</span> } else { <span>Confirm Change</span> }
+                            </button>
+                        }
+                        else if (verifyMethod == "email" && profile.HasEmail)
+                        {
+                            <button class="btn btn-primary w-100" @onclick="SendOtp" disabled="@isLoading">
+                                @if (isLoading) { <span>Sending code...</span> } else { <span>Send Verification Code</span> }
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="auth-form">
+                        <div class="form-group">
+                            <label>Verification Code</label>
+                            <input type="text" class="form-control" @bind="otpCode" placeholder="Enter 6-digit code" maxlength="6" />
+                        </div>
+
+                        <button class="btn btn-primary w-100" @onclick="UpdateWithOtp" disabled="@isLoading">
+                            @if (isLoading) { <span>Updating...</span> } else { <span>Verify & Change Method</span> }
+                        </button>
+
+                        <button class="btn btn-link w-100" @onclick="ResetOtp">Send a new code</button>
+                    </div>
+                }
+
+                <button class="btn btn-secondary w-100" style="margin-top: 1rem;" @onclick="CancelConfirmation">
+                    Cancel
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private UserProfileResponse? profile;
+    private string selectedMethod = "";
+    private string verifyMethod = "password";
+    private string password = "";
+    private string otpCode = "";
+    private bool confirmStep = false;
+    private bool otpSent = false;
+    private bool isLoading = false;
+    private string? errorMessage;
+    private string? successMessage;
+    private string? requiresSetup;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthState.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/signin");
+            return;
+        }
+
+        await LoadProfile();
+    }
+
+    private async Task LoadProfile()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await ApiClient.GetMyProfileAsync();
+            if (response.Success && response.Data != null)
+            {
+                profile = response.Data;
+                selectedMethod = profile.PreferredAuthMethod;
+                verifyMethod = profile.HasPassword ? "password" : "email";
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to load profile";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SelectMethod(string method)
+    {
+        if (profile == null) return;
+
+        // Check if method is available
+        if (method == "Email" && !profile.HasEmail) return;
+        if (method == "Password" && !profile.HasPassword) return;
+        if (method == "Both" && (!profile.HasEmail || !profile.HasPassword)) return;
+
+        selectedMethod = method;
+        requiresSetup = null;
+    }
+
+    private void StartConfirmation()
+    {
+        confirmStep = true;
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private void CancelConfirmation()
+    {
+        confirmStep = false;
+        otpSent = false;
+        password = "";
+        otpCode = "";
+        errorMessage = null;
+        if (profile != null)
+        {
+            selectedMethod = profile.PreferredAuthMethod;
+        }
+    }
+
+    private async Task SendOtp()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            var response = await ApiClient.SendPasswordSetupOtpAsync();
+            if (response.Success)
+            {
+                otpSent = true;
+                successMessage = "Verification code sent to your email.";
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to send verification code.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task UpdateWithPassword()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            errorMessage = "Please enter your password.";
+            return;
+        }
+
+        await UpdateAuthMethod(password, null);
+    }
+
+    private async Task UpdateWithOtp()
+    {
+        errorMessage = null;
+        successMessage = null;
+
+        if (string.IsNullOrWhiteSpace(otpCode))
+        {
+            errorMessage = "Please enter the verification code.";
+            return;
+        }
+
+        await UpdateAuthMethod(null, otpCode);
+    }
+
+    private async Task UpdateAuthMethod(string? pwd, string? otp)
+    {
+        isLoading = true;
+        try
+        {
+            var request = new UpdateAuthMethodRequest(selectedMethod, pwd, otp);
+            var response = await ApiClient.UpdateAuthMethodAsync(request);
+            if (response.Success)
+            {
+                successMessage = "Sign-in method updated successfully!";
+                confirmStep = false;
+                otpSent = false;
+                password = "";
+                otpCode = "";
+                await LoadProfile();
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to update sign-in method.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetOtp()
+    {
+        otpSent = false;
+        otpCode = "";
+        errorMessage = null;
+        successMessage = null;
+    }
+
+    private string GetMethodDisplayName(string method) => method switch
+    {
+        "Email" => "Email Code Only",
+        "Password" => "Password Only",
+        "Both" => "Both Methods",
+        _ => method
+    };
+}
