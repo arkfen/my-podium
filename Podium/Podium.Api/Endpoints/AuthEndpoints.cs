@@ -73,14 +73,14 @@ public static class AuthEndpoints
             [FromBody] SendOtpRequest request,
             [FromServices] IAuthenticationService authService) =>
         {
-            var (success, errorMessage) = await authService.SendOTPAsync(request.EmailOrUsername);
+            var (success, actualEmail, errorMessage) = await authService.SendOTPAsync(request.EmailOrUsername);
 
             if (!success)
             {
                 return Results.BadRequest(new { error = errorMessage });
             }
 
-            return Results.Ok(new { message = "OTP sent to email" });
+            return Results.Ok(new { message = "OTP sent to email", email = actualEmail });
         })
         .WithName("SendOTP");
 

@@ -94,7 +94,7 @@ class Program
         {
             "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
-            "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
+            "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes", "PodiumPendingRegistrations",
             "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics", "PodiumAdmins"
         };
 
@@ -121,7 +121,7 @@ class Program
         {
             "PodiumDisciplines", "PodiumSeries", "PodiumSeasons", "PodiumCompetitors",
             "PodiumSeasonCompetitors", "PodiumEvents", "PodiumEventResults",
-            "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes",
+            "PodiumUsers", "PodiumAuthSessions", "PodiumOTPCodes", "PodiumPendingRegistrations",
             "PodiumPredictions", "PodiumScoringRules", "PodiumUserStatistics", "PodiumAdmins"
         };
 

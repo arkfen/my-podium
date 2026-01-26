@@ -208,7 +208,7 @@ public static class ProfileEndpoints
             if (string.IsNullOrEmpty(user.Email))
                 return Results.BadRequest(new { error = "No email address set. Please add an email first." });
 
-            var (success, error) = await authService.SendOTPAsync(user.Email);
+            var (success, actualEmail, error) = await authService.SendOTPAsync(user.Email);
             if (!success)
                 return Results.BadRequest(new { error });
 

@@ -9,7 +9,7 @@ namespace Podium.Shared.Services.Auth;
 
 public interface IAuthenticationService
 {
-    Task<(bool Success, string ErrorMessage)> SendOTPAsync(string emailOrUsername);
+    Task<(bool Success, string ActualEmail, string ErrorMessage)> SendOTPAsync(string emailOrUsername);
     Task<(bool Success, string ErrorMessage)> SendOTPForNewEmailAsync(string email, string userId);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string emailOrUsername, string password);
@@ -33,7 +33,7 @@ public class AuthenticationService : IAuthenticationService
         _sendEmailCallback = sendEmailCallback;
     }
 
-    public async Task<(bool Success, string ErrorMessage)> SendOTPAsync(string emailOrUsername)
+    public async Task<(bool Success, string ActualEmail, string ErrorMessage)> SendOTPAsync(string emailOrUsername)
     {
         // Try to find user by email or username
         User? user = null;
@@ -54,24 +54,24 @@ public class AuthenticationService : IAuthenticationService
         }
         catch (RequestFailedException ex)
         {
-            return (false, $"Database error: {ex.Message}");
+            return (false, string.Empty, $"Database error: {ex.Message}");
         }
 
         if (user == null)
         {
-            return (false, "User not found. Please sign up first.");
+            return (false, string.Empty, "User not found. Please sign up first.");
         }
 
         // Check if user allows email OTP authentication
         if (user.PreferredAuthMethod == "Password")
         {
-            return (false, "Email code authentication is not enabled for this account. Please use password to sign in.");
+            return (false, string.Empty, "Email code authentication is not enabled for this account. Please use password to sign in.");
         }
 
         // Check if user has an email (for password-only users who didn't provide email)
         if (string.IsNullOrWhiteSpace(user.Email))
         {
-            return (false, "No email address associated with this account. Please use password to sign in.");
+            return (false, string.Empty, "No email address associated with this account. Please use password to sign in.");
         }
 
         // Generate 6-digit OTP
@@ -95,7 +95,7 @@ public class AuthenticationService : IAuthenticationService
         }
         catch (RequestFailedException ex)
         {
-            return (false, $"Failed to generate code: {ex.Message}");
+            return (false, string.Empty, $"Failed to generate code: {ex.Message}");
         }
 
         // Send email via callback (API will provide this)
@@ -117,7 +117,7 @@ public class AuthenticationService : IAuthenticationService
             Console.WriteLine($"OTP Code for {user.Email}: {otpCode}");
         }
 
-        return (true, string.Empty);
+        return (true, user.Email, string.Empty);
     }
 
     public async Task<(bool Success, string ErrorMessage)> SendOTPForNewEmailAsync(string email, string userId)

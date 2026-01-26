@@ -173,12 +173,12 @@ private async Task SendOtp()
     try
     {
         var response = await ApiClient.SendOtpAsync(emailOrUsernameForOtp);
-        if (response.Success)
+        if (response.Success && response.Data != null)
         {
             otpSent = true;
-            // Store the input for display and verification
-            email = emailOrUsernameForOtp;
-            displayEmail = emailOrUsernameForOtp.Contains("@") ? emailOrUsernameForOtp : $"your registered email";
+            // Use the ACTUAL email returned from the API for verification
+            email = response.Data.Email;
+            displayEmail = response.Data.Email;
             successMessage = "Verification code sent! Check your email.";
         }
         else

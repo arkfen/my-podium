@@ -10,7 +10,7 @@ public interface IPodiumApiClient
     Task<ApiResponse<RegisterVerificationResponse>> SendRegistrationVerificationAsync(string email, string username, string password, string preferredAuthMethod);
     Task<ApiResponse<RegisterResponse>> VerifyRegistrationAsync(string tempUserId, string otpCode);
     Task<ApiResponse<RegisterResponse>> RegisterAsync(string email, string username, string password, string preferredAuthMethod);
-    Task<ApiResponse<MessageResponse>> SendOtpAsync(string emailOrUsername);
+    Task<ApiResponse<SendOtpResponse>> SendOtpAsync(string emailOrUsername);
     Task<ApiResponse<AuthResponse>> VerifyOtpAsync(string email, string otpCode);
     Task<ApiResponse<AuthResponse>> SignInAsync(string emailOrUsername, string password);
     Task<ApiResponse<AuthResponse>> ValidateSessionAsync(string sessionId);
@@ -161,9 +161,9 @@ public class PodiumApiClient : IPodiumApiClient
             new { email, username, password, preferredAuthMethod });
     }
 
-    public async Task<ApiResponse<MessageResponse>> SendOtpAsync(string emailOrUsername)
+    public async Task<ApiResponse<SendOtpResponse>> SendOtpAsync(string emailOrUsername)
     {
-        return await PostAsync<MessageResponse>("/api/auth/send-otp", new { emailOrUsername });
+        return await PostAsync<SendOtpResponse>("/api/auth/send-otp", new { emailOrUsername });
     }
 
     public async Task<ApiResponse<AuthResponse>> VerifyOtpAsync(string email, string otpCode)
@@ -747,6 +747,7 @@ public class ApiResponse<T>
 
 public record RegisterVerificationResponse(string TempUserId, string Message);
 public record RegisterResponse(string UserId, string Message);
+public record SendOtpResponse(string Message, string Email);
 public record MessageResponse(string Message);
 public record AuthResponse(string UserId, string Username, string SessionId, string Message);
 public record PredictionResponse(string Message, Prediction Prediction);

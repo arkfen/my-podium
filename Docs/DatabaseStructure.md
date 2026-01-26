@@ -241,7 +241,7 @@ Stores active authentication sessions.
 ### 10. OTPCodes
 **Table Name:** `PodiumOTPCodes`
 
-Stores one-time passcodes for email authentication.
+Stores one-time passcodes for email authentication and registration verification.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -249,19 +249,47 @@ Stores one-time passcodes for email authentication.
 | RowKey | string | Unique OTP ID (GUID) |
 | Email | string | Email address |
 | Code | string | 6-digit OTP code |
-| UserId | string | User ID (links to Users.UserId) |
+| UserId | string | User ID (links to Users.UserId) or temp ID for registration |
 | ExpiryTime | DateTime | Code expiry time (10 minutes) |
 | IsUsed | bool | Whether code has been used |
+| IsRegistration | bool? | True if this is a registration verification code |
 | CreatedDate | DateTime | When code was generated |
 
 **Example:**
 - PartitionKey: "OTP"
 - RowKey: "g7h8i9j0-k1l2-3m4n-5o6p-7q8r9s0t1u2v"
 - Code: "123456"
+- IsRegistration: false
 
 ---
 
-### 11. Predictions
+### 11. PendingRegistrations
+**Table Name:** `PodiumPendingRegistrations`
+
+Stores pending user registrations awaiting email verification.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| PartitionKey | string | Fixed value: "PendingReg" |
+| RowKey | string | Temporary user ID (GUID) |
+| Email | string | Email address (normalized) |
+| Username | string | Chosen username |
+| NormalizedUsername | string | Normalized username for searches |
+| PasswordHash | string | Hashed password (if using password auth) |
+| PasswordSalt | string | Salt for password hash |
+| PreferredAuthMethod | string | "Email" or "Password" or "Both" |
+| CreatedDate | DateTime | When registration was initiated |
+| ExpiryTime | DateTime | Registration expiry time (30 minutes) |
+
+**Example:**
+- PartitionKey: "PendingReg"
+- RowKey: "h8i9j0k1-l2m3-4n5o-6p7q-8r9s0t1u2v3w"
+- Email: "newuser@example.com"
+- ExpiryTime: 30 minutes from creation
+
+---
+
+### 12. Predictions
 **Table Name:** `PodiumPredictions`
 
 Stores user predictions for events.
@@ -338,7 +366,7 @@ Stores aggregated user statistics per season.
 
 ---
 
-### 14. Admins
+### 15. Admins
 **Table Name:** `PodiumAdmins`
 
 Stores administrator privileges for users. Admins are regular users with elevated permissions.
