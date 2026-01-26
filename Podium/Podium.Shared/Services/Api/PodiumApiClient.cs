@@ -7,10 +7,12 @@ namespace Podium.Shared.Services.Api;
 public interface IPodiumApiClient
 {
     // Authentication
+    Task<ApiResponse<RegisterVerificationResponse>> SendRegistrationVerificationAsync(string email, string username, string password, string preferredAuthMethod);
+    Task<ApiResponse<RegisterResponse>> VerifyRegistrationAsync(string tempUserId, string otpCode);
     Task<ApiResponse<RegisterResponse>> RegisterAsync(string email, string username, string password, string preferredAuthMethod);
-    Task<ApiResponse<MessageResponse>> SendOtpAsync(string email);
+    Task<ApiResponse<MessageResponse>> SendOtpAsync(string emailOrUsername);
     Task<ApiResponse<AuthResponse>> VerifyOtpAsync(string email, string otpCode);
-    Task<ApiResponse<AuthResponse>> SignInAsync(string email, string password);
+    Task<ApiResponse<AuthResponse>> SignInAsync(string emailOrUsername, string password);
     Task<ApiResponse<AuthResponse>> ValidateSessionAsync(string sessionId);
     Task<ApiResponse<MessageResponse>> SignOutAsync(string sessionId);
 
@@ -141,15 +143,27 @@ public class PodiumApiClient : IPodiumApiClient
     }
 
     // Authentication
+    public async Task<ApiResponse<RegisterVerificationResponse>> SendRegistrationVerificationAsync(string email, string username, string password, string preferredAuthMethod)
+    {
+        return await PostAsync<RegisterVerificationResponse>("/api/auth/register/send-verification", 
+            new { email, username, password, preferredAuthMethod });
+    }
+
+    public async Task<ApiResponse<RegisterResponse>> VerifyRegistrationAsync(string tempUserId, string otpCode)
+    {
+        return await PostAsync<RegisterResponse>("/api/auth/register/verify", 
+            new { tempUserId, otpCode });
+    }
+
     public async Task<ApiResponse<RegisterResponse>> RegisterAsync(string email, string username, string password, string preferredAuthMethod)
     {
         return await PostAsync<RegisterResponse>("/api/auth/register", 
             new { email, username, password, preferredAuthMethod });
     }
 
-    public async Task<ApiResponse<MessageResponse>> SendOtpAsync(string email)
+    public async Task<ApiResponse<MessageResponse>> SendOtpAsync(string emailOrUsername)
     {
-        return await PostAsync<MessageResponse>("/api/auth/send-otp", new { email });
+        return await PostAsync<MessageResponse>("/api/auth/send-otp", new { emailOrUsername });
     }
 
     public async Task<ApiResponse<AuthResponse>> VerifyOtpAsync(string email, string otpCode)
@@ -157,9 +171,9 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<AuthResponse>("/api/auth/verify-otp", new { email, otpCode });
     }
 
-    public async Task<ApiResponse<AuthResponse>> SignInAsync(string email, string password)
+    public async Task<ApiResponse<AuthResponse>> SignInAsync(string emailOrUsername, string password)
     {
-        return await PostAsync<AuthResponse>("/api/auth/signin", new { email, password });
+        return await PostAsync<AuthResponse>("/api/auth/signin", new { emailOrUsername, password });
     }
 
     public async Task<ApiResponse<AuthResponse>> ValidateSessionAsync(string sessionId)
@@ -731,6 +745,7 @@ public class ApiResponse<T>
     public string? Error { get; set; }
 }
 
+public record RegisterVerificationResponse(string TempUserId, string Message);
 public record RegisterResponse(string UserId, string Message);
 public record MessageResponse(string Message);
 public record AuthResponse(string UserId, string Username, string SessionId, string Message);

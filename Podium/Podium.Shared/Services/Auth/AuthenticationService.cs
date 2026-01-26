@@ -2,16 +2,17 @@ using Azure;
 using Azure.Data.Tables;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Data;
+using Podium.Shared.Utilities;
 using System.Security.Cryptography;
 
 namespace Podium.Shared.Services.Auth;
 
 public interface IAuthenticationService
 {
-    Task<(bool Success, string ErrorMessage)> SendOTPAsync(string email);
+    Task<(bool Success, string ErrorMessage)> SendOTPAsync(string emailOrUsername);
     Task<(bool Success, string ErrorMessage)> SendOTPForNewEmailAsync(string email, string userId);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> VerifyOTPAsync(string email, string otpCode);
-    Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string email, string password);
+    Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string emailOrUsername, string password);
     Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> ValidateSessionAsync(string sessionId);
     Task SignOutAsync(string sessionId);
 }
@@ -19,32 +20,36 @@ public interface IAuthenticationService
 public class AuthenticationService : IAuthenticationService
 {
     private readonly ITableClientFactory _tableClientFactory;
+    private readonly IUserRepository _userRepository;
     private readonly Action<string, string>? _sendEmailCallback;
     private const string UsersTable = "PodiumUsers";
     private const string SessionsTable = "PodiumAuthSessions";
     private const string OTPTable = "PodiumOTPCodes";
 
-    public AuthenticationService(ITableClientFactory tableClientFactory, Action<string, string>? sendEmailCallback = null)
+    public AuthenticationService(ITableClientFactory tableClientFactory, IUserRepository userRepository, Action<string, string>? sendEmailCallback = null)
     {
         _tableClientFactory = tableClientFactory;
+        _userRepository = userRepository;
         _sendEmailCallback = sendEmailCallback;
     }
 
-    public async Task<(bool Success, string ErrorMessage)> SendOTPAsync(string email)
+    public async Task<(bool Success, string ErrorMessage)> SendOTPAsync(string emailOrUsername)
     {
-        // Check if user exists
-        var userClient = _tableClientFactory.GetTableClient(UsersTable);
+        // Try to find user by email or username
         User? user = null;
 
         try
         {
-            // Normalize email to lowercase for case-insensitive comparison
-            var normalizedEmail = email.ToLowerInvariant();
-            var filter = $"Email eq '{normalizedEmail}'";
-            await foreach (var entity in userClient.QueryAsync<TableEntity>(filter: filter))
+            // Try to determine if input is email or username
+            if (emailOrUsername.Contains("@"))
             {
-                user = MapToUser(entity);
-                break;
+                // It's likely an email
+                user = await _userRepository.GetUserByEmailAsync(emailOrUsername);
+            }
+            else
+            {
+                // It's likely a username - look up by username to get email
+                user = await _userRepository.GetUserByUsernameAsync(emailOrUsername);
             }
         }
         catch (RequestFailedException ex)
@@ -54,7 +59,19 @@ public class AuthenticationService : IAuthenticationService
 
         if (user == null)
         {
-            return (false, "Email not found. Please sign up first.");
+            return (false, "User not found. Please sign up first.");
+        }
+
+        // Check if user allows email OTP authentication
+        if (user.PreferredAuthMethod == "Password")
+        {
+            return (false, "Email code authentication is not enabled for this account. Please use password to sign in.");
+        }
+
+        // Check if user has an email (for password-only users who didn't provide email)
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return (false, "No email address associated with this account. Please use password to sign in.");
         }
 
         // Generate 6-digit OTP
@@ -64,7 +81,7 @@ public class AuthenticationService : IAuthenticationService
         var otpClient = _tableClientFactory.GetTableClient(OTPTable);
         var otpEntity = new TableEntity("OTP", Guid.NewGuid().ToString())
         {
-            ["Email"] = email.ToLowerInvariant(), // Store normalized email
+            ["Email"] = user.Email, // Use the normalized email from user record
             ["Code"] = otpCode,
             ["UserId"] = user.UserId,
             ["ExpiryTime"] = DateTime.UtcNow.AddMinutes(10),
@@ -86,7 +103,7 @@ public class AuthenticationService : IAuthenticationService
         {
             try
             {
-                _sendEmailCallback(email, otpCode);
+                _sendEmailCallback(user.Email, otpCode);
             }
             catch (Exception ex)
             {
@@ -97,7 +114,7 @@ public class AuthenticationService : IAuthenticationService
         else
         {
             // Fallback: Log to console (development)
-            Console.WriteLine($"OTP Code for {email}: {otpCode}");
+            Console.WriteLine($"OTP Code for {user.Email}: {otpCode}");
         }
 
         return (true, string.Empty);
@@ -191,12 +208,18 @@ public class AuthenticationService : IAuthenticationService
             var partitionKey = userId.Substring(0, 6);
             var rowKey = userId.Substring(6);
             var userResponse = await userClient.GetEntityAsync<TableEntity>(partitionKey, rowKey);
-            var username = userResponse.Value.GetString("Username") ?? string.Empty;
+            var user = MapToUser(userResponse.Value);
+
+            // Check if user allows email OTP authentication
+            if (user.PreferredAuthMethod == "Password")
+            {
+                return (false, string.Empty, string.Empty, string.Empty, "Email code authentication is not enabled for this account. Please use password to sign in.");
+            }
 
             // Create session with normalized email
-            var sessionId = await CreateSessionAsync(userId, normalizedEmail, username);
+            var sessionId = await CreateSessionAsync(user.UserId, normalizedEmail, user.Username);
 
-            return (true, userId, username, sessionId, string.Empty);
+            return (true, user.UserId, user.Username, sessionId, string.Empty);
         }
         catch (Exception ex)
         {
@@ -204,20 +227,22 @@ public class AuthenticationService : IAuthenticationService
         }
     }
 
-    public async Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string email, string password)
+    public async Task<(bool Success, string UserId, string Username, string SessionId, string ErrorMessage)> SignInWithPasswordAsync(string emailOrUsername, string password)
     {
-        var userClient = _tableClientFactory.GetTableClient(UsersTable);
         User? user = null;
 
         try
         {
-            // Normalize email to lowercase for case-insensitive comparison
-            var normalizedEmail = email.ToLowerInvariant();
-            var filter = $"Email eq '{normalizedEmail}'";
-            await foreach (var entity in userClient.QueryAsync<TableEntity>(filter: filter))
+            // Try to determine if input is email or username
+            if (emailOrUsername.Contains("@"))
             {
-                user = MapToUser(entity);
-                break;
+                // It's likely an email
+                user = await _userRepository.GetUserByEmailAsync(emailOrUsername);
+            }
+            else
+            {
+                // It's likely a username
+                user = await _userRepository.GetUserByUsernameAsync(emailOrUsername);
             }
         }
         catch (RequestFailedException ex)
@@ -227,13 +252,19 @@ public class AuthenticationService : IAuthenticationService
 
         if (user == null)
         {
-            return (false, string.Empty, string.Empty, string.Empty, "Invalid email or password.");
+            return (false, string.Empty, string.Empty, string.Empty, "Invalid credentials.");
+        }
+
+        // Check if user allows password authentication
+        if (user.PreferredAuthMethod == "Email")
+        {
+            return (false, string.Empty, string.Empty, string.Empty, "Password authentication is not enabled for this account. Please use email code to sign in.");
         }
 
         // Verify password
         if (!VerifyPassword(password, user.PasswordHash, user.PasswordSalt))
         {
-            return (false, string.Empty, string.Empty, string.Empty, "Invalid email or password.");
+            return (false, string.Empty, string.Empty, string.Empty, "Invalid credentials.");
         }
 
         // Create session
@@ -348,6 +379,7 @@ public class AuthenticationService : IAuthenticationService
             UserId = entity.GetString("UserId") ?? string.Empty,
             Email = entity.GetString("Email") ?? string.Empty,
             Username = entity.GetString("Username") ?? string.Empty,
+            NormalizedUsername = entity.GetString("NormalizedUsername") ?? string.Empty,
             PasswordHash = entity.GetString("PasswordHash") ?? string.Empty,
             PasswordSalt = entity.GetString("PasswordSalt") ?? string.Empty,
             PreferredAuthMethod = entity.GetString("PreferredAuthMethod") ?? "Both",

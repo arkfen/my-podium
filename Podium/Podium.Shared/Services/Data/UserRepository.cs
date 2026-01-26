@@ -1,12 +1,14 @@
 using Azure;
 using Azure.Data.Tables;
 using Podium.Shared.Models;
+using Podium.Shared.Utilities;
 
 namespace Podium.Shared.Services.Data;
 
 public interface IUserRepository
 {
     Task<User?> GetUserByEmailAsync(string email);
+    Task<User?> GetUserByUsernameAsync(string username);
     Task<User?> GetUserByIdAsync(string userId);
     Task<bool> CreateUserAsync(User user);
     Task<bool> UpdateLastLoginAsync(string userId);
@@ -36,6 +38,28 @@ public class UserRepository : IUserRepository
             // Normalize email to lowercase for case-insensitive comparison
             var normalizedEmail = email.ToLowerInvariant();
             var filter = $"Email eq '{normalizedEmail}'";
+            await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
+            {
+                return MapToUser(entity);
+            }
+        }
+        catch (RequestFailedException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    public async Task<User?> GetUserByUsernameAsync(string username)
+    {
+        var tableClient = _tableClientFactory.GetTableClient(TableName);
+
+        try
+        {
+            // Normalize username to lowercase for case-insensitive comparison
+            var normalizedUsername = InputValidator.NormalizeUsername(username);
+            var filter = $"NormalizedUsername eq '{normalizedUsername}'";
             await foreach (var entity in tableClient.QueryAsync<TableEntity>(filter: filter))
             {
                 return MapToUser(entity);
@@ -89,6 +113,7 @@ public class UserRepository : IUserRepository
                 ["UserId"] = user.UserId,
                 ["Email"] = user.Email.ToLowerInvariant(), // Store email in lowercase
                 ["Username"] = user.Username,
+                ["NormalizedUsername"] = user.NormalizedUsername, // Store normalized username for lookups
                 ["PasswordHash"] = user.PasswordHash,
                 ["PasswordSalt"] = user.PasswordSalt,
                 ["PreferredAuthMethod"] = user.PreferredAuthMethod,
@@ -201,6 +226,7 @@ public class UserRepository : IUserRepository
                 ["UserId"] = user.UserId,
                 ["Email"] = user.Email.ToLowerInvariant(),
                 ["Username"] = user.Username,
+                ["NormalizedUsername"] = user.NormalizedUsername,
                 ["PasswordHash"] = user.PasswordHash,
                 ["PasswordSalt"] = user.PasswordSalt,
                 ["PreferredAuthMethod"] = user.PreferredAuthMethod,
@@ -283,6 +309,7 @@ public class UserRepository : IUserRepository
             UserId = entity.GetString("UserId") ?? string.Empty,
             Email = entity.GetString("Email") ?? string.Empty,
             Username = entity.GetString("Username") ?? string.Empty,
+            NormalizedUsername = entity.GetString("NormalizedUsername") ?? string.Empty,
             PasswordHash = entity.GetString("PasswordHash") ?? string.Empty,
             PasswordSalt = entity.GetString("PasswordSalt") ?? string.Empty,
             PreferredAuthMethod = entity.GetString("PreferredAuthMethod") ?? "Both",

@@ -34,8 +34,8 @@
         {
             <div class="auth-form">
                 <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" class="form-control" @bind="email" placeholder="your@email.com" />
+                    <label>Email or Username</label>
+                    <input type="text" class="form-control" @bind="emailOrUsername" placeholder="your@email.com or username" />
                 </div>
 
                 <div class="form-group">
@@ -61,8 +61,8 @@
             {
                 <div class="auth-form">
                     <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" class="form-control" @bind="email" placeholder="your@email.com" />
+                        <label>Email or Username</label>
+                        <input type="text" class="form-control" @bind="emailOrUsernameForOtp" placeholder="your@email.com or username" />
                     </div>
 
                     <button class="btn btn-primary w-100" @onclick="SendOtp" disabled="@isLoading">
@@ -80,7 +80,7 @@
             else
             {
                 <div class="auth-form">
-                    <p class="text-center">We've sent a verification code to <strong>@email</strong></p>
+                    <p class="text-center">We've sent a verification code to <strong>@displayEmail</strong></p>
 
                     <div class="form-group">
                         <label>Verification Code</label>
@@ -110,85 +110,91 @@
 </div>
 
 @code {
-    private string authMethod = "password";
-    private string email = "";
-    private string password = "";
-    private string otpCode = "";
-    private bool otpSent = false;
-    private bool isLoading = false;
-    private string? errorMessage;
-    private string? successMessage;
+private string authMethod = "password";
+private string emailOrUsername = "";
+private string emailOrUsernameForOtp = "";
+private string email = "";
+private string password = "";
+private string otpCode = "";
+private bool otpSent = false;
+private bool isLoading = false;
+private string? errorMessage;
+private string? successMessage;
+private string displayEmail = ""; // For showing which email received the code
 
-    private async Task SignInWithPassword()
+private async Task SignInWithPassword()
+{
+    errorMessage = null;
+    successMessage = null;
+
+    if (string.IsNullOrWhiteSpace(emailOrUsername) || string.IsNullOrWhiteSpace(password))
     {
-        errorMessage = null;
-        successMessage = null;
-
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-        {
-            errorMessage = "Please enter both email and password.";
-            return;
-        }
-
-        isLoading = true;
-        try
-        {
-            var response = await ApiClient.SignInAsync(email, password);
-            if (response.Success && response.Data != null)
-            {
-                // Use the sessionId returned from API
-                await AuthState.SetAuthStateAsync(response.Data.UserId, response.Data.Username, response.Data.SessionId);
-                Navigation.NavigateTo("/");
-            }
-            else
-            {
-                errorMessage = response.Error ?? "Sign in failed. Please try again.";
-            }
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        errorMessage = "Please enter both email/username and password.";
+        return;
     }
 
-    private async Task SendOtp()
+    isLoading = true;
+    try
     {
-        errorMessage = null;
-        successMessage = null;
-
-        if (string.IsNullOrWhiteSpace(email))
+        var response = await ApiClient.SignInAsync(emailOrUsername, password);
+        if (response.Success && response.Data != null)
         {
-            errorMessage = "Please enter your email address.";
-            return;
+            // Use the sessionId returned from API
+            await AuthState.SetAuthStateAsync(response.Data.UserId, response.Data.Username, response.Data.SessionId);
+            Navigation.NavigateTo("/");
         }
-
-        isLoading = true;
-        try
+        else
         {
-            var response = await ApiClient.SendOtpAsync(email);
-            if (response.Success)
-            {
-                otpSent = true;
-                successMessage = "Verification code sent! Check your email.";
-            }
-            else
-            {
-                errorMessage = response.Error ?? "Failed to send code. Please try again.";
-            }
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
+            errorMessage = response.Error ?? "Sign in failed. Please try again.";
         }
     }
+    catch (Exception ex)
+    {
+        errorMessage = $"Error: {ex.Message}";
+    }
+    finally
+    {
+        isLoading = false;
+    }
+}
+
+private async Task SendOtp()
+{
+    errorMessage = null;
+    successMessage = null;
+
+    if (string.IsNullOrWhiteSpace(emailOrUsernameForOtp))
+    {
+        errorMessage = "Please enter your email or username.";
+        return;
+    }
+
+    isLoading = true;
+    try
+    {
+        var response = await ApiClient.SendOtpAsync(emailOrUsernameForOtp);
+        if (response.Success)
+        {
+            otpSent = true;
+            // Store the input for display and verification
+            email = emailOrUsernameForOtp;
+            displayEmail = emailOrUsernameForOtp.Contains("@") ? emailOrUsernameForOtp : $"your registered email";
+            successMessage = "Verification code sent! Check your email.";
+        }
+        else
+        {
+            errorMessage = response.Error ?? "Failed to send code. Please try again.";
+        }
+    }
+    catch (Exception ex)
+    {
+        errorMessage = $"Error: {ex.Message}";
+    }
+    finally
+    {
+        isLoading = false;
+    }
+}
 
     private async Task VerifyOtp()
     {

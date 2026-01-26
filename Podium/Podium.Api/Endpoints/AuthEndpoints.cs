@@ -10,7 +10,45 @@ public static class AuthEndpoints
     {
         var group = app.MapGroup("/api/auth").WithTags("Authentication");
 
-        // Register new user
+        // Send registration verification email
+        group.MapPost("/register/send-verification", async (
+            [FromBody] RegisterRequest request,
+            [FromServices] IRegistrationService registrationService) =>
+        {
+            var (success, tempUserId, errorMessage) = await registrationService.SendRegistrationVerificationAsync(
+                request.Email, 
+                request.Username, 
+                request.Password, 
+                request.PreferredAuthMethod);
+
+            if (!success)
+            {
+                return Results.BadRequest(new { error = errorMessage });
+            }
+
+            return Results.Ok(new { tempUserId, message = "Verification code sent to your email" });
+        })
+        .WithName("SendRegistrationVerification");
+
+        // Verify email and complete registration
+        group.MapPost("/register/verify", async (
+            [FromBody] VerifyRegistrationRequest request,
+            [FromServices] IRegistrationService registrationService) =>
+        {
+            var (success, userId, errorMessage) = await registrationService.VerifyAndCompleteRegistrationAsync(
+                request.TempUserId, 
+                request.OtpCode);
+
+            if (!success)
+            {
+                return Results.BadRequest(new { error = errorMessage });
+            }
+
+            return Results.Ok(new { userId, message = "Registration successful" });
+        })
+        .WithName("VerifyRegistration");
+
+        // Register new user (direct registration without email verification - for password-only without email)
         group.MapPost("/register", async (
             [FromBody] RegisterRequest request,
             [FromServices] IRegistrationService registrationService) =>
@@ -35,7 +73,7 @@ public static class AuthEndpoints
             [FromBody] SendOtpRequest request,
             [FromServices] IAuthenticationService authService) =>
         {
-            var (success, errorMessage) = await authService.SendOTPAsync(request.Email);
+            var (success, errorMessage) = await authService.SendOTPAsync(request.EmailOrUsername);
 
             if (!success)
             {
@@ -70,7 +108,7 @@ public static class AuthEndpoints
             [FromServices] IAuthenticationService authService) =>
         {
             var (success, userId, username, sessionId, errorMessage) = await authService.SignInWithPasswordAsync(
-                request.Email, 
+                request.EmailOrUsername, 
                 request.Password);
 
             if (!success)
@@ -113,8 +151,9 @@ public static class AuthEndpoints
 
 // Request DTOs
 public record RegisterRequest(string Email, string Username, string Password, string PreferredAuthMethod);
-public record SendOtpRequest(string Email);
+public record VerifyRegistrationRequest(string TempUserId, string OtpCode);
+public record SendOtpRequest(string EmailOrUsername);
 public record VerifyOtpRequest(string Email, string OtpCode);
-public record SignInRequest(string Email, string Password);
+public record SignInRequest(string EmailOrUsername, string Password);
 public record ValidateSessionRequest(string SessionId);
 public record SignOutRequest(string SessionId);

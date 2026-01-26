@@ -201,6 +201,7 @@ Stores user accounts.
 | UserId | string | Full unique user ID (GUID) |
 | Email | string | User email (unique) |
 | Username | string | Display username |
+| NormalizedUsername | string | Normalized username for searches |
 | PasswordHash | string | Hashed password (if using password auth) |
 | PasswordSalt | string | Salt for password hash |
 | PreferredAuthMethod | string | "Email" or "Password" or "Both" |

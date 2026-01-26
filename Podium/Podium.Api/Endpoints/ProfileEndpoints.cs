@@ -3,6 +3,7 @@ using Podium.Api.Middleware;
 using Podium.Shared.Models;
 using Podium.Shared.Services.Auth;
 using Podium.Shared.Services.Data;
+using Podium.Shared.Utilities;
 
 namespace Podium.Api.Endpoints;
 
@@ -59,10 +60,17 @@ public static class ProfileEndpoints
                 return Results.BadRequest(new { error = verified.Error });
 
             // Validate username
-            if (string.IsNullOrWhiteSpace(request.NewUsername) || request.NewUsername.Length < 3)
-                return Results.BadRequest(new { error = "Username must be at least 3 characters" });
+            var (usernameValid, usernameError) = InputValidator.ValidateUsername(request.NewUsername);
+            if (!usernameValid)
+                return Results.BadRequest(new { error = usernameError });
+
+            // Check if username is already taken
+            var existingUser = await userRepository.GetUserByUsernameAsync(request.NewUsername);
+            if (existingUser != null && existingUser.UserId != userId)
+                return Results.BadRequest(new { error = "Username already taken" });
 
             user.Username = request.NewUsername;
+            user.NormalizedUsername = InputValidator.NormalizeUsername(request.NewUsername);
             var success = await userRepository.UpdateUserAsync(user);
             if (!success)
                 return Results.BadRequest(new { error = "Failed to update username" });

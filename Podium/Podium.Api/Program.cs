@@ -90,6 +90,7 @@ builder.Services.AddScoped<IStatisticsRecalculationService, StatisticsRecalculat
 builder.Services.AddScoped<IAuthenticationService>(sp =>
 {
     var tableClientFactory = sp.GetRequiredService<ITableClientFactory>();
+    var userRepository = sp.GetRequiredService<IUserRepository>();
     var emailService = sp.GetService<IEmailService>();
     
     Action<string, string>? emailCallback = null;
@@ -101,10 +102,26 @@ builder.Services.AddScoped<IAuthenticationService>(sp =>
         };
     }
     
-    return new AuthenticationService(tableClientFactory, emailCallback);
+    return new AuthenticationService(tableClientFactory, userRepository, emailCallback);
 });
 
-builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<IRegistrationService>(sp =>
+{
+    var userRepository = sp.GetRequiredService<IUserRepository>();
+    var tableClientFactory = sp.GetRequiredService<ITableClientFactory>();
+    var emailService = sp.GetService<IEmailService>();
+    
+    Action<string, string>? emailCallback = null;
+    if (emailService != null)
+    {
+        emailCallback = (email, code) => 
+        {
+            _ = emailService.SendVerificationEmailAsync(email, code);
+        };
+    }
+    
+    return new RegistrationService(userRepository, tableClientFactory, emailCallback);
+});
 
 var app = builder.Build();
 
