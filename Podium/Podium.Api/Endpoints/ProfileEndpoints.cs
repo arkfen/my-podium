@@ -292,31 +292,64 @@ public static class ProfileEndpoints
     {
         var hasPassword = !string.IsNullOrEmpty(user.PasswordHash);
         var hasEmail = !string.IsNullOrEmpty(user.Email);
+        
+        // Check if password authentication is enabled in user's preferred auth method
+        var passwordAuthEnabled = user.PreferredAuthMethod == "Password" || user.PreferredAuthMethod == "Both";
+        // Check if email authentication is enabled in user's preferred auth method
+        var emailAuthEnabled = user.PreferredAuthMethod == "Email" || user.PreferredAuthMethod == "Both";
 
-        // If password provided and user has password
-        if (!string.IsNullOrEmpty(password) && hasPassword)
+        // If password provided
+        if (!string.IsNullOrEmpty(password))
         {
-            var (success, _, _, _, error) = await authService.SignInWithPasswordAsync(user.Email, password);
-            if (success)
-                return (true, string.Empty);
-            return (false, "Invalid password");
+            // Check if user has password AND password auth is enabled
+            if (hasPassword && passwordAuthEnabled)
+            {
+                var (success, _, _, _, error) = await authService.SignInWithPasswordAsync(user.Email, password);
+                if (success)
+                    return (true, string.Empty);
+                return (false, "Invalid password");
+            }
+            // User provided password but password auth is not enabled
+            else if (hasPassword && !passwordAuthEnabled)
+            {
+                return (false, "Password authentication is not enabled for your account. Please use the verification code sent to your email.");
+            }
+            // User doesn't have a password set
+            else
+            {
+                return (false, "No password is set for your account. Please use the verification code sent to your email.");
+            }
         }
 
-        // If OTP provided and user has email
-        if (!string.IsNullOrEmpty(otpCode) && hasEmail)
+        // If OTP provided
+        if (!string.IsNullOrEmpty(otpCode))
         {
-            var (success, _, _, _, error) = await authService.VerifyOTPAsync(user.Email, otpCode);
-            if (success)
-                return (true, string.Empty);
-            return (false, "Invalid or expired verification code");
+            // Check if user has email AND email auth is enabled
+            if (hasEmail && emailAuthEnabled)
+            {
+                var (success, _, _, _, error) = await authService.VerifyOTPAsync(user.Email, otpCode);
+                if (success)
+                    return (true, string.Empty);
+                return (false, "Invalid or expired verification code");
+            }
+            // User provided OTP but email auth is not enabled
+            else if (hasEmail && !emailAuthEnabled)
+            {
+                return (false, "Email code authentication is not enabled for your account. Please use your password.");
+            }
+            // User doesn't have email set
+            else
+            {
+                return (false, "No email is set for your account. Please use your password.");
+            }
         }
 
-        // No valid verification provided
-        if (hasPassword && hasEmail)
+        // No verification provided - tell user what they can use
+        if (passwordAuthEnabled && emailAuthEnabled)
             return (false, "Please provide your password or verification code");
-        else if (hasPassword)
+        else if (passwordAuthEnabled)
             return (false, "Please provide your password");
-        else if (hasEmail)
+        else if (emailAuthEnabled)
             return (false, "Please provide the verification code");
         else
             return (false, "Unable to verify identity");
