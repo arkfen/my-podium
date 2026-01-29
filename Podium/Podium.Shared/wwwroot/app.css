@@ -1432,10 +1432,11 @@ input[type="number"].form-control {
     font-size: 1.25rem;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.5rem;
 }
 
 .favorites-section .manage-link {
+    margin-left: auto;
     font-size: 0.875rem;
     font-weight: 500;
     color: var(--primary-color);
