@@ -1,7 +1,10 @@
 ﻿@page "/"
 @using Podium.Shared.Services.State
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Models
 @inject AuthStateService AuthState
 @inject NavigationManager Navigation
+@inject IPodiumApiClient ApiClient
 
 <PageTitle>Podium - Predict & Win</PageTitle>
 
@@ -12,6 +15,25 @@
             <h1>Welcome back, @AuthState.Username!</h1>
             <p>Ready to make your predictions?</p>
         </div>
+
+        @if (favoriteSeasons.Count > 0)
+        {
+            <div class="favorites-section">
+                <h2>
+                    <span class="card-icon">⭐</span> Your Favorite Seasons
+                    <a href="/settings/favorites" class="manage-link">Manage</a>
+                </h2>
+                <div class="favorites-quick-links">
+                    @foreach (var favorite in favoriteSeasons)
+                    {
+                        <div class="favorite-link" @onclick="() => NavigateToSeason(favorite.SeasonId)">
+                            <h4>@favorite.SeriesName</h4>
+                            <p>@favorite.SeasonName (@favorite.Year)</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
 
         <div class="quick-actions">
             <a href="/disciplines" class="action-card">
@@ -62,9 +84,38 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private List<FavoriteSeason> favoriteSeasons = new();
+
+    protected override async Task OnInitializedAsync()
     {
         AuthState.OnAuthStateChanged += StateHasChanged;
+
+        if (AuthState.IsAuthenticated)
+        {
+            await LoadFavoriteSeasons();
+        }
+    }
+
+    private async Task LoadFavoriteSeasons()
+    {
+        try
+        {
+            var response = await ApiClient.GetFavoriteSeasonsAsync();
+            if (response.Success && response.Data != null)
+            {
+                favoriteSeasons = response.Data;
+            }
+        }
+        catch
+        {
+            // Silently fail - favorites are optional
+        }
+    }
+
+    private void NavigateToSeason(string seasonId)
+    {
+        // Navigate to events page for the season
+        Navigation.NavigateTo($"/season/{seasonId}/events");
     }
 
     public void Dispose()

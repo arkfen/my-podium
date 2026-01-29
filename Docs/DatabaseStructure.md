@@ -402,6 +402,36 @@ Stores administrator privileges for users. Admins are regular users with elevate
 
 ---
 
+### 16. FavoriteSeasons
+**Table Name:** `PodiumFavoriteSeasons`
+
+Stores users' favorite seasons for quick access on the predictions page.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| PartitionKey | string | User ID (links to Users.UserId) |
+| RowKey | string | Season ID (links to Seasons.RowKey) |
+| UserId | string | User ID (redundant for easier queries) |
+| SeasonId | string | Season ID (redundant) |
+| SeasonName | string | Season name (denormalized) |
+| SeriesName | string | Series name (denormalized) |
+| Year | int | Season year |
+| AddedDate | DateTime | When season was added to favorites |
+
+**Example:**
+- PartitionKey: "e5f6g7h8i9j0-k1l2-3m4n-5o6p-7q8r9s0t1u2v"
+- RowKey: "b2c3d4e5-f6g7-8h9i-0j1k-2l3m4n5o6p7q"
+- SeasonName: "2025 Season"
+- SeriesName: "Formula 1"
+- Year: 2025
+
+**Usage:**
+- Users can mark up to 5 seasons as favorites
+- Favorite seasons appear as quick links on predictions page
+- Allows quick navigation to frequently predicted seasons
+
+---
+
 ## Future Enhancements
 
 Potential future additions:

@@ -81,6 +81,7 @@ builder.Services.AddScoped<ILeaderboardRepository, LeaderboardRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IScoringRulesRepository, ScoringRulesRepository>();
 builder.Services.AddScoped<IStatisticsJobRepository, StatisticsJobRepository>();
+builder.Services.AddScoped<IFavoriteSeasonRepository, FavoriteSeasonRepository>();
 
 // Register business services
 builder.Services.AddScoped<IScoringService, ScoringService>();
@@ -140,5 +141,6 @@ app.MapSportEndpoints();
 app.MapPredictionEndpoints();
 app.MapLeaderboardEndpoints();
 app.MapAdminEndpoints();
+app.MapFavoriteSeasonEndpoints();
 
 app.Run();

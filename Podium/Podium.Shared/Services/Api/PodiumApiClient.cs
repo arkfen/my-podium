@@ -131,6 +131,12 @@ public interface IPodiumApiClient
     Task<ApiResponse<MessageResponse>> SendEmailUpdateOtpAsync(string newEmail);
     Task<ApiResponse<MessageResponse>> ConfirmEmailUpdateAsync(ConfirmEmailUpdateRequest request);
     Task<ApiResponse<MessageResponse>> SendPasswordSetupOtpAsync();
+
+    // Favorite Seasons
+    Task<ApiResponse<List<FavoriteSeason>>> GetFavoriteSeasonsAsync();
+    Task<ApiResponse<MessageResponse>> AddFavoriteSeasonAsync(string seasonId, string seasonName, string seriesName, int year);
+    Task<ApiResponse<MessageResponse>> RemoveFavoriteSeasonAsync(string seasonId);
+    Task<ApiResponse<CheckFavoriteResponse>> CheckFavoriteSeasonAsync(string seasonId);
 }
 
 public class PodiumApiClient : IPodiumApiClient
@@ -632,6 +638,28 @@ public class PodiumApiClient : IPodiumApiClient
         return await PostAsync<MessageResponse>("/api/profile/password/send-otp", new { });
     }
 
+    // Favorite Seasons
+    public async Task<ApiResponse<List<FavoriteSeason>>> GetFavoriteSeasonsAsync()
+    {
+        return await GetAsync<List<FavoriteSeason>>("/api/favorites/seasons");
+    }
+
+    public async Task<ApiResponse<MessageResponse>> AddFavoriteSeasonAsync(string seasonId, string seasonName, string seriesName, int year)
+    {
+        return await PostAsync<MessageResponse>($"/api/favorites/seasons/{seasonId}", 
+            new { seasonName, seriesName, year });
+    }
+
+    public async Task<ApiResponse<MessageResponse>> RemoveFavoriteSeasonAsync(string seasonId)
+    {
+        return await DeleteAsync<MessageResponse>($"/api/favorites/seasons/{seasonId}");
+    }
+
+    public async Task<ApiResponse<CheckFavoriteResponse>> CheckFavoriteSeasonAsync(string seasonId)
+    {
+        return await GetAsync<CheckFavoriteResponse>($"/api/favorites/seasons/{seasonId}/check");
+    }
+
     // Helper methods
     private async Task<ApiResponse<T>> GetAsync<T>(string url)
     {
@@ -808,3 +836,6 @@ public record UpdateUsernameRequest(string NewUsername, string? Password, string
 public record UpdateAuthMethodRequest(string NewAuthMethod, string? Password, string? OtpCode);
 public record UpdatePasswordRequest(string? OldPassword, string? OtpCode, string NewPassword);
 public record ConfirmEmailUpdateRequest(string NewEmail, string OtpCode);
+
+// Favorite Season DTOs
+public record CheckFavoriteResponse(bool IsFavorite);

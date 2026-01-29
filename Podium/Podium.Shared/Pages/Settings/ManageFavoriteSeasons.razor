@@ -1,0 +1,336 @@
+@page "/settings/favorites"
+@using Podium.Shared.Services.Api
+@using Podium.Shared.Services.State
+@using Podium.Shared.Models
+@using Microsoft.JSInterop
+@inject IPodiumApiClient ApiClient
+@inject AuthStateService AuthState
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Manage Favorite Seasons - Podium</PageTitle>
+
+<div class="settings-container">
+    <div class="settings-header">
+        <a href="/settings" class="back-link">&larr; Back to Settings</a>
+        <h1>Manage Favorite Seasons</h1>
+        <p>Select up to 5 favorite seasons for quick access on the predictions page</p>
+    </div>
+
+    @if (!AuthState.IsAuthenticated)
+    {
+        <div class="alert alert-danger">
+            Please sign in to manage your favorite seasons.
+        </div>
+    }
+    else if (isLoading)
+    {
+        <div class="loading-spinner">
+            <p>Loading...</p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="alert alert-success">@successMessage</div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        @if (favoriteSeasons.Count > 0)
+        {
+            <div class="favorites-section">
+                <h3>Your Favorite Seasons (@favoriteSeasons.Count/5)</h3>
+                <div class="favorites-list">
+                    @foreach (var favorite in favoriteSeasons)
+                    {
+                        <div class="favorite-item">
+                            <div class="favorite-info">
+                                <h4>@favorite.SeriesName</h4>
+                                <p>@favorite.SeasonName (@favorite.Year)</p>
+                            </div>
+                            <button class="btn btn-danger btn-sm" @onclick="() => RemoveFavorite(favorite.SeasonId)" disabled="@isRemoving">
+                                Remove
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                You haven't added any favorite seasons yet. Browse seasons and add your favorites!
+            </div>
+        }
+
+        @if (favoriteSeasons.Count < 5)
+        {
+            <div class="add-favorite-section">
+                <h3>Add Favorite Season</h3>
+                <p>Browse through disciplines and series to find seasons to add to your favorites.</p>
+                
+                <div class="form-group">
+                    <label>Select Discipline</label>
+                    <select class="form-control" @onchange="OnDisciplineSelected" value="@selectedDisciplineId">
+                        <option value="">-- Select Discipline --</option>
+                        @foreach (var discipline in disciplines)
+                        {
+                            <option value="@discipline.Id">@discipline.DisplayName</option>
+                        }
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(selectedDisciplineId))
+                {
+                    <div class="form-group">
+                        <label>Select Series</label>
+                        <select class="form-control" @onchange="OnSeriesSelected" value="@selectedSeriesId">
+                            <option value="">-- Select Series --</option>
+                            @foreach (var series in seriesList)
+                            {
+                                <option value="@series.Id">@series.DisplayName</option>
+                            }
+                        </select>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(selectedSeriesId))
+                {
+                    <div class="form-group">
+                        <label>Select Season</label>
+                        @if (isLoadingSeasons)
+                        {
+                            <p>Loading seasons...</p>
+                        }
+                        else if (seasonsList.Count == 0)
+                        {
+                            <p>No seasons available for this series.</p>
+                        }
+                        else
+                        {
+                            <div class="seasons-grid">
+                                @foreach (var season in seasonsList)
+                                {
+                                    var isFavorited = favoriteSeasons.Any(f => f.SeasonId == season.Id);
+                                    <div class="season-card @(isFavorited ? "favorited" : "clickable")" 
+                                         @onclick="() => AddFavorite(season)" 
+                                         style="@(isFavorited || isAdding ? "cursor: default;" : "cursor: pointer;")">
+                                        <h4>@season.Name</h4>
+                                        <p>@season.Year</p>
+                                        @if (isFavorited)
+                                        {
+                                            <span class="badge">Already Favorite</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="add-icon">+ Add</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<FavoriteSeason> favoriteSeasons = new();
+    private List<Discipline> disciplines = new();
+    private List<Series> seriesList = new();
+    private List<Season> seasonsList = new();
+    
+    private string selectedDisciplineId = "";
+    private string selectedSeriesId = "";
+    private string? currentSeriesName;
+    
+    private bool isLoading = true;
+    private bool isLoadingSeasons = false;
+    private bool isAdding = false;
+    private bool isRemoving = false;
+    private string? successMessage;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // Load favorite seasons
+            var favoritesResponse = await ApiClient.GetFavoriteSeasonsAsync();
+            if (favoritesResponse.Success && favoritesResponse.Data != null)
+            {
+                favoriteSeasons = favoritesResponse.Data;
+            }
+
+            // Load disciplines
+            var disciplinesResponse = await ApiClient.GetDisciplinesAsync();
+            if (disciplinesResponse.Success && disciplinesResponse.Data != null)
+            {
+                disciplines = disciplinesResponse.Data;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OnDisciplineSelected(ChangeEventArgs e)
+    {
+        selectedDisciplineId = e.Value?.ToString() ?? "";
+        selectedSeriesId = "";
+        seriesList = new();
+        seasonsList = new();
+        currentSeriesName = null;
+
+        if (!string.IsNullOrEmpty(selectedDisciplineId))
+        {
+            try
+            {
+                var response = await ApiClient.GetSeriesAsync(selectedDisciplineId);
+                if (response.Success && response.Data != null)
+                {
+                    seriesList = response.Data;
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error loading series: {ex.Message}";
+            }
+        }
+    }
+
+    private async Task OnSeriesSelected(ChangeEventArgs e)
+    {
+        selectedSeriesId = e.Value?.ToString() ?? "";
+        seasonsList = new();
+        
+        if (!string.IsNullOrEmpty(selectedSeriesId))
+        {
+            isLoadingSeasons = true;
+            
+            // Get series name
+            var selectedSeries = seriesList.FirstOrDefault(s => s.Id == selectedSeriesId);
+            currentSeriesName = selectedSeries?.DisplayName ?? "";
+
+            try
+            {
+                var response = await ApiClient.GetSeasonsAsync(selectedSeriesId);
+                if (response.Success && response.Data != null)
+                {
+                    seasonsList = response.Data;
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error loading seasons: {ex.Message}";
+            }
+            finally
+            {
+                isLoadingSeasons = false;
+            }
+        }
+    }
+
+    private async Task AddFavorite(Season season)
+    {
+        if (isAdding || favoriteSeasons.Count >= 5)
+            return;
+
+        // Check if already favorited
+        if (favoriteSeasons.Any(f => f.SeasonId == season.Id))
+            return;
+
+        isAdding = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var response = await ApiClient.AddFavoriteSeasonAsync(
+                season.Id, 
+                season.Name, 
+                currentSeriesName ?? "", 
+                season.Year);
+                
+            if (response.Success)
+            {
+                successMessage = $"{season.Name} added to favorites!";
+                await LoadData();
+                
+                // Scroll to top to show the added favorite
+                try
+                {
+                    await JSRuntime.InvokeVoidAsync("window.scrollTo", new { top = 0, behavior = "smooth" });
+                }
+                catch
+                {
+                    // Ignore JS interop errors
+                }
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to add favorite season.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isAdding = false;
+        }
+    }
+
+    private async Task RemoveFavorite(string seasonId)
+    {
+        if (isRemoving)
+            return;
+
+        isRemoving = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            var response = await ApiClient.RemoveFavoriteSeasonAsync(seasonId);
+            if (response.Success)
+            {
+                successMessage = "Season removed from favorites.";
+                await LoadData();
+            }
+            else
+            {
+                errorMessage = response.Error ?? "Failed to remove favorite season.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isRemoving = false;
+        }
+    }
+}
